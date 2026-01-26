@@ -19,4 +19,4 @@ jobs:
         with:
           app-name: "competencytracker"
           publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE }}
-          package: backend
+          package: .
