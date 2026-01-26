@@ -1,0 +1,26 @@
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--cov=app",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+    "--cov-fail-under=75",
+    "-v"
+]
+testpaths = ["tests"]
+markers = [
+    "unit: Unit tests - fast, isolated",
+    "integration: Integration tests - database operations", 
+    "api: API tests - full HTTP request/response cycle",
+    "slow: Slow tests - longer running operations"
+]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+filterwarnings = [
+    "ignore::UserWarning",
+    "ignore::DeprecationWarning"
+]
