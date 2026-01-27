@@ -1,5 +1,5 @@
 // Dropdown API service for dashboard filters
-const API_BASE_URL = 'http://localhost:8000/api';
+import { API_BASE_URL } from '../../config/apiConfig.js';
 
 export const dropdownApi = {
   // Get all sub-segments

@@ -1,12 +1,9 @@
 // HTTP client wrapper for API calls
-// TODO: Configure base URL from environment variables
+import { API_BASE_URL } from '../../config/apiConfig.js';
 
-const BASE_URL = 'http://127.0.0.1:8000/api';
-
-class HttpClient {
-  async get(endpoint, params = {}) {
+class HttpClient {  async get(endpoint, params = {}) {
     try {
-      const url = new URL(`${BASE_URL}${endpoint}`);
+      const url = new URL(`${API_BASE_URL}${endpoint}`);
       Object.keys(params).forEach(key => {
         if (params[key] !== undefined && params[key] !== null) {
           url.searchParams.append(key, params[key]);
@@ -23,10 +20,9 @@ class HttpClient {
       throw error;
     }
   }
-
   async post(endpoint, data = {}) {
     try {
-      const response = await fetch(`${BASE_URL}${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -43,10 +39,9 @@ class HttpClient {
       throw error;
     }
   }
-
   async put(endpoint, data = {}) {
     try {
-      const response = await fetch(`${BASE_URL}${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -63,10 +58,9 @@ class HttpClient {
       throw error;
     }
   }
-
   async delete(endpoint) {
     try {
-      const response = await fetch(`${BASE_URL}${endpoint}`, {
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
         method: 'DELETE',
       });
       
