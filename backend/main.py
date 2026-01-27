@@ -38,7 +38,10 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Configure appropriately for production
+    allow_origins=[
+        "http://localhost:5173",  # local Vite dev
+        "https://thankful-sand-04d55ff00.6.azurestaticapps.net",  # your SWA
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
