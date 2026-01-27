@@ -4,6 +4,12 @@
  * Driven by VITE_API_BASE_URL environment variable.
  */
 
-const API_BASE_URL = `${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'}/api`;
+const base = import.meta.env.VITE_API_BASE_URL;
 
-export { API_BASE_URL };
+if (!base) {
+  throw new Error(
+    "VITE_API_BASE_URL is not set. Set it in Azure Static Web Apps > Environment variables."
+  );
+}
+
+export const API_BASE_URL = `${base}/api`;
