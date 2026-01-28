@@ -3,6 +3,7 @@
  * Provides skills and roles data for the Advanced Query page.
  */
 import httpClient from './httpClient.js';
+import { API_BASE_URL } from '../../config/apiConfig.js';
 
 export const capabilityFinderApi = {
   /**
@@ -50,6 +51,36 @@ export const capabilityFinderApi = {
       return response;
     } catch (error) {
       console.error('Failed to search matching talent:', error);
+      throw error;
+    }
+  },
+  /**
+   * Export matching talent to Excel file.
+   * @param {Object} payload - Export parameters
+   * @param {string} payload.mode - "all" or "selected"
+   * @param {Object} payload.filters - Search filters (same as searchMatchingTalent)
+   * @param {number[]} payload.selected_employee_ids - Array of employee IDs (required if mode="selected")
+   * @returns {Promise<Blob>} Excel file as blob
+   */
+  async exportMatchingTalent(payload) {
+    try {
+      const response = await fetch(`${API_BASE_URL}/capability-finder/export`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ detail: 'Export failed' }));
+        throw new Error(errorData.detail || `Export failed with status ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      return blob;
+    } catch (error) {
+      console.error('Failed to export matching talent:', error);
       throw error;
     }
   }

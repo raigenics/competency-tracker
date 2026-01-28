@@ -4,17 +4,23 @@ Provides endpoints for typeahead/autocomplete data.
 """
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
 from sqlalchemy.orm import Session
+from datetime import datetime
+import logging
+
 from app.db.session import get_db
 from app.services.capability_finder_service import CapabilityFinderService
 from app.schemas.capability_finder import (
     SkillListResponse, 
     RoleListResponse, 
     SearchRequest, 
-    SearchResponse
+    SearchResponse,
+    ExportRequest
 )
 
 router = APIRouter(prefix="/capability-finder", tags=["capability-finder"])
+logger = logging.getLogger(__name__)
 
 
 @router.get("/skills", response_model=SkillListResponse)
@@ -91,4 +97,69 @@ def search_matching_talent(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to search matching talent: {str(e)}"
+        )
+
+
+@router.post("/export")
+async def export_matching_talent(
+    request: ExportRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Export matching talent to Excel file.
+    
+    Request body:
+    - mode: "all" (export all search results) or "selected" (export only selected employees)
+    - filters: Search filters (same as search endpoint)
+    - selected_employee_ids: List of employee IDs (required if mode="selected")
+    
+    Returns:
+        Excel file (.xlsx) with employee data and consolidated skills
+    """
+    try:
+        logger.info(f"Export request received - mode: {request.mode}, selected_count: {len(request.selected_employee_ids)}")
+        
+        # Validate request
+        if request.mode == "selected" and not request.selected_employee_ids:
+            raise HTTPException(
+                status_code=400,
+                detail="selected_employee_ids cannot be empty when mode is 'selected'"
+            )
+        
+        # Generate Excel file
+        excel_file = CapabilityFinderService.export_matching_talent_to_excel(
+            db=db,
+            mode=request.mode,
+            skills=request.filters.skills,
+            sub_segment_id=request.filters.sub_segment_id,
+            team_id=request.filters.team_id,
+            role=request.filters.role,
+            min_proficiency=request.filters.min_proficiency,
+            min_experience_years=request.filters.min_experience_years,
+            selected_employee_ids=request.selected_employee_ids
+        )
+        
+        # Generate filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        filename = f"capability_finder_matching_talent_{timestamp}.xlsx"
+        
+        logger.info(f"Export completed successfully - filename: {filename}")
+        
+        # Return as streaming response
+        return StreamingResponse(
+            excel_file,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename={filename}"
+            }
+        )
+        
+    except ValueError as e:
+        logger.warning(f"Export validation error: {str(e)}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Export failed: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to export matching talent: {str(e)}"
         )

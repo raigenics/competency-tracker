@@ -1,7 +1,134 @@
-import React from 'react';
-import { Info, Users, TrendingUp, Award, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Info, Users, Award, ArrowRight, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { skillApi } from '../../../services/api/skillApi';
+import { employeeApi } from '../../../services/api/employeeApi';
+import TalentResultsTable from '../../../components/TalentResultsTable';
+import TalentExportMenu from '../../../components/TalentExportMenu';
+import talentExportService from '../../../services/talentExportService';
 
-const SkillDetailsPanel = ({ skill }) => {
+const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSummary }) => {
+  const [summaryData, setSummaryData] = useState(null);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [employeeResults, setEmployeeResults] = useState([]);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState(null);
+  const navigate = useNavigate();  // Fetch skill summary when skill changes
+  useEffect(() => {
+    // Normalize skill ID - handle both 'id' (from mock data) and 'skill_id' (from API)
+    const skillId = skill?.skill_id || skill?.id;
+    
+    if (!skill || !skillId) {
+      setSummaryData(null);
+      return;
+    }
+
+    const fetchSummary = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const data = await skillApi.getSkillSummary(skillId);
+        setSummaryData(data);
+      } catch (err) {
+        console.error('Error fetching skill summary:', err);
+        setError(err.message || 'Failed to load skill data');
+        setSummaryData(null);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSummary();
+  }, [skill]);
+
+  // Fetch employee details when "View All" is shown
+  useEffect(() => {
+    if (showViewAll && summaryData?.employee_ids?.length > 0) {
+      const fetchEmployees = async () => {
+        setIsLoading(true);
+        try {
+          const results = await employeeApi.getEmployeesByIds(summaryData.employee_ids);
+          setEmployeeResults(results);
+        } catch (err) {
+          console.error('Error fetching employees:', err);
+          setError(err.message || 'Failed to load employees');
+          setEmployeeResults([]);
+        } finally {
+          setIsLoading(false);
+        }
+      };
+      fetchEmployees();
+    }
+  }, [showViewAll, summaryData]);
+
+  // Clear selection when results change
+  useEffect(() => {
+    setSelectedIds(new Set());
+  }, [employeeResults]);
+
+  const handleSelectionChange = (newSelection) => {
+    setSelectedIds(newSelection);
+  };
+
+  const handleExportAll = async () => {
+    setIsExporting(true);
+    setExportError(null);
+    
+    try {
+      // Create a mock filters object with just the skill name
+      const filters = {
+        skills: [skill.name],
+        subSegment: 'all',
+        team: '',
+        role: '',
+        proficiency: { min: 0, max: 5 },
+        experience: { min: 0, max: 20 }
+      };
+      await talentExportService.exportAllTalent(filters, `skill_${skill.name.replace(/\s+/g, '_')}_all`);
+    } catch (err) {
+      console.error('Export all failed:', err);
+      setExportError(err.message || 'Failed to export results');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleExportSelected = async () => {
+    setIsExporting(true);
+    setExportError(null);
+    
+    try {
+      const selectedEmployeeIds = Array.from(selectedIds);
+      const filters = {
+        skills: [skill.name],
+        subSegment: 'all',
+        team: '',
+        role: '',
+        proficiency: { min: 0, max: 5 },
+        experience: { min: 0, max: 20 }
+      };
+      await talentExportService.exportSelectedTalent(filters, selectedEmployeeIds, `skill_${skill.name.replace(/\s+/g, '_')}_selected`);
+    } catch (err) {
+      console.error('Export selected failed:', err);
+      setExportError(err.message || 'Failed to export selected results');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleViewAllClick = () => {
+    if (onViewAll) {
+      onViewAll();
+    }
+  };
+
+  const handleBackClick = () => {
+    if (onBackToSummary) {
+      onBackToSummary();
+    }
+  };
   if (!skill) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-6">
@@ -9,50 +136,74 @@ const SkillDetailsPanel = ({ skill }) => {
           <Info className="h-12 w-12 mx-auto mb-4 text-gray-400" />
           <h3 className="text-lg font-medium text-gray-600 mb-2">Select a skill</h3>
           <p className="text-sm text-gray-500">
-            Click on any skill from the taxonomy tree to view detailed information
+            Click on any skill from the capability structure to view insights
           </p>
         </div>
       </div>
     );
   }
 
-  // Mock data for skill statistics and details
-  const skillStats = {
-    totalEmployees: Math.floor(Math.random() * 50) + 5,
-    averageProficiency: (Math.random() * 2 + 3).toFixed(1),
-    expertEmployees: Math.floor(Math.random() * 10) + 1,
-    growthRate: Math.floor(Math.random() * 30) + 5
-  };
+  // Show "View All" results view
+  if (showViewAll) {
+    return (
+      <div className="bg-white rounded-lg border border-gray-200">
+        {/* Header with Back button */}
+        <div className="border-b border-gray-200 p-6">
+          <div className="flex items-center justify-between mb-4">
+            <button
+              onClick={handleBackClick}
+              className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Summary
+            </button>
+            <TalentExportMenu
+              totalCount={employeeResults.length}
+              selectedCount={selectedIds.size}
+              onExportAll={handleExportAll}
+              onExportSelected={handleExportSelected}
+              isExporting={isExporting}
+              exportError={exportError}
+            />
+          </div>
+          <div>
+            <h2 className="text-xl font-semibold text-gray-900">Employees with {skill.name}</h2>
+            <p className="text-sm text-gray-600 mt-1">
+              {employeeResults.length} {employeeResults.length === 1 ? 'employee' : 'employees'} found
+            </p>
+          </div>
+        </div>
 
-  const proficiencyDistribution = [
-    { level: 1, label: 'Beginner', count: Math.floor(Math.random() * 5) + 1 },
-    { level: 2, label: 'Basic', count: Math.floor(Math.random() * 8) + 2 },
-    { level: 3, label: 'Intermediate', count: Math.floor(Math.random() * 12) + 5 },
-    { level: 4, label: 'Advanced', count: Math.floor(Math.random() * 8) + 3 },
-    { level: 5, label: 'Expert', count: Math.floor(Math.random() * 5) + 1 }
-  ];
+        {/* Results Table */}
+        <div className="p-6">
+          {isLoading ? (
+            <div className="text-center py-12">
+              <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
+              <p className="text-gray-600">Loading employees...</p>
+            </div>
+          ) : error ? (
+            <div className="text-center py-12">
+              <p className="text-red-600 mb-2">Failed to load employees</p>
+              <p className="text-sm text-gray-500">{error}</p>
+            </div>
+          ) : employeeResults.length === 0 ? (
+            <div className="text-center py-12">
+              <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <p className="text-gray-600">No employees found with this skill</p>
+            </div>
+          ) : (
+            <TalentResultsTable
+              results={employeeResults}
+              selectedIds={selectedIds}
+              onSelectionChange={handleSelectionChange}
+            />
+          )}
+        </div>
+      </div>
+    );
+  }
 
-  const learningResources = [
-    {
-      title: `${skill.name} Fundamentals`,
-      type: 'Course',
-      provider: 'Learning Platform',
-      url: '#'
-    },
-    {
-      title: `Advanced ${skill.name}`,
-      type: 'Tutorial',
-      provider: 'Tech Docs',
-      url: '#'
-    },
-    {
-      title: `${skill.name} Best Practices`,
-      type: 'Article',
-      provider: 'Industry Blog',
-      url: '#'
-    }
-  ];
-
+  // Show summary view (default)
   return (
     <div className="bg-white rounded-lg border border-gray-200">
       {/* Header */}
@@ -60,7 +211,11 @@ const SkillDetailsPanel = ({ skill }) => {
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-1">{skill.name}</h2>
-            <p className="text-sm text-gray-600">{skill.category || 'General'}</p>
+            <p className="text-sm text-gray-600">
+              {typeof skill.category === 'object' && skill.category?.category_name 
+                ? skill.category.category_name 
+                : skill.category || 'General'}
+            </p>
           </div>
           {skill.isCore && (
             <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
@@ -69,135 +224,53 @@ const SkillDetailsPanel = ({ skill }) => {
             </span>
           )}
         </div>
-      </div>
-
-      <div className="p-6 space-y-6">
-        {/* Description */}
-        {skill.description && (
+      </div>      <div className="p-6 space-y-6">
+        {/* Statistics - Always Show Data (0 if loading/error) */}
+        {isLoading ? (
           <div>
-            <h3 className="font-medium text-gray-900 mb-2">Description</h3>
-            <p className="text-sm text-gray-600">{skill.description}</p>
-          </div>
-        )}
-
-        {/* Statistics */}
-        <div>
-          <h3 className="font-medium text-gray-900 mb-3">Organization Statistics</h3>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <Users className="h-5 w-5 mx-auto mb-1 text-blue-600" />
-              <div className="text-lg font-semibold text-gray-900">{skillStats.totalEmployees}</div>
-              <div className="text-xs text-gray-600">Total Employees</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <TrendingUp className="h-5 w-5 mx-auto mb-1 text-green-600" />
-              <div className="text-lg font-semibold text-gray-900">{skillStats.averageProficiency}</div>
-              <div className="text-xs text-gray-600">Avg Proficiency</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <Award className="h-5 w-5 mx-auto mb-1 text-purple-600" />
-              <div className="text-lg font-semibold text-gray-900">{skillStats.expertEmployees}</div>
-              <div className="text-xs text-gray-600">Experts</div>
-            </div>
-            <div className="text-center p-3 bg-gray-50 rounded-lg">
-              <TrendingUp className="h-5 w-5 mx-auto mb-1 text-orange-600" />
-              <div className="text-lg font-semibold text-gray-900">+{skillStats.growthRate}%</div>
-              <div className="text-xs text-gray-600">6M Growth</div>
-            </div>
-          </div>
-        </div>
-
-        {/* Proficiency Distribution */}
-        <div>
-          <h3 className="font-medium text-gray-900 mb-3">Proficiency Distribution</h3>
-          <div className="space-y-2">
-            {proficiencyDistribution.map((item) => {
-              const percentage = (item.count / skillStats.totalEmployees) * 100;
-              const colors = {
-                1: 'bg-red-400',
-                2: 'bg-orange-400', 
-                3: 'bg-yellow-400',
-                4: 'bg-blue-400',
-                5: 'bg-green-400'
-              };
-
-              return (
-                <div key={item.level} className="flex items-center gap-3">
-                  <span className="text-xs font-medium text-gray-700 w-16">
-                    {item.label}
-                  </span>
-                  <div className="flex-1 bg-gray-200 rounded-full h-2">
-                    <div
-                      className={`h-2 rounded-full ${colors[item.level]} transition-all duration-300`}
-                      style={{ width: `${percentage}%` }}
-                    />
-                  </div>
-                  <span className="text-xs text-gray-600 w-8">
-                    {item.count}
-                  </span>
+            <div className="grid grid-cols-2 gap-4">
+              {[1, 2].map((i) => (
+                <div key={i} className="text-center p-4 bg-gray-50 rounded-lg animate-pulse">
+                  <div className="h-5 w-5 mx-auto mb-2 bg-gray-300 rounded"></div>
+                  <div className="h-6 w-12 mx-auto mb-1 bg-gray-300 rounded"></div>
+                  <div className="h-3 w-20 mx-auto bg-gray-300 rounded"></div>
                 </div>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Learning Resources */}
-        <div>
-          <h3 className="font-medium text-gray-900 mb-3">Learning Resources</h3>
-          <div className="space-y-2">
-            {learningResources.map((resource, index) => (
-              <a
-                key={index}
-                href={resource.url}
-                className="flex items-center justify-between p-3 border border-gray-200 rounded-lg hover:bg-gray-50 group"
-              >
-                <div>
-                  <div className="font-medium text-gray-900 group-hover:text-blue-600">
-                    {resource.title}
-                  </div>
-                  <div className="text-sm text-gray-600">
-                    {resource.type} • {resource.provider}
-                  </div>
-                </div>
-                <ExternalLink className="h-4 w-4 text-gray-400 group-hover:text-blue-600" />
-              </a>
-            ))}
-          </div>
-        </div>
-
-        {/* Related Skills */}
-        {skill.relatedSkills && skill.relatedSkills.length > 0 && (
-          <div>
-            <h3 className="font-medium text-gray-900 mb-3">Related Skills</h3>
-            <div className="flex flex-wrap gap-2">
-              {skill.relatedSkills.map((relatedSkill, index) => (
-                <span
-                  key={index}
-                  className="px-2 py-1 bg-blue-100 text-blue-800 rounded-full text-xs cursor-pointer hover:bg-blue-200"
-                >
-                  {relatedSkill}
-                </span>
               ))}
             </div>
           </div>
-        )}
-
-        {/* Prerequisites */}
-        {skill.prerequisites && skill.prerequisites.length > 0 && (
+        ) : (
           <div>
-            <h3 className="font-medium text-gray-900 mb-3">Prerequisites</h3>
-            <div className="flex flex-wrap gap-2">
-              {skill.prerequisites.map((prerequisite, index) => (
-                <span
-                  key={index}
-                  className="px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs"
-                >
-                  {prerequisite}
-                </span>
-              ))}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <Users className="h-5 w-5 mx-auto mb-2 text-blue-600" />
+                <div className="text-2xl font-semibold text-gray-900">
+                  {summaryData?.employee_count ?? 0}
+                </div>
+                <div className="text-xs text-gray-600 mt-1">Employees</div>
+              </div>              <div className="text-center p-4 bg-gray-50 rounded-lg">
+                <Award className="h-5 w-5 mx-auto mb-2 text-purple-600" />
+                <div className="text-2xl font-semibold text-gray-900">
+                  {summaryData?.certified_employee_count ?? summaryData?.certified_count ?? 0}
+                </div>
+                <div className="text-xs text-gray-600 mt-1">Certified</div>
+              </div>
             </div>
           </div>
-        )}
+        )}        {/* CTA Button - Always Visible */}
+        <div>
+          <button
+            onClick={handleViewAllClick}
+            disabled={isLoading || (summaryData?.employee_count ?? 0) === 0}
+            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors font-medium ${
+              isLoading || (summaryData?.employee_count ?? 0) === 0
+                ? 'bg-blue-400 cursor-not-allowed text-white'
+                : 'bg-blue-600 hover:bg-blue-700 text-white'
+            }`}
+          >
+            View All with {skill.name}
+            <ArrowRight className="h-4 w-4" />
+          </button>
+        </div>
       </div>
     </div>
   );

@@ -15,7 +15,8 @@ from app.models import (
 from app.schemas.skill import (
     SkillResponse, SkillListResponse, SkillDetailResponse,
     SkillStatsResponse, CategoryResponse, SubcategoryResponse,
-    CategoryInfo
+    CategoryInfo, SkillSummaryResponse, TaxonomyTreeResponse,
+    TaxonomyCategoryItem, TaxonomySubcategoryItem, TaxonomySkillItem
 )
 from app.schemas.common import PaginationParams
 
@@ -305,3 +306,200 @@ async def get_subcategories(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching subcategories"
         )
+
+
+@router.get("/taxonomy/tree", response_model=TaxonomyTreeResponse)
+async def get_taxonomy_tree(db: Session = Depends(get_db)):
+    """
+    Get complete skill taxonomy tree with all categories, subcategories, and skills.
+    Returns ALL categories from the database, even if they have no subcategories or skills.
+    
+    Returns:
+        Complete nested structure:
+        - categories: All categories from skill_categories table
+          - subcategories: All subcategories for each category
+            - skills: All skills for each subcategory
+    """
+    logger.info("Fetching complete skill taxonomy tree")
+    
+    try:
+        # Get ALL categories (no filtering)
+        categories = db.query(SkillCategory)\
+            .order_by(SkillCategory.category_name)\
+            .all()
+        
+        logger.info(f"Found {len(categories)} categories in database")
+        
+        taxonomy_categories = []
+        
+        for category in categories:
+            # Get all subcategories for this category
+            subcategories = db.query(SkillSubcategory)\
+                .filter(SkillSubcategory.category_id == category.category_id)\
+                .order_by(SkillSubcategory.subcategory_name)\
+                .all()
+            
+            taxonomy_subcategories = []
+            
+            for subcategory in subcategories:
+                # Get all skills for this subcategory
+                skills = db.query(Skill)\
+                    .filter(
+                        Skill.category_id == category.category_id,
+                        Skill.subcategory_id == subcategory.subcategory_id
+                    )\
+                    .order_by(Skill.skill_name)\
+                    .all()
+                
+                # Build skill items with real database IDs
+                taxonomy_skills = [
+                    TaxonomySkillItem(
+                        skill_id=skill.skill_id,
+                        skill_name=skill.skill_name
+                    )
+                    for skill in skills
+                ]
+                
+                taxonomy_subcategories.append(
+                    TaxonomySubcategoryItem(
+                        subcategory_id=subcategory.subcategory_id,
+                        subcategory_name=subcategory.subcategory_name,
+                        skills=taxonomy_skills
+                    )
+                )
+            
+            # Add category even if it has no subcategories (empty list is ok)
+            taxonomy_categories.append(
+                TaxonomyCategoryItem(
+                    category_id=category.category_id,
+                    category_name=category.category_name,
+                    subcategories=taxonomy_subcategories
+                )
+            )
+        
+        logger.info(
+            f"Taxonomy tree built: {len(taxonomy_categories)} categories, "
+            f"{sum(len(c.subcategories) for c in taxonomy_categories)} subcategories total"
+        )
+        
+        return TaxonomyTreeResponse(categories=taxonomy_categories)
+        
+    except Exception as e:
+        logger.error(f"Error fetching taxonomy tree: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching skill taxonomy tree"
+        )
+
+
+@router.get("/{skill_id}/summary", response_model=SkillSummaryResponse)
+async def get_skill_summary(
+    skill_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get summary statistics for a specific skill, aggregating across all related skills with similar names.
+    
+    For example, if the skill is "ReactJS", this will find all skills matching "react" 
+    (ReactJS, React, React.js, etc.) and aggregate employee counts across them.
+    
+    Returns:
+        - skill_id: The primary skill identifier
+        - skill_name: The primary skill name
+        - employee_count: Number of distinct employees who have ANY matching skill
+        - employee_ids: List of employee IDs with this skill (for "View All" functionality)
+        - avg_experience_years: Average years of experience (rounded to 1 decimal)
+        - certified_count: Number of distinct certified employees (backward compatibility)
+        - certified_employee_count: Number of distinct certified employees
+    
+    Raises:
+        - 404: If skill not found
+        - 200: With zeros if skill exists but no employees have it
+    """
+    logger.info(f"Fetching summary for skill_id: {skill_id}")
+    
+    try:
+        # Check if primary skill exists
+        skill = db.query(Skill).filter(Skill.skill_id == skill_id).first()
+        if not skill:
+            logger.warning(f"Skill not found: {skill_id}")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Skill with ID {skill_id} not found"
+            )
+        
+        # Extract the core skill name for matching (e.g., "ReactJS" -> "react")
+        # This will match ReactJS, React, React.js, etc.
+        skill_name_pattern = skill.skill_name.lower()
+        
+        # Find all related skill IDs with similar names
+        related_skills = db.query(Skill.skill_id)\
+            .filter(Skill.skill_name.ilike(f"%{skill_name_pattern}%"))\
+            .all()
+        
+        related_skill_ids = [s.skill_id for s in related_skills]
+        
+        logger.info(f"Found {len(related_skill_ids)} related skills for '{skill.skill_name}': {related_skill_ids}")
+        
+        # Get distinct employee count across all related skills
+        employee_count_query = db.query(func.count(EmployeeSkill.employee_id.distinct()))\
+            .filter(EmployeeSkill.skill_id.in_(related_skill_ids))
+        
+        employee_count = employee_count_query.scalar() or 0
+        
+        # Get list of employee IDs (for "View All" functionality)
+        employee_ids_query = db.query(EmployeeSkill.employee_id.distinct())\
+            .filter(EmployeeSkill.skill_id.in_(related_skill_ids))\
+            .order_by(EmployeeSkill.employee_id)
+        
+        employee_ids = [row[0] for row in employee_ids_query.all()]
+        
+        # Get average years of experience (ignore nulls, across all related skills)
+        avg_experience = db.query(func.avg(EmployeeSkill.years_experience))\
+            .filter(
+                EmployeeSkill.skill_id.in_(related_skill_ids),
+                EmployeeSkill.years_experience.isnot(None),
+                EmployeeSkill.years_experience > 0
+            )\
+            .scalar()
+        
+        avg_experience_years = round(float(avg_experience), 1) if avg_experience else 0.0
+        
+        # Get certified employee count using proper business rules:
+        # - Exclude NULL, empty string, and "no" (case-insensitive)
+        # - Count distinct employees (not rows)
+        certified_employee_count = db.query(func.count(EmployeeSkill.employee_id.distinct()))\
+            .filter(
+                EmployeeSkill.skill_id.in_(related_skill_ids),
+                EmployeeSkill.certification.isnot(None),
+                func.nullif(func.trim(EmployeeSkill.certification), '') != None,
+                func.lower(func.trim(EmployeeSkill.certification)) != 'no'
+            )\
+            .scalar() or 0
+        
+        logger.info(
+            f"Skill summary for {skill.skill_name} (ID: {skill_id}, {len(related_skill_ids)} related): "
+            f"employees={employee_count} (IDs: {len(employee_ids)}), "
+            f"avg_exp={avg_experience_years}y, certified={certified_employee_count}"
+        )
+        
+        return SkillSummaryResponse(
+            skill_id=skill.skill_id,
+            skill_name=skill.skill_name,
+            employee_count=employee_count,
+            employee_ids=employee_ids,
+            avg_experience_years=avg_experience_years,
+            certified_count=certified_employee_count,  # Backward compatibility
+            certified_employee_count=certified_employee_count
+        )
+        
+    except HTTPException:
+        # Re-raise HTTP exceptions (like 404)
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching skill summary for skill_id {skill_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching skill summary"
+        )
+

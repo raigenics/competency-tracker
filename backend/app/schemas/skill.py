@@ -75,3 +75,54 @@ class SubcategoryResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class SkillSummaryResponse(BaseModel):
+    """Response schema for skill summary statistics."""
+    skill_id: int = Field(description="Skill ID")
+    skill_name: str = Field(description="Skill name")
+    employee_count: int = Field(description="Number of distinct employees with this skill")
+    employee_ids: List[int] = Field(default_factory=list, description="List of employee IDs with this skill")
+    avg_experience_years: float = Field(description="Average years of experience for this skill")
+    certified_count: int = Field(description="Number of certified employees (backward compatibility)")
+    certified_employee_count: int = Field(description="Number of distinct certified employees")
+    
+    class Config:
+        from_attributes = True
+
+
+class TaxonomySkillItem(BaseModel):
+    """Skill item in taxonomy tree."""
+    skill_id: int = Field(description="Skill ID from database")
+    skill_name: str = Field(description="Skill name")
+    
+    class Config:
+        from_attributes = True
+
+
+class TaxonomySubcategoryItem(BaseModel):
+    """Subcategory item in taxonomy tree."""
+    subcategory_id: int = Field(description="Subcategory ID from database")
+    subcategory_name: str = Field(description="Subcategory name")
+    skills: List[TaxonomySkillItem] = Field(default_factory=list, description="Skills in this subcategory")
+    
+    class Config:
+        from_attributes = True
+
+
+class TaxonomyCategoryItem(BaseModel):
+    """Category item in taxonomy tree."""
+    category_id: int = Field(description="Category ID from database")
+    category_name: str = Field(description="Category name")
+    subcategories: List[TaxonomySubcategoryItem] = Field(default_factory=list, description="Subcategories in this category")
+    
+    class Config:
+        from_attributes = True
+
+
+class TaxonomyTreeResponse(BaseModel):
+    """Complete taxonomy tree response."""
+    categories: List[TaxonomyCategoryItem] = Field(description="All categories with nested subcategories and skills")
+    
+    class Config:
+        from_attributes = True

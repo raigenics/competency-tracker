@@ -1,9 +1,43 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Tag } from 'lucide-react';
 
-const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill }) => {
+const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill, searchTerm = '' }) => {
   const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
+
+  // Auto-expand categories and subcategories that have the 'expanded' flag from search results
+  useEffect(() => {
+    const categoriesToExpand = new Set();
+    const subcategoriesToExpand = new Set();
+    
+    skillTree.forEach(category => {
+      if (category.expanded) {
+        categoriesToExpand.add(category.id);
+        category.subcategories.forEach(subcategory => {
+          if (subcategory.expanded) {
+            subcategoriesToExpand.add(subcategory.id);
+          }
+        });
+      }
+    });
+    
+    setExpandedCategories(categoriesToExpand);
+    setExpandedSubcategories(subcategoriesToExpand);
+  }, [skillTree]);
+
+  // Helper function to highlight matching text
+  const highlightText = (text, search) => {
+    if (!search.trim()) return text;
+    
+    const parts = text.split(new RegExp(`(${search})`, 'gi'));
+    return parts.map((part, index) => 
+      part.toLowerCase() === search.toLowerCase() ? (
+        <mark key={index} className="bg-yellow-200 font-medium">{part}</mark>
+      ) : (
+        part
+      )
+    );
+  };
 
   const toggleCategory = (categoryId) => {
     const newExpanded = new Set(expandedCategories);
@@ -24,7 +58,6 @@ const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill }) => {
     }
     setExpandedSubcategories(newExpanded);
   };
-
   const CategoryItem = ({ category }) => {
     const isExpanded = expandedCategories.has(category.id);
     const skillCount = category.subcategories.reduce((total, sub) => total + sub.skills.length, 0);
@@ -46,25 +79,26 @@ const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill }) => {
             <Folder className="h-5 w-5 text-blue-600" />
           )}
           <span className="font-medium text-gray-900 group-hover:text-blue-600">
-            {category.name}
+            {highlightText(category.name, searchTerm)}
           </span>
           <span className="text-sm text-gray-500 ml-auto">
             {skillCount} skills
           </span>
-        </button>
-
-        {isExpanded && (
+        </button>        {isExpanded && (
           <div className="ml-6 mt-2 space-y-1">
             {category.subcategories.map((subcategory) => (
-              <SubcategoryItem key={subcategory.id} subcategory={subcategory} />
+              <SubcategoryItem 
+                key={subcategory.id} 
+                subcategory={subcategory}
+                categoryName={category.name}
+              />
             ))}
           </div>
         )}
       </div>
     );
   };
-
-  const SubcategoryItem = ({ subcategory }) => {
+  const SubcategoryItem = ({ subcategory, categoryName }) => {
     const isExpanded = expandedSubcategories.has(subcategory.id);
 
     return (
@@ -80,21 +114,23 @@ const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill }) => {
           )}
           <Tag className="h-4 w-4 text-green-600" />
           <span className="text-sm font-medium text-gray-700 group-hover:text-green-600">
-            {subcategory.name}
+            {highlightText(subcategory.name, searchTerm)}
           </span>
           <span className="text-xs text-gray-500 ml-auto">
             {subcategory.skills.length}
           </span>
-        </button>
-
-        {isExpanded && (
+        </button>        {isExpanded && (
           <div className="ml-6 mt-1 space-y-1">
             {subcategory.skills.map((skill) => (
               <SkillItem 
                 key={skill.id} 
                 skill={skill} 
                 isSelected={selectedSkill?.id === skill.id}
-                onClick={() => onSkillSelect(skill)}
+                onClick={() => onSkillSelect({
+                  ...skill,
+                  category: categoryName,
+                  subcategory: subcategory.name
+                })}
               />
             ))}
           </div>
@@ -102,7 +138,6 @@ const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill }) => {
       </div>
     );
   };
-
   const SkillItem = ({ skill, isSelected, onClick }) => {
     return (
       <button
@@ -114,7 +149,7 @@ const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill }) => {
         }`}
       >
         <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-blue-600' : 'bg-gray-400'}`} />
-        <span className="text-sm">{skill.name}</span>
+        <span className="text-sm">{highlightText(skill.name, searchTerm)}</span>
         {skill.isCore && (
           <span className="text-xs px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded">
             Core

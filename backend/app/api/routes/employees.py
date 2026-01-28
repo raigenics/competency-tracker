@@ -8,10 +8,11 @@ from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
 from app.db.session import get_db
-from app.models import Employee, EmployeeSkill, SubSegment, Project, Team, Role
+from app.models import Employee, EmployeeSkill, SubSegment, Project, Team, Role, Skill, ProficiencyLevel
 from app.schemas.employee import (
     EmployeeResponse, EmployeeListResponse, 
-    EmployeeStatsResponse, OrganizationInfo
+    EmployeeStatsResponse, OrganizationInfo,
+    EmployeesByIdsRequest, EmployeesByIdsResponse, TalentResultItem, SkillInfo
 )
 from app.schemas.common import PaginationParams
 
@@ -228,4 +229,81 @@ async def get_employee_stats(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching employee statistics"
+        )
+
+
+@router.post("/by-ids", response_model=EmployeesByIdsResponse)
+async def get_employees_by_ids(
+    request: EmployeesByIdsRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Fetch employees by a list of employee IDs.
+    Returns employee data formatted for TalentResultsTable component.
+    
+    Args:
+        request: Contains list of employee_ids
+        
+    Returns:
+        List of employees with top skills, formatted for frontend table
+    """
+    logger.info(f"Fetching {len(request.employee_ids)} employees by IDs")
+    
+    try:
+        if not request.employee_ids:
+            return EmployeesByIdsResponse(results=[])
+        
+        # Fetch employees with organization info
+        employees = db.query(Employee)\
+            .options(
+                joinedload(Employee.sub_segment),
+                joinedload(Employee.project),
+                joinedload(Employee.team),
+                joinedload(Employee.role)
+            )\
+            .filter(Employee.employee_id.in_(request.employee_ids))\
+            .all()
+        
+        results = []
+        
+        for employee in employees:
+            # Fetch top skills for this employee (ordered by proficiency desc)
+            top_skills_query = db.query(
+                Skill.skill_name,
+                ProficiencyLevel.proficiency_level_id
+            )\
+                .join(EmployeeSkill, EmployeeSkill.skill_id == Skill.skill_id)\
+                .join(ProficiencyLevel, EmployeeSkill.proficiency_level_id == ProficiencyLevel.proficiency_level_id)\
+                .filter(EmployeeSkill.employee_id == employee.employee_id)\
+                .order_by(ProficiencyLevel.proficiency_level_id.desc(), Skill.skill_name.asc())\
+                .limit(10)\
+                .all()
+            
+            top_skills = [
+                SkillInfo(name=skill_name, proficiency=proficiency)
+                for skill_name, proficiency in top_skills_query
+            ]
+            
+            # Get organization info
+            sub_segment_name = employee.sub_segment.sub_segment_name if employee.sub_segment else ""
+            team_name = employee.team.team_name if employee.team else ""
+            role_name = employee.role.role_name if employee.role else ""
+            
+            results.append(TalentResultItem(
+                id=employee.employee_id,
+                name=employee.full_name,
+                subSegment=sub_segment_name,
+                team=team_name,
+                role=role_name,
+                skills=top_skills
+            ))
+        
+        logger.info(f"Returning {len(results)} employees")
+        return EmployeesByIdsResponse(results=results)
+        
+    except Exception as e:
+        logger.error(f"Error fetching employees by IDs: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error fetching employees: {str(e)}"
         )

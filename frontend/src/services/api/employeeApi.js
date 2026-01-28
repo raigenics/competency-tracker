@@ -81,6 +81,19 @@ export const employeeApi = {
     }
   },
 
+  // Get employees by list of IDs (for "View All with Skill" feature)
+  async getEmployeesByIds(employeeIds) {
+    try {
+      const response = await httpClient.post('/employees/by-ids', {
+        employee_ids: employeeIds
+      });
+      return response.results || [];
+    } catch (error) {
+      console.error('Failed to fetch employees by IDs:', error);
+      throw error;
+    }
+  },
+
   // Update employee skill
   async updateEmployeeSkill(empSkillId, skillData) {
     try {

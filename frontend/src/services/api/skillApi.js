@@ -100,6 +100,28 @@ export const skillApi = {
       console.error('Failed to search skills:', error);
       throw error;
     }
+  },
+
+  // Get skill summary statistics
+  async getSkillSummary(skillId) {
+    try {
+      const response = await httpClient.get(`/skills/${skillId}/summary`);
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch skill summary:', error);
+      throw error;
+    }
+  },
+
+  // Get complete taxonomy tree (all categories, subcategories, skills)
+  async getTaxonomyTree() {
+    try {
+      const response = await httpClient.get('/skills/taxonomy/tree');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch taxonomy tree:', error);
+      throw error;
+    }
   }
 };
 

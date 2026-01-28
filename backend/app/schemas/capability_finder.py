@@ -45,3 +45,10 @@ class SearchResponse(BaseModel):
     """Response schema for talent search."""
     results: List[EmployeeSearchResult]
     count: int
+
+
+class ExportRequest(BaseModel):
+    """Request schema for export matching talent."""
+    mode: str = Field(..., description="Export mode: 'all' or 'selected'")
+    filters: SearchRequest = Field(..., description="Search filters to apply")
+    selected_employee_ids: List[int] = Field(default_factory=list, description="Employee IDs for mode='selected'")

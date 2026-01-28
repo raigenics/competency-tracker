@@ -65,3 +65,29 @@ class EmployeeStatsResponse(BaseModel):
     by_project: dict = Field(description="Employee count by project")
     by_team: dict = Field(description="Employee count by team")
     avg_skills_per_employee: float = Field(description="Average number of skills per employee")
+
+
+class SkillInfo(BaseModel):
+    """Skill information for talent results."""
+    name: str = Field(description="Skill name")
+    proficiency: int = Field(description="Proficiency level (1-5)")
+
+
+class TalentResultItem(BaseModel):
+    """Single talent result item for table display."""
+    id: int = Field(description="Employee ID")
+    name: str = Field(description="Employee name")
+    subSegment: str = Field(description="Sub-segment name")
+    team: str = Field(description="Team name")
+    role: str = Field(description="Role name")
+    skills: List[SkillInfo] = Field(description="List of top skills")
+
+
+class EmployeesByIdsRequest(BaseModel):
+    """Request schema for fetching employees by IDs."""
+    employee_ids: List[int] = Field(description="List of employee IDs to fetch")
+
+
+class EmployeesByIdsResponse(BaseModel):
+    """Response schema for employees by IDs."""
+    results: List[TalentResultItem] = Field(description="List of employees with skills")
