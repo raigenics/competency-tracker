@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 
 const QueryResultsTable = ({ results }) => {
   const navigate = useNavigate();
-  const [sortConfig, setSortConfig] = useState({ key: 'matchScore', direction: 'desc' });
+  const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
 
   const handleSort = (key) => {
     let direction = 'asc';
@@ -15,14 +15,16 @@ const QueryResultsTable = ({ results }) => {
   };
 
   const sortedResults = [...results].sort((a, b) => {
-    if (sortConfig.key === 'matchScore') {
-      const aValue = a.matchScore;
-      const bValue = b.matchScore;
-      return sortConfig.direction === 'asc' ? aValue - bValue : bValue - aValue;
-    } else if (sortConfig.key === 'name') {
+    if (sortConfig.key === 'name') {
       const aValue = a.name.toLowerCase();
       const bValue = b.name.toLowerCase();
       return sortConfig.direction === 'asc' 
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    } else if (sortConfig.key === 'subSegment') {
+      const aValue = (a.subSegment || '').toLowerCase();
+      const bValue = (b.subSegment || '').toLowerCase();
+      return sortConfig.direction === 'asc'
         ? aValue.localeCompare(bValue)
         : bValue.localeCompare(aValue);
     } else if (sortConfig.key === 'role') {
@@ -40,19 +42,11 @@ const QueryResultsTable = ({ results }) => {
     }
     return 0;
   });
-
   const getProficiencyColor = (proficiency) => {
     if (proficiency >= 4) return 'text-green-600 bg-green-100';
     if (proficiency >= 3) return 'text-blue-600 bg-blue-100';
     if (proficiency >= 2) return 'text-yellow-600 bg-yellow-100';
     return 'text-gray-600 bg-gray-100';
-  };
-
-  const getMatchScoreColor = (score) => {
-    if (score >= 80) return 'text-green-600 bg-green-100';
-    if (score >= 60) return 'text-blue-600 bg-blue-100';
-    if (score >= 40) return 'text-yellow-600 bg-yellow-100';
-    return 'text-red-600 bg-red-100';
   };
 
   const SortButton = ({ column, children }) => (
@@ -71,11 +65,13 @@ const QueryResultsTable = ({ results }) => {
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full border-collapse">
-        <thead>
+      <table className="w-full border-collapse">        <thead>
           <tr className="border-b border-gray-200">
             <th className="text-left py-3 px-4">
               <SortButton column="name">Employee</SortButton>
+            </th>
+            <th className="text-left py-3 px-4">
+              <SortButton column="subSegment">Sub-Segment</SortButton>
             </th>
             <th className="text-left py-3 px-4">
               <SortButton column="role">Role</SortButton>
@@ -84,13 +80,9 @@ const QueryResultsTable = ({ results }) => {
               <SortButton column="team">Team</SortButton>
             </th>
             <th className="text-left py-3 px-4">Skills</th>
-            <th className="text-left py-3 px-4">
-              <SortButton column="matchScore">Match Score</SortButton>
-            </th>
             <th className="text-left py-3 px-4">Actions</th>
           </tr>
-        </thead>
-        <tbody>
+        </thead>        <tbody>
           {sortedResults.map((employee) => (
             <tr key={employee.id} className="border-b border-gray-100 hover:bg-gray-50">
               <td className="py-4 px-4">
@@ -102,6 +94,9 @@ const QueryResultsTable = ({ results }) => {
                     <div className="font-medium text-gray-900">{employee.name}</div>
                   </div>
                 </div>
+              </td>
+              <td className="py-4 px-4">
+                <div className="text-sm text-gray-900">{employee.subSegment || '—'}</div>
               </td>
               <td className="py-4 px-4">
                 <div className="text-sm text-gray-900">{employee.role}</div>
@@ -125,11 +120,6 @@ const QueryResultsTable = ({ results }) => {
                     </span>
                   )}
                 </div>
-              </td>
-              <td className="py-4 px-4">
-                <span className={`inline-flex items-center px-2 py-1 rounded-full text-sm font-medium ${getMatchScoreColor(employee.matchScore)}`}>
-                  {employee.matchScore}%
-                </span>
               </td>
               <td className="py-4 px-4">
                 <button

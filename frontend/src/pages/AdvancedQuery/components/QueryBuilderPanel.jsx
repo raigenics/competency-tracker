@@ -177,9 +177,7 @@ const QueryBuilderPanel = ({ query, onQueryChange, onSearch, isLoading }) => {
           placeholder="Select sub-segment..."
           multi={false}
         />
-      </div>
-
-      {/* Teams */}
+      </div>      {/* Teams */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Team
@@ -190,11 +188,10 @@ const QueryBuilderPanel = ({ query, onQueryChange, onSearch, isLoading }) => {
           onChange={handleTeamChange}
           placeholder={teams.length === 0 ? "No teams available" : "Select team..."}
           multi={false}
+          clearable={true}
           disabled={teams.length === 0}
         />
-      </div>
-
-      {/* Roles */}
+      </div>      {/* Roles */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
           Role
@@ -205,6 +202,7 @@ const QueryBuilderPanel = ({ query, onQueryChange, onSearch, isLoading }) => {
           onChange={handleRoleChange}
           placeholder="Select role..."
           multi={false}
+          clearable={true}
         />
       </div>
 

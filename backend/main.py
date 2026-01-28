@@ -40,6 +40,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",  # local Vite dev
+        "http://localhost:3000",
         "https://thankful-sand-04d55ff00.6.azurestaticapps.net",  # your SWA
     ],
     allow_credentials=True,

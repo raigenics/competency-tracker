@@ -15,6 +15,7 @@ import { ChevronDown, X, Check } from 'lucide-react';
  * @param {string} props.placeholder - Placeholder text
  * @param {boolean} props.multi - Enable multi-select mode
  * @param {boolean} props.disabled - Disable the input
+ * @param {boolean} props.clearable - Show clear button for single-select mode
  * @param {string} props.className - Additional CSS classes
  */
 const ComboBox = ({
@@ -24,6 +25,7 @@ const ComboBox = ({
   placeholder = 'Select...',
   multi = false,
   disabled = false,
+  clearable = false,
   className = ''
 }) => {
   const [isOpen, setIsOpen] = useState(false);
@@ -58,7 +60,6 @@ const ComboBox = ({
     const foundOption = normalizedOptions.find(opt => opt.id === val);
     return foundOption ? foundOption.name : val;
   };
-
   // Handle click outside to close dropdown
   useEffect(() => {
     const handleClickOutside = (event) => {
@@ -71,6 +72,15 @@ const ComboBox = ({
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
+
+  // Handle Escape key to close dropdown
+  const handleKeyDown = (e) => {
+    if (e.key === 'Escape' && isOpen) {
+      setIsOpen(false);
+      setSearchTerm('');
+      e.preventDefault();
+    }
+  };
   const handleToggleOption = (opt) => {
     // For string options, use name; for object options, use id
     const optionValue = typeof options[0] === 'string' ? opt.name : opt.id;
@@ -88,7 +98,6 @@ const ComboBox = ({
       setSearchTerm('');
     }
   };
-
   const handleRemoveValue = (valueToRemove, e) => {
     e.stopPropagation();
     if (multi) {
@@ -96,6 +105,12 @@ const ComboBox = ({
     } else {
       onChange('');
     }
+  };
+
+  const handleClearSingleValue = (e) => {
+    e.stopPropagation();
+    onChange('');
+    setSearchTerm('');
   };
 
   const getDisplayValue = () => {
@@ -140,9 +155,7 @@ const ComboBox = ({
               </span>
             ))}
           </div>
-        )}
-
-        {/* Search input */}
+        )}        {/* Search input */}
         <input
           ref={inputRef}
           type="text"
@@ -155,8 +168,20 @@ const ComboBox = ({
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           onFocus={() => !disabled && setIsOpen(true)}
+          onKeyDown={handleKeyDown}
           disabled={disabled}
         />
+
+        {/* Clear button for single-select clearable mode */}
+        {clearable && !multi && value && !disabled && (
+          <button
+            type="button"
+            onClick={handleClearSingleValue}
+            className="text-gray-400 hover:text-gray-600 flex-shrink-0"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        )}
 
         {/* Dropdown icon */}
         <ChevronDown 

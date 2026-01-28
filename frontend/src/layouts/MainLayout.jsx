@@ -8,9 +8,9 @@ const MainLayout = () => {
       <Navbar />
       <div className="flex flex-1">
         <Sidebar />
-        <div className="flex-1 overflow-x-auto">
+        <main className="flex-1 overflow-x-auto -ml-6">
           <Outlet />
-        </div>
+        </main>
       </div>
     </div>
   );
