@@ -39,7 +39,9 @@ class EmployeeSkillResponse(EmployeeSkillBase):
     employee_name: str = Field(description="Employee name")
     skill_id: int = Field(description="Skill ID")
     skill_name: str = Field(description="Skill name")
+    category: Optional[str] = Field(default=None, description="Skill category name")
     proficiency: ProficiencyLevelResponse = Field(description="Proficiency level details")
+    certification: Optional[str] = Field(default=None, description="Certification name or details")
     
     class Config:
         from_attributes = True
@@ -59,6 +61,7 @@ class EmployeeCompetencyProfile(BaseModel):
     employee_id: int = Field(description="Employee ID")
     employee_name: str = Field(description="Employee name")
     role: Optional[RoleResponse] = Field(description="Employee role")
+    start_date_of_working: Optional[date] = Field(None, description="Start date of employment")
     organization: Dict[str, str] = Field(description="Organization structure")
     skills: List[EmployeeSkillResponse] = Field(description="Employee skills")
     competency_summary: Dict[str, int] = Field(description="Competency summary by proficiency level")

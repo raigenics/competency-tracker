@@ -91,3 +91,16 @@ class EmployeesByIdsRequest(BaseModel):
 class EmployeesByIdsResponse(BaseModel):
     """Response schema for employees by IDs."""
     results: List[TalentResultItem] = Field(description="List of employees with skills")
+
+
+class EmployeeSuggestion(BaseModel):
+    """Employee suggestion for autocomplete."""
+    employee_id: int = Field(description="Employee ID")
+    zid: str = Field(description="Employee ZID")
+    full_name: str = Field(description="Full name of the employee")
+    sub_segment: Optional[str] = Field(None, description="Sub-segment name")
+    project: Optional[str] = Field(None, description="Project name")
+    team: Optional[str] = Field(None, description="Team name")
+    
+    class Config:
+        from_attributes = True

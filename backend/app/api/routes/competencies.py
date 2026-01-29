@@ -45,7 +45,7 @@ async def get_employee_competency_profile(
             joinedload(Employee.sub_segment),
             joinedload(Employee.project),
             joinedload(Employee.team),
-            joinedload(Employee.employee_skills).joinedload(EmployeeSkill.skill),
+            joinedload(Employee.employee_skills).joinedload(EmployeeSkill.skill).joinedload(Skill.category),
             joinedload(Employee.employee_skills).joinedload(EmployeeSkill.proficiency_level)
         ).filter(Employee.employee_id == employee_id).first()
         
@@ -54,8 +54,7 @@ async def get_employee_competency_profile(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Employee with ID {employee_id} not found"
             )
-        
-        # Build skills list
+          # Build skills list
         skills = []
         competency_summary = {"Beginner": 0, "Intermediate": 0, "Advanced": 0, "Expert": 0}
         
@@ -65,14 +64,18 @@ async def get_employee_competency_profile(
                 employee_id=emp_skill.employee_id,
                 employee_name=employee.full_name,
                 skill_id=emp_skill.skill_id,
-                skill_name=emp_skill.skill.skill_name,                proficiency=ProficiencyLevelResponse(
+                skill_name=emp_skill.skill.skill_name,
+                category=emp_skill.skill.category.category_name if emp_skill.skill.category else None,
+                proficiency=ProficiencyLevelResponse(
                     proficiency_level_id=emp_skill.proficiency_level.proficiency_level_id,
                     level_name=emp_skill.proficiency_level.level_name,
-                    level_description=emp_skill.proficiency_level.level_description                ),
+                    level_description=emp_skill.proficiency_level.level_description
+                ),
                 years_experience=emp_skill.years_experience,
                 last_used=emp_skill.last_used,
                 interest_level=emp_skill.interest_level,
-                last_updated=emp_skill.last_updated
+                last_updated=emp_skill.last_updated,
+                certification=emp_skill.certification
             )
             skills.append(skill_data)
             

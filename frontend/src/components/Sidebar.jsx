@@ -3,12 +3,11 @@ import { useNavigate, useLocation } from 'react-router-dom';
 
 const Sidebar = () => {
   const navigate = useNavigate();
-  const location = useLocation();
-  const menuItems = [
+  const location = useLocation();  const menuItems = [
     { id: 'dashboard', path: '/', icon: BarChart3, label: 'Dashboard' },
     { id: 'query', path: '/query', icon: Search, label: 'Capability Finder' },
     { id: 'taxonomy', path: '/taxonomy', icon: Layers, label: 'Capability Overview' },
-    { id: 'profile', path: '/profile', icon: User, label: 'My Profile' }
+    { id: 'profile', path: '/profile', icon: User, label: 'Employee Profile' }
   ];
 
   const isActive = (path) => {

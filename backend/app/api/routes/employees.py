@@ -12,13 +12,64 @@ from app.models import Employee, EmployeeSkill, SubSegment, Project, Team, Role,
 from app.schemas.employee import (
     EmployeeResponse, EmployeeListResponse, 
     EmployeeStatsResponse, OrganizationInfo,
-    EmployeesByIdsRequest, EmployeesByIdsResponse, TalentResultItem, SkillInfo
+    EmployeesByIdsRequest, EmployeesByIdsResponse, TalentResultItem, SkillInfo,
+    EmployeeSuggestion
 )
 from app.schemas.common import PaginationParams
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/employees", tags=["employees"])
+
+
+@router.get("/suggest", response_model=List[EmployeeSuggestion])
+async def suggest_employees(
+    q: str = Query(..., min_length=2, description="Search query for employee name"),
+    limit: int = Query(8, ge=1, le=20, description="Maximum number of suggestions to return"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get employee suggestions for autocomplete.
+    
+    - **q**: Search query (minimum 2 characters)
+    - **limit**: Maximum number of results (1-20, default 8)
+    """
+    logger.info(f"Fetching employee suggestions for query: '{q}' with limit: {limit}")
+    
+    try:
+        # Search for employees by full name (case-insensitive partial match)
+        query = db.query(Employee).options(
+            joinedload(Employee.sub_segment),
+            joinedload(Employee.project),
+            joinedload(Employee.team)
+        ).filter(
+            Employee.full_name.ilike(f"%{q}%")
+        ).limit(limit)
+        
+        employees = query.all()
+        
+        # Build response
+        suggestions = []
+        for employee in employees:
+            suggestion = EmployeeSuggestion(
+                employee_id=employee.employee_id,
+                zid=employee.zid,
+                full_name=employee.full_name,
+                sub_segment=employee.sub_segment.sub_segment_name if employee.sub_segment else None,
+                project=employee.project.project_name if employee.project else None,
+                team=employee.team.team_name if employee.team else None
+            )
+            suggestions.append(suggestion)
+        
+        logger.info(f"Returning {len(suggestions)} suggestions for query: '{q}'")
+        return suggestions
+        
+    except Exception as e:
+        logger.error(f"Error fetching employee suggestions: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching employee suggestions"
+        )
 
 
 @router.get("/", response_model=EmployeeListResponse)

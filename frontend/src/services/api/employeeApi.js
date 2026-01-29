@@ -2,7 +2,16 @@ import httpClient from './httpClient.js';
 import { mockEmployees } from '../../data/mockEmployees.js';
 
 // TODO: Replace with actual FastAPI calls
-export const employeeApi = {
+export const employeeApi = {  // Get employee suggestions for autocomplete
+  async getSuggestions(query, limit = 8) {
+    try {
+      return await httpClient.get('/employees/suggest', { q: query, limit });
+    } catch (error) {
+      console.error('Failed to fetch employee suggestions:', error);
+      throw error;
+    }
+  },
+
   // Get paginated list of employees
   async getEmployees(params = {}) {
     try {
@@ -39,41 +48,31 @@ export const employeeApi = {
       console.error('Failed to fetch employee:', error);
       throw error;
     }
-  },
-
-  // Get employee competency profile
+  },  // Get employee competency profile
   async getEmployeeProfile(employeeId) {
     try {
-      // TODO: return await httpClient.get(`/competencies/employee/${employeeId}/profile`);
-      console.log('Mock: Fetching employee profile:', employeeId);
+      const response = await httpClient.get(`/competencies/employee/${employeeId}/profile`);
       
-      const employee = mockEmployees.find(emp => emp.id === employeeId);
-      if (!employee) {
-        throw new Error('Employee not found');
-      }
-      
-      // Simulate profile structure
+      // Transform backend response to match frontend expectations
       return {
-        employee_id: employee.id,
-        employee_name: employee.name,
-        role: employee.role,
-        organization: {
-          sub_segment: employee.subSegment,
-          project: employee.project,
-          team: employee.team
-        },
-        skills: employee.skills.map(skill => ({
-          ...skill,
-          emp_skill_id: Math.floor(Math.random() * 1000) + 1
+        employee_id: response.employee_id,
+        employee_name: response.employee_name,
+        role: response.role?.role_name || response.role,
+        start_date_of_working: response.start_date_of_working,
+        organization: response.organization,        skills: (response.skills || []).map(skill => ({
+          skillName: skill.skill_name,
+          proficiency: skill.proficiency?.level_name || skill.proficiency,
+          proficiencyLevelId: skill.proficiency?.proficiency_level_id || null,
+          category: skill.category || '–',
+          yearsOfExperience: skill.years_experience || 0,
+          lastUsed: skill.last_used || null,
+          lastUpdated: skill.last_updated || null,
+          certification: skill.certification || null,
+          emp_skill_id: skill.emp_skill_id
         })),
-        competency_summary: {
-          Expert: employee.skills.filter(s => s.proficiency === 'Expert').length,
-          Proficient: employee.skills.filter(s => s.proficiency === 'Proficient').length,
-          Intermediate: employee.skills.filter(s => s.proficiency === 'Intermediate').length,
-          Beginner: employee.skills.filter(s => s.proficiency === 'Beginner').length
-        },
-        total_skills: employee.skills.length,
-        last_updated: employee.lastUpdated
+        competency_summary: response.competency_summary || {},
+        total_skills: response.skills?.length || 0,
+        last_updated: response.last_updated
       };
     } catch (error) {
       console.error('Failed to fetch employee profile:', error);
