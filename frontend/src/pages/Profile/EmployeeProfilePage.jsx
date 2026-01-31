@@ -8,13 +8,17 @@ import { employeeApi } from '../../services/api/employeeApi';
 
 const EmployeeProfilePage = () => {
   const { id } = useParams();
+  
   const [employee, setEmployee] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(!!id); // Only show loading if ID is present
   const [error, setError] = useState(null);
 
   useEffect(() => {
     if (id) {
       loadEmployee();
+    } else {
+      // No ID provided - set loading to false to show search/empty state
+      setIsLoading(false);
     }
   }, [id]);
 
@@ -29,13 +33,14 @@ const EmployeeProfilePage = () => {
       setError('Failed to load employee profile');
     } finally {
       setIsLoading(false);
-    }
-  };
-
+    }  };
+  
   if (isLoading) {
     return <LoadingState message="Loading employee profile..." />;
   }
-  if (error || !employee) {
+  
+  // Show error only if there was an actual error OR if ID was provided but employee not found
+  if (error || (id && !employee)) {
     return (
       <div className="p-8 bg-slate-50 min-h-screen">
         <div className="max-w-screen-2xl mx-auto">
@@ -48,10 +53,26 @@ const EmployeeProfilePage = () => {
       </div>
     );
   }
-
+  
+  // No ID provided and no employee - show message to use URL
+  if (!id && !employee) {
+    return (
+      <div className="p-8 bg-slate-50 min-h-screen">
+        <div className="max-w-screen-2xl mx-auto">
+          <EmptyState
+            icon={User}
+            title="No employee selected"
+            description="Please use a valid employee profile URL."
+          />
+        </div>
+      </div>
+    );
+  }
+  
   return (
     <div className="p-8 bg-slate-50 min-h-screen">
-      <div className="max-w-screen-2xl mx-auto">        <div className="mb-6">
+      <div className="max-w-screen-2xl mx-auto">
+        <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900">Employee Profile</h1>
           <p className="text-slate-600">View detailed information about this team member</p>
         </div>

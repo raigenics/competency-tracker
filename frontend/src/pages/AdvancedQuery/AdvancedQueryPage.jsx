@@ -173,8 +173,7 @@ const AdvancedQueryPage = () => {
                     icon={Search}
                     title="No results yet"
                     description="Build a query and click search to find matching employees"
-                  />
-                ) : (
+                  />                ) : (
                   <QueryResultsTable
                     results={queryResults}
                     selectedIds={selectedIds}

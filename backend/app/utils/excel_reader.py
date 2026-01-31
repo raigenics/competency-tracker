@@ -228,12 +228,12 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
         'sub_segment_project_mappings': set(),  # (sub_segment, project) pairs
         'project_team_mappings': set(),  # (project, team) pairs
         
-        # Hierarchical skills data (Category → Subcategory → Skills)
+    # Hierarchical skills data (Category → Subcategory → Skills)
         'skill_categories': set(),
         'skill_subcategories': set(),
         'skills': set(),
         'category_subcategory_mappings': set(),  # (category, subcategory) pairs
-        'subcategory_skill_mappings': set(),  # (subcategory, skill) pairs
+        'subcategory_skill_mappings': set(),  # (category, subcategory, skill) triplets - category added to prevent collisions
         
         # Other master data
         'roles': set()
@@ -258,13 +258,13 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
         master_data['skill_categories'].update(skills_df['skill_category'].dropna().unique())
         master_data['skill_subcategories'].update(skills_df['skill_subcategory'].dropna().unique())
         master_data['skills'].update(skills_df['skill_name'].dropna().unique())
-        
-        # Create hierarchical mappings
+          # Create hierarchical mappings
         for _, row in skills_df.iterrows():
             if pd.notna(row['skill_category']) and pd.notna(row['skill_subcategory']):
                 master_data['category_subcategory_mappings'].add((row['skill_category'], row['skill_subcategory']))
-            if pd.notna(row['skill_subcategory']) and pd.notna(row['skill_name']):
-                master_data['subcategory_skill_mappings'].add((row['skill_subcategory'], row['skill_name']))
+            # Changed to triplet (category, subcategory, skill) to prevent subcategory name collisions across categories
+            if pd.notna(row['skill_category']) and pd.notna(row['skill_subcategory']) and pd.notna(row['skill_name']):
+                master_data['subcategory_skill_mappings'].add((row['skill_category'], row['skill_subcategory'], row['skill_name']))
     
     # Log summary
     for key, value_set in master_data.items():

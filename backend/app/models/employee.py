@@ -1,7 +1,8 @@
 """
 Employee model - fact table (volatile, wiped and replaced on import).
 """
-from sqlalchemy import Column, Integer, String, ForeignKey, Date
+from sqlalchemy import Column, Integer, String, ForeignKey, Date, DateTime
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -19,6 +20,11 @@ class Employee(Base):
     project_id = Column(Integer, ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False)
     team_id = Column(Integer, ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=False)
     role_id = Column(Integer, ForeignKey("roles.role_id", ondelete="CASCADE"), nullable=True)
+    
+    # New columns added for soft delete and audit tracking
+    email = Column(String(255), nullable=True, index=True)
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), default=func.now())
     
     # Relationships
     sub_segment = relationship("SubSegment", back_populates="employees")

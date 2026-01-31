@@ -24,6 +24,10 @@ class EmployeeSkill(Base):
     interest_level = Column(Integer, nullable=True)
     last_updated = Column(DateTime, default=func.now(), onupdate=func.now(), nullable=True)
     
+    # New columns added for soft delete and audit tracking
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), default=func.now())
+    
     # Relationships
     employee = relationship("Employee", back_populates="employee_skills")
     skill = relationship("Skill", back_populates="employee_skills")

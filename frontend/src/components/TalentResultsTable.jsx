@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { User, ArrowUpDown, Eye } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import EmployeeProfileDrawer from './EmployeeProfileDrawer';
 
 /**
  * Reusable talent/employee results table component with sorting and selection
@@ -12,9 +12,11 @@ import { useNavigate } from 'react-router-dom';
 const TalentResultsTable = ({ 
   results, 
   selectedIds = new Set(), 
-  onSelectionChange = () => {} 
+  onSelectionChange = () => {}
 }) => {
-  const navigate = useNavigate();
+  // Drawer state
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [selectedEmployeeIndex, setSelectedEmployeeIndex] = useState(0);
   const [sortConfig, setSortConfig] = useState({ key: 'name', direction: 'asc' });
   const selectAllCheckboxRef = useRef(null);
   
@@ -63,9 +65,7 @@ const TalentResultsTable = ({
     if (proficiency >= 3) return 'text-blue-600 bg-blue-100';
     if (proficiency >= 2) return 'text-yellow-600 bg-yellow-100';
     return 'text-gray-600 bg-gray-100';
-  };
-
-  const SortButton = ({ column, children }) => (
+  };  const SortButton = ({ column, children }) => (
     <button
       onClick={() => handleSort(column)}
       className="flex items-center gap-1 font-medium text-gray-900 hover:text-blue-600"
@@ -75,8 +75,15 @@ const TalentResultsTable = ({
     </button>
   );
 
-  const handleViewProfile = (employeeId) => {
-    navigate(`/profile/employee/${employeeId}`);
+  // Handle View Profile click
+  const handleViewProfile = (index) => {
+    setSelectedEmployeeIndex(index);
+    setIsDrawerOpen(true);
+  };
+
+  // Handle drawer navigation
+  const handleDrawerNavigate = (newIndex) => {
+    setSelectedEmployeeIndex(newIndex);
   };
 
   // Selection handlers
@@ -142,16 +149,14 @@ const TalentResultsTable = ({
             </th>
             <th className="text-left py-3 px-4">
               <SortButton column="role">Role</SortButton>
-            </th>
-            <th className="text-left py-3 px-4">
+            </th>            <th className="text-left py-3 px-4">
               <SortButton column="team">Team</SortButton>
             </th>
             <th className="text-left py-3 px-4">Skills</th>
             <th className="text-left py-3 px-4">Actions</th>
           </tr>
-        </thead>
-        <tbody>
-          {sortedResults.map((employee) => (
+        </thead>        <tbody>
+          {sortedResults.map((employee, index) => (
             <tr key={employee.id} className="border-b border-gray-100 hover:bg-gray-50">
               <td className="py-4 px-4">
                 <input
@@ -180,8 +185,7 @@ const TalentResultsTable = ({
               </td>
               <td className="py-4 px-4">
                 <div className="text-sm text-gray-900">{employee.team}</div>
-              </td>
-              <td className="py-4 px-4">
+              </td>              <td className="py-4 px-4">
                 <div className="flex flex-wrap gap-1">
                   {employee.skills.slice(0, 3).map((skill, index) => (
                     <span
@@ -200,8 +204,8 @@ const TalentResultsTable = ({
               </td>
               <td className="py-4 px-4">
                 <button
-                  onClick={() => handleViewProfile(employee.id)}
-                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm font-medium"
+                  onClick={() => handleViewProfile(index)}
+                  className="flex items-center gap-1 text-blue-600 hover:text-blue-800 text-sm font-medium transition-colors"
                 >
                   <Eye className="h-4 w-4" />
                   View Profile
@@ -210,13 +214,21 @@ const TalentResultsTable = ({
             </tr>
           ))}
         </tbody>
-      </table>
-
-      {sortedResults.length === 0 && (
+      </table>      {sortedResults.length === 0 && (
         <div className="text-center py-8 text-gray-500">
           No employees found matching your criteria
         </div>
       )}
+
+      {/* Employee Profile Drawer */}
+      <EmployeeProfileDrawer
+        isOpen={isDrawerOpen}
+        onClose={() => setIsDrawerOpen(false)}
+        employeeId={sortedResults[selectedEmployeeIndex]?.id}
+        employees={sortedResults}
+        currentIndex={selectedEmployeeIndex}
+        onNavigate={handleDrawerNavigate}
+      />
     </div>
   );
 };

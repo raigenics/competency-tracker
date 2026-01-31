@@ -8,7 +8,7 @@ import TalentResultsTable from '../../../components/TalentResultsTable';
 const QueryResultsTable = ({ 
   results, 
   selectedIds = new Set(), 
-  onSelectionChange = () => {} 
+  onSelectionChange = () => {}
 }) => {
   return (
     <TalentResultsTable

@@ -82,9 +82,9 @@ const MyProfilePage = () => {
   // Refs
   const inputRef = useRef(null);
   const dropdownRef = useRef(null);
-  const debounceTimerRef = useRef(null);
-  const filterMenuRef = useRef(null);
+  const debounceTimerRef = useRef(null);  const filterMenuRef = useRef(null);
   const exportMenuRef = useRef(null);
+  
   // Fetch employee suggestions with debounce
   useEffect(() => {
     // Clear previous timer
@@ -164,7 +164,6 @@ const MyProfilePage = () => {
     // Fetch employee profile
     await fetchEmployeeProfile(employee.employee_id);
   };
-  
   // Fetch employee profile data
   const fetchEmployeeProfile = async (employeeId) => {
     // Prevent duplicate fetches
@@ -401,16 +400,15 @@ const MyProfilePage = () => {
       setTimeout(() => setExportError(null), 5000);
     } finally {
       setIsExporting(false);
-    }
-  };
+    }  };
 
   return (
-    <div className="bg-slate-50 min-h-screen -m-8">
+    <div className="bg-slate-50 min-h-screen">
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-8 py-8">
         {/* Page Title */}
         <h1 className="text-3xl font-semibold text-slate-900 mb-2">Employee Profile</h1>
-        <p className="text-slate-600 text-sm mb-8">Search and view detailed employee skill profiles</p>        {/* Search Toolbar - Always Visible */}
+        <p className="text-slate-600 text-sm mb-8">Search and view detailed employee skill profiles</p>{/* Search Toolbar - Always Visible */}
         <div className="bg-white rounded-lg p-8 mb-5 shadow-sm">
           <form onSubmit={handleSearchSubmit} className="flex items-center gap-4">
             <div className="flex-1 relative">

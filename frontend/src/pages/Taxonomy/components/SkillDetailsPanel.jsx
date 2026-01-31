@@ -128,8 +128,7 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
     if (onBackToSummary) {
       onBackToSummary();
     }
-  };
-  if (!skill) {
+  };  if (!skill) {
     return (
       <div className="bg-white rounded-lg border border-gray-200 p-6">
         <div className="text-center py-8">
@@ -171,8 +170,7 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
             <p className="text-sm text-gray-600 mt-1">
               {employeeResults.length} {employeeResults.length === 1 ? 'employee' : 'employees'} found
             </p>
-          </div>
-        </div>
+          </div>        </div>
 
         {/* Results Table */}
         <div className="p-6">
@@ -190,8 +188,7 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
             <div className="text-center py-12">
               <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
               <p className="text-gray-600">No employees found with this skill</p>
-            </div>
-          ) : (
+            </div>          ) : (
             <TalentResultsTable
               results={employeeResults}
               selectedIds={selectedIds}
@@ -202,7 +199,6 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
       </div>
     );
   }
-
   // Show summary view (default)
   return (
     <div className="bg-white rounded-lg border border-gray-200">
@@ -222,8 +218,7 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
               <Award className="h-3 w-3" />
               Core Skill
             </span>
-          )}
-        </div>
+          )}        </div>
       </div>      <div className="p-6 space-y-6">
         {/* Statistics - Always Show Data (0 if loading/error) */}
         {isLoading ? (

@@ -145,11 +145,10 @@ const SkillsTable = ({ employeeId, skills = [], isEditable = false, showHistory 
                   <div className="font-medium text-gray-900">{skill.name}</div>
                   {skill.description && (
                     <div className="text-sm text-gray-600">{skill.description}</div>
-                  )}
-                </td>
-                <td className="py-4 px-4">
+                  )}                </td>                <td className="py-4 px-4">
+                  {/* Guard against null editingSkill - can occur when navigating from Capability Overview/Finder */}
                   <ProficiencyBar
-                    level={editingSkill?.skillId === (skill.skillId || skill.id) ? editingSkill.newProficiency : skill.proficiency}
+                    level={editingSkill?.skillId === (skill.skillId || skill.id) ? (editingSkill?.newProficiency ?? skill.proficiency) : skill.proficiency}
                     isEditing={editingSkill?.skillId === (skill.skillId || skill.id)}
                     onChange={(newLevel) => setEditingSkill({ ...editingSkill, newProficiency: newLevel })}
                   />

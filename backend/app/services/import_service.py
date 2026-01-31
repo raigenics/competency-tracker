@@ -5,7 +5,7 @@ Handles Excel data import with hierarchical master data processing and PostgreSQ
 import logging
 import pandas as pd
 from typing import Dict, List, Any, Optional, Tuple, Set
-from datetime import datetime, date
+from datetime import datetime, date, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy import text
@@ -142,24 +142,27 @@ class ImportService:
                 self.db.close()
             raise ImportServiceError(error_msg)
         
-        try:
-            # Step 1: Read and validate Excel data
+        try:            # Step 1: Read and validate Excel data
             employees_df, skills_df = self._read_and_validate_excel(file_path)
             
-            # Step 2: Scan Excel data for all master data (Step 1 of 2-step approach)
+            # Step 2: Generate import timestamp (UTC timezone-aware) for created_at fields
+            import_timestamp = datetime.now(timezone.utc)
+            logger.info(f"Import timestamp: {import_timestamp.isoformat()}")
+            
+            # Step 3: Scan Excel data for all master data (Step 1 of 2-step approach)
             master_data = get_master_data_for_scanning(employees_df, skills_df)
             
-            # Step 3: Clear fact tables (employees and employee_skills)
+            # Step 4: Clear fact tables (employees and employee_skills)
             self._clear_fact_tables()
             
-            # Step 4: Process hierarchical master data (Step 2 of 2-step approach)
+            # Step 5: Process hierarchical master data (Step 2 of 2-step approach)
             self._process_hierarchical_master_data(master_data)
             
-            # Step 5: Import employees with proper ZID handling
-            zid_to_employee_id_mapping = self._import_employees(employees_df)
+            # Step 6: Import employees with proper ZID handling
+            zid_to_employee_id_mapping = self._import_employees(employees_df, import_timestamp)
             
-            # Step 6: Import employee skills
-            self._import_employee_skills(skills_df, zid_to_employee_id_mapping)
+            # Step 7: Import employee skills
+            self._import_employee_skills(skills_df, zid_to_employee_id_mapping, import_timestamp)
             
             # Step 7: Ensure all changes are flushed and committed
             self.db.flush()
@@ -269,8 +272,7 @@ class ImportService:
             master_data['category_subcategory_mappings']
         )
         self.db.flush()  # Ensure second-level entities exist
-        
-        # Step 3: Process third-level entities with hierarchical validation
+          # Step 3: Process third-level entities with hierarchical validation
         self._process_teams_with_validation(master_data['teams'], master_data['project_team_mappings'])
         self._process_skills_with_validation(
             master_data['skills'], 
@@ -285,7 +287,7 @@ class ImportService:
         for sub_segment_name in sub_segments:
             if not sub_segment_name or pd.isna(sub_segment_name):
                 continue
-                
+            
             existing = self.db.query(SubSegment).filter(
                 SubSegment.sub_segment_name == sub_segment_name
             ).first()
@@ -301,7 +303,7 @@ class ImportService:
         for category_name in categories:
             if not category_name or pd.isna(category_name):
                 continue
-                
+            
             existing = self.db.query(SkillCategory).filter(
                 SkillCategory.category_name == category_name
             ).first()
@@ -317,7 +319,7 @@ class ImportService:
         for role_name in roles:
             if not role_name or pd.isna(role_name):
                 continue
-                
+            
             existing = self.db.query(Role).filter(
                 Role.role_name == role_name
             ).first()
@@ -406,17 +408,38 @@ class ImportService:
                 self.import_stats['new_teams'].append(team_name)
                 logger.info(f"Added new team: {team_name} under project: {project_name}")
 
-    def _process_skills_with_validation(self, skills: Set[str], mappings: Set[Tuple[str, str]]):
-        """Process Skills with Subcategory validation."""
+    def _process_skills_with_validation(self, skills: Set[str], mappings: Set[Tuple[str, str, str]]):
+        """
+        Process Skills with Subcategory validation.
+        
+        Args:
+            skills: Set of skill names
+            mappings: Set of (category_name, subcategory_name, skill_name) triplets
+                     Category is included to prevent subcategory name collisions across different categories
+        """
         logger.info("Processing skills with subcategory validation...")
         
-        for subcategory_name, skill_name in mappings:
+        for category_name, subcategory_name, skill_name in mappings:
+            # Normalize names
+            category_name = category_name.strip() if category_name else category_name
+            subcategory_name = subcategory_name.strip() if subcategory_name else subcategory_name
+            skill_name = skill_name.strip() if skill_name else skill_name
+              # Lookup subcategory using BOTH category_id and subcategory_name to prevent collisions
+            # (e.g., "Frameworks" can exist under both "Web Development" and "Desktop Development")
+            category = self.db.query(SkillCategory).filter(
+                SkillCategory.category_name == category_name
+            ).first()
+            
+            if not category:
+                raise ImportServiceError(f"Category '{category_name}' not found for subcategory '{subcategory_name}'")
+            
             subcategory = self.db.query(SkillSubcategory).filter(
+                SkillSubcategory.category_id == category.category_id,  # ← Added to fix collision bug
                 SkillSubcategory.subcategory_name == subcategory_name
             ).first()
             
             if not subcategory:
-                raise ImportServiceError(f"Subcategory '{subcategory_name}' not found for skill '{skill_name}'")
+                raise ImportServiceError(f"Subcategory '{subcategory_name}' not found under category '{category_name}' for skill '{skill_name}'")
             
             existing_skill = self.db.query(Skill).filter(
                 Skill.skill_name == skill_name,
@@ -431,9 +454,9 @@ class ImportService:
                 )
                 self.db.add(new_skill)
                 self.import_stats['new_skills'].append(skill_name)
-                logger.info(f"Added new skill: {skill_name} under subcategory: {subcategory_name}")
+                logger.info(f"Added new skill: {skill_name} under subcategory: {subcategory_name} (category: {category_name})")
 
-    def _import_employees(self, employees_df: pd.DataFrame) -> Dict[str, int]:
+    def _import_employees(self, employees_df: pd.DataFrame, import_timestamp: datetime) -> Dict[str, int]:
         """Import employees and return mapping of ZIDs to database employee IDs."""
         logger.info(f"Importing {len(employees_df)} employees")
         
@@ -478,7 +501,16 @@ class ImportService:
                 zid
             )
             
-            # Create employee
+            # Parse email column (case-insensitive, optional)
+            email = None
+            email_raw = row.get('email') or row.get('Email')
+            if email_raw and not pd.isna(email_raw):
+                email = str(email_raw).strip()
+                if email == '':
+                    email = None
+              # Create employee with explicit created_at timestamp
+            # Note: created_at is set explicitly to import_timestamp to ensure all records
+            # imported in a single batch have the same creation time
             employee = Employee(
                 zid=zid,
                 full_name=row['full_name'],
@@ -486,20 +518,22 @@ class ImportService:
                 project_id=project.project_id,
                 team_id=team.team_id,
                 role_id=role.role_id if role else None,
-                start_date_of_working=start_date
+                start_date_of_working=start_date,
+                email=email,
+                created_at=import_timestamp  # Explicit timestamp for import tracking
             )
             
             self.db.add(employee)
             self.db.flush()  # Get the auto-generated ID
             
             zid_to_employee_id_mapping[zid] = employee.employee_id
-            
+        
         self.import_stats['employees_imported'] = len(employees_df)
         logger.info(f"Imported {len(employees_df)} employees successfully")
         
         return zid_to_employee_id_mapping
 
-    def _import_employee_skills(self, skills_df: pd.DataFrame, zid_to_employee_id_mapping: Dict[str, int]):
+    def _import_employee_skills(self, skills_df: pd.DataFrame, zid_to_employee_id_mapping: Dict[str, int], import_timestamp: datetime):
         """Import employee skills using the ZID to employee ID mapping with history tracking."""
         logger.info(f"Importing {len(skills_df)} employee skill records")
         
@@ -562,8 +596,9 @@ class ImportService:
                 except (ValueError, TypeError):
                     logger.warning(f"Invalid interest_level value '{interest_level}' for employee {zid}, setting to None")
                     interest_level = None
-            
-            # Create employee skill
+              # Create employee skill with explicit created_at timestamp
+            # Note: created_at is set explicitly to import_timestamp to ensure all records
+            # imported in a single batch have the same creation time
             employee_skill = EmployeeSkill(
                 employee_id=db_employee_id,
                 skill_id=skill.skill_id,
@@ -573,7 +608,8 @@ class ImportService:
                 started_learning_from=started_learning_from,
                 certification=row.get('certification'),
                 comment=row.get('comment'),
-                interest_level=interest_level
+                interest_level=interest_level,
+                created_at=import_timestamp  # Explicit timestamp for import tracking
             )
             
             self.db.add(employee_skill)
