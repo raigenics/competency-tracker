@@ -6,6 +6,7 @@ import SkillDistributionTable from './components/SkillDistributionTable.jsx';
 import SkillProgressMomentum from './components/SkillProgressMomentum.jsx';
 import OrgCoverageTable from './components/OrgCoverageTable.jsx';
 import LoadingState from '../../components/LoadingState.jsx';
+import PageHeader from '../../components/PageHeader.jsx';
 import { dashboardApi } from '../../services/api/dashboardApi.js';
 import { dropdownApi } from '../../services/api/dropdownApi.js';
 
@@ -236,29 +237,28 @@ const DashboardPage = () => {
     setDashboardFilters({ subSegment: '', project: '', team: '' });
     setDropdownData(prev => ({ ...prev, projects: [], teams: [] }));
   };
-
   if (loading) {
     return <LoadingState message="Loading dashboard..." />;
   }
 
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
-      <div className="max-w-screen-2xl mx-auto">
-        {/* Dashboard Header */}
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-slate-600 mt-1">Competency overview and situational awareness</p>
-        </div>
-
-        {/* Primary Action - Launch Advanced Query */}
-        <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg p-6 mb-8 text-white">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
-                <Search className="w-6 h-6 text-white" />
-              </div>
-              <div>
-                <h2 className="text-xl font-semibold">Find Talent by Skills & Organization</h2>
+    <div className="min-h-screen bg-[#f8fafc]">
+      <PageHeader 
+        title="Dashboard"
+        subtitle="Competency overview and situational awareness"
+      />
+      
+      <div className="p-8">
+        <div className="max-w-screen-2xl mx-auto">
+          {/* Primary Action - Launch Advanced Query */}
+          <div className="bg-gradient-to-br from-blue-600 to-blue-700 rounded-xl shadow-lg p-6 mb-8 text-white">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-white bg-opacity-20 rounded-lg flex items-center justify-center">
+                  <Search className="w-6 h-6 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-xl font-semibold">Find Talent by Skills & Organization</h2>
                 <p className="text-blue-100 text-sm mt-1">Launch advanced query builder for complex multi-dimensional search</p>
               </div>
             </div>
@@ -384,13 +384,12 @@ const DashboardPage = () => {
         />
 
         {/* Skill Progress Momentum */}
-        <SkillProgressMomentum momentum={momentum} />
-
-        {/* Organizational Skill Coverage Table */}
+        <SkillProgressMomentum momentum={momentum} />        {/* Organizational Skill Coverage Table */}
         <OrgCoverageTable 
           coverageData={orgCoverage}
           onSegmentSelect={handleSegmentSelect}
         />
+        </div>
       </div>
     </div>
   );

@@ -1,8 +1,7 @@
 import httpClient from './httpClient.js';
-import { mockEmployees } from '../../data/mockEmployees.js';
 
-// TODO: Replace with actual FastAPI calls
-export const employeeApi = {  // Get employee suggestions for autocomplete
+// Employee API service
+export const employeeApi = {// Get employee suggestions for autocomplete
   async getSuggestions(query, limit = 8) {
     try {
       return await httpClient.get('/employees/suggest', { q: query, limit });
@@ -10,23 +9,16 @@ export const employeeApi = {  // Get employee suggestions for autocomplete
       console.error('Failed to fetch employee suggestions:', error);
       throw error;
     }
-  },
-
-  // Get paginated list of employees
+  },  // Get paginated list of employees
   async getEmployees(params = {}) {
     try {
-      // TODO: return await httpClient.get('/employees', params);
-      console.log('Mock: Fetching employees with params:', params);
+      // Call real backend API with ID-based filters
+      console.log('Fetching employees from API with params:', params);
       
-      // Simulate API response structure
-      return {
-        items: mockEmployees,
-        total: mockEmployees.length,
-        page: params.page || 1,
-        size: params.size || 10,
-        has_next: false,
-        has_previous: false
-      };
+      const response = await httpClient.get('/employees', params);
+      
+      // Backend returns: { items, total, page, size, has_next, has_previous }
+      return response;
     } catch (error) {
       console.error('Failed to fetch employees:', error);
       throw error;

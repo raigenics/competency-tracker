@@ -3,6 +3,7 @@ import { Search, TreePine } from 'lucide-react';
 import TaxonomyTree from './components/TaxonomyTree';
 import SkillDetailsPanel from './components/SkillDetailsPanel';
 import LoadingState from '../../components/LoadingState';
+import PageHeader from '../../components/PageHeader.jsx';
 import { skillApi } from '../../services/api/skillApi';
 import useCapabilityOverviewStore from './capabilityOverviewStore';
 
@@ -304,70 +305,82 @@ const SkillTaxonomyPage = () => {
 
   if (isLoading) {
     return <LoadingState message="Loading skill taxonomy..." />;
-  }return (
-    <div className="p-8 bg-slate-50 min-h-screen">
-      <div className="max-w-screen-2xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Skill Overview</h1>
-          <p className="text-slate-600">
-            Browse and explore organizational capabilities and skill structure
-          </p>
-        </div>
+  }
 
-        {/* Search Bar */}
-        <div className="mb-6">
-          <div className="relative max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />            <input
-              type="text"
-              placeholder="Search categories, subcategories, or skills..."              value={searchTerm}
-              onChange={handleSearchChange}
-              className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            /></div>        </div>        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[calc(100vh-280px)] lg:overflow-hidden lg:min-h-0">
-          {/* Skill Tree - Adjusted width */}
-          <div className="lg:col-span-5 h-full min-h-0">            <div className="bg-white rounded-lg border border-slate-200 h-full flex flex-col min-h-0">
-              <div className="border-b border-slate-200 p-6">
-                <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                  <TreePine className="h-5 w-5" />
-                  Capability Structure
-                </h2>
-                <p className="text-sm text-slate-600 mt-1">
-                  {searchTerm ? `Showing results for "${searchTerm}"` : 'Category → Sub-Category → Skills'}
-                </p>
-                
-                {/* Summary Counts */}
-                <div className="flex items-center gap-3 mt-3">
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-md">
-                    <span className="text-xs font-medium text-slate-700">{taxonomyCounts.categories}</span>
-                    <span className="text-xs text-slate-500">Categories</span>
+  return (
+    <div className="min-h-screen bg-[#f8fafc]">
+      <PageHeader 
+        title="Capability Overview"
+        subtitle="Browse and explore organizational capabilities and skill structure"
+      />
+      
+      <div className="p-8">
+        <div className="max-w-screen-2xl mx-auto">
+          {/* Search Bar */}
+          <div className="mb-6">
+            <div className="relative max-w-md">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
+              <input
+                type="text"
+                placeholder="Search categories, subcategories, or skills..."
+                value={searchTerm}
+                onChange={handleSearchChange}
+                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+          </div>
+          
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[calc(100vh-280px)] lg:overflow-hidden lg:min-h-0">
+            {/* Skill Tree - Adjusted width */}
+            <div className="lg:col-span-5 h-full min-h-0">
+              <div className="bg-white rounded-lg border border-slate-200 h-full flex flex-col min-h-0">
+                <div className="border-b border-slate-200 p-6">
+                  <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
+                    <TreePine className="h-5 w-5" />
+                    Capability Structure
+                  </h2>
+                  <p className="text-sm text-slate-600 mt-1">
+                    {searchTerm ? `Showing results for "${searchTerm}"` : 'Category → Sub-Category → Skills'}
+                  </p>
+                  
+                  {/* Summary Counts */}
+                  <div className="flex items-center gap-3 mt-3">
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-md">
+                      <span className="text-xs font-medium text-slate-700">{taxonomyCounts.categories}</span>
+                      <span className="text-xs text-slate-500">Categories</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-md">
+                      <span className="text-xs font-medium text-slate-700">{taxonomyCounts.subCategories}</span>
+                      <span className="text-xs text-slate-500">Sub-Categories</span>
+                    </div>
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-md">
+                      <span className="text-xs font-medium text-slate-700">{taxonomyCounts.skills}</span>
+                      <span className="text-xs text-slate-500">Skills</span>
+                    </div>
                   </div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-md">
-                    <span className="text-xs font-medium text-slate-700">{taxonomyCounts.subCategories}</span>
-                    <span className="text-xs text-slate-500">Sub-Categories</span>
-                  </div>
-                  <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-md">
-                    <span className="text-xs font-medium text-slate-700">{taxonomyCounts.skills}</span>
-                    <span className="text-xs text-slate-500">Skills</span>
-                  </div>                </div>
-              </div>              <div ref={leftPanelRef} className="p-6 pb-12 flex-1 overflow-y-auto min-h-0">
-                <TaxonomyTree 
-                  skillTree={filteredTree} 
-                  onSkillSelect={handleSkillSelect}
-                  selectedSkill={selectedSkill}
-                  searchTerm={searchTerm}
-                  onLoadSubcategories={loadSubcategories}
-                  onLoadSkills={loadSkills}
-                />
+                </div>
+                <div ref={leftPanelRef} className="p-6 pb-12 flex-1 overflow-y-auto min-h-0">
+                  <TaxonomyTree 
+                    skillTree={filteredTree} 
+                    onSkillSelect={handleSkillSelect}
+                    selectedSkill={selectedSkill}
+                    searchTerm={searchTerm}
+                    onLoadSubcategories={loadSubcategories}
+                    onLoadSkills={loadSkills}
+                  />
+                </div>
               </div>
             </div>
-          </div>{/* Skill Details Panel - Expanded width */}
-          <div className="lg:col-span-7 h-full min-h-0">
-            <div ref={rightPanelRef} className="h-full overflow-y-auto min-h-0">
-              <SkillDetailsPanel 
-                skill={selectedSkill}
-                showViewAll={showViewAll}
-                onViewAll={handleViewAll}
-                onBackToSummary={handleBackToSummary}
-              />
+            {/* Skill Details Panel - Expanded width */}
+            <div className="lg:col-span-7 h-full min-h-0">
+              <div ref={rightPanelRef} className="h-full overflow-y-auto min-h-0">
+                <SkillDetailsPanel 
+                  skill={selectedSkill}
+                  showViewAll={showViewAll}
+                  onViewAll={handleViewAll}
+                  onBackToSummary={handleBackToSummary}
+                />
+              </div>
             </div>
           </div>
         </div>

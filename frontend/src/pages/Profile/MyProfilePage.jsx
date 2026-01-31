@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import PageHeader from '../../components/PageHeader.jsx';
 import { employeeApi } from '../../services/api/employeeApi.js';
 import employeeProfileExportService from '../../services/employeeProfileExportService.js';
 import employeeProfilePdfExportService from '../../services/employeeProfilePdfExportService.js';
@@ -403,12 +404,15 @@ const MyProfilePage = () => {
     }  };
 
   return (
-    <div className="bg-slate-50 min-h-screen">
+    <div className="min-h-screen bg-[#f8fafc]">
+      <PageHeader 
+        title="Employee Profile"
+        subtitle="Search and view detailed employee skill profiles"
+      />
+      
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-8 py-8">
-        {/* Page Title */}
-        <h1 className="text-3xl font-semibold text-slate-900 mb-2">Employee Profile</h1>
-        <p className="text-slate-600 text-sm mb-8">Search and view detailed employee skill profiles</p>{/* Search Toolbar - Always Visible */}
+        {/* Search Toolbar - Always Visible */}
         <div className="bg-white rounded-lg p-8 mb-5 shadow-sm">
           <form onSubmit={handleSearchSubmit} className="flex items-center gap-4">
             <div className="flex-1 relative">

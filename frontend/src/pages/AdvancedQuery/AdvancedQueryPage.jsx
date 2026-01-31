@@ -5,6 +5,7 @@ import QueryResultsTable from './components/QueryResultsTable';
 import TalentExportMenu from '../../components/TalentExportMenu';
 import LoadingState from '../../components/LoadingState';
 import EmptyState from '../../components/EmptyState';
+import PageHeader from '../../components/PageHeader.jsx';
 import capabilityFinderApi from '../../services/api/capabilityFinderApi';
 import talentExportService from '../../services/talentExportService';
 
@@ -108,13 +109,16 @@ const AdvancedQueryPage = () => {
       setIsExporting(false);
     }
   };
-
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">      <div className="max-w-screen-2xl mx-auto">
-        <div className="mb-6">
-          <h1 className="text-3xl font-bold text-slate-900 mb-2">Capability Finder</h1>
-          <p className="text-slate-600">Build complex queries to find employees with specific skill combinations</p>
-        </div>        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+    <div className="min-h-screen bg-[#f8fafc]">
+      <PageHeader 
+        title="Capability Finder"
+        subtitle="Build complex queries to find employees with specific skill combinations"
+      />
+      
+      <div className="p-8">
+        <div className="max-w-screen-2xl mx-auto">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
           {/* Query Builder Panel */}
           <div className="lg:col-span-4">
             <div className="bg-white rounded-lg border border-slate-200 p-6">
@@ -178,13 +182,12 @@ const AdvancedQueryPage = () => {
                     results={queryResults}
                     selectedIds={selectedIds}
                     onSelectionChange={handleSelectionChange}
-                  />
-                )}
+                  />                )}
               </div>
             </div>
-          </div>
-        </div>
+          </div>        </div>
       </div>
+    </div>
     </div>
   );
 };

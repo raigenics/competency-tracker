@@ -24,26 +24,28 @@ router = APIRouter(prefix="/employees", tags=["employees"])
 
 @router.get("/suggest", response_model=List[EmployeeSuggestion])
 async def suggest_employees(
-    q: str = Query(..., min_length=2, description="Search query for employee name"),
+    q: str = Query(..., min_length=2, description="Search query for employee name or ZID"),
     limit: int = Query(8, ge=1, le=20, description="Maximum number of suggestions to return"),
     db: Session = Depends(get_db)
 ):
     """
     Get employee suggestions for autocomplete.
     
-    - **q**: Search query (minimum 2 characters)
+    - **q**: Search query (minimum 2 characters) - searches both name and ZID
     - **limit**: Maximum number of results (1-20, default 8)
     """
     logger.info(f"Fetching employee suggestions for query: '{q}' with limit: {limit}")
     
     try:
-        # Search for employees by full name (case-insensitive partial match)
+        # Search for employees by full name OR ZID (case-insensitive partial match)
+        search_term = f"%{q}%"
         query = db.query(Employee).options(
             joinedload(Employee.sub_segment),
             joinedload(Employee.project),
             joinedload(Employee.team)
         ).filter(
-            Employee.full_name.ilike(f"%{q}%")
+            (Employee.full_name.ilike(search_term)) | 
+            (Employee.zid.ilike(search_term))
         ).limit(limit)
         
         employees = query.all()
@@ -75,43 +77,54 @@ async def suggest_employees(
 @router.get("/", response_model=EmployeeListResponse)
 async def get_employees(
     pagination: PaginationParams = Depends(),
-    sub_segment: Optional[str] = Query(None, description="Filter by sub-segment name"),
-    project: Optional[str] = Query(None, description="Filter by project name"),
-    team: Optional[str] = Query(None, description="Filter by team name"),
-    role: Optional[str] = Query(None, description="Filter by role"),
-    search: Optional[str] = Query(None, description="Search in name or role"),
+    sub_segment_id: Optional[int] = Query(None, description="Filter by sub-segment ID"),
+    project_id: Optional[int] = Query(None, description="Filter by project ID"),
+    team_id: Optional[int] = Query(None, description="Filter by team ID"),
+    role_id: Optional[int] = Query(None, description="Filter by role ID"),
+    search: Optional[str] = Query(None, description="Search by name or ZID"),
     db: Session = Depends(get_db)
 ):
     """
     Get a paginated list of employees with optional filters.
-    """
-    logger.info(f"Fetching employees with pagination: page={pagination.page}, size={pagination.size}")
     
-    try:        # Build query with joins for organization info
+    - **page**: Page number (default: 1)
+    - **size**: Items per page (default: 10)
+    - **sub_segment_id**: Filter by sub-segment ID
+    - **project_id**: Filter by project ID
+    - **team_id**: Filter by team ID
+    - **role_id**: Filter by role ID
+    - **search**: Search by employee name or ZID
+    """
+    logger.info(f"Fetching employees with filters: sub_segment_id={sub_segment_id}, project_id={project_id}, team_id={team_id}, search={search}, page={pagination.page}, size={pagination.size}")
+    
+    try:
+        # Build query with joins for organization info
         query = db.query(Employee).options(
             joinedload(Employee.sub_segment),
             joinedload(Employee.project),
             joinedload(Employee.team),
             joinedload(Employee.role)
         )
-          # Apply filters
-        if sub_segment:
-            query = query.join(SubSegment).filter(SubSegment.sub_segment_name.ilike(f"%{sub_segment}%"))
         
-        if project:
-            query = query.join(Project).filter(Project.project_name.ilike(f"%{project}%"))
+        # Apply filters by ID (more efficient than name-based filtering)
+        if sub_segment_id:
+            query = query.filter(Employee.sub_segment_id == sub_segment_id)
         
-        if team:
-            query = query.join(Team).filter(Team.team_name.ilike(f"%{team}%"))
+        if project_id:
+            query = query.filter(Employee.project_id == project_id)
         
-        if role:
-            query = query.join(Role).filter(Role.role_name.ilike(f"%{role}%"))
+        if team_id:
+            query = query.filter(Employee.team_id == team_id)
         
+        if role_id:
+            query = query.filter(Employee.role_id == role_id)
+        
+        # Search by name or ZID
         if search:
             search_term = f"%{search}%"
             query = query.filter(
                 (Employee.full_name.ilike(search_term)) |
-                (Employee.role.has(Role.role_name.ilike(search_term)))
+                (Employee.zid.ilike(search_term))
             )
         
         # Get total count

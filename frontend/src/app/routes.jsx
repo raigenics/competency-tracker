@@ -6,6 +6,7 @@ import SkillTaxonomyPage from '../pages/Taxonomy/SkillTaxonomyPage.jsx';
 import MyProfilePage from '../pages/Profile/MyProfilePage.jsx';
 import EmployeeProfilePage from '../pages/Profile/EmployeeProfilePage.jsx';
 import ComparisonPage from '../pages/Comparison/ComparisonPage.jsx';
+import EmployeesPage from '../pages/Employees/EmployeesPage.jsx';
 
 export const router = createBrowserRouter([
   {
@@ -31,10 +32,13 @@ export const router = createBrowserRouter([
       {
         path: "profile/employee/:id",
         element: <EmployeeProfilePage />,
-      },
-      {
+      },      {
         path: "comparison",
         element: <ComparisonPage />,
+      },
+      {
+        path: "employees",
+        element: <EmployeesPage />,
       },
     ],
   },
