@@ -16,7 +16,10 @@ from app.schemas.skill import (
     SkillResponse, SkillListResponse, SkillDetailResponse,
     SkillStatsResponse, CategoryResponse, SubcategoryResponse,
     CategoryInfo, SkillSummaryResponse, TaxonomyTreeResponse,
-    TaxonomyCategoryItem, TaxonomySubcategoryItem, TaxonomySkillItem
+    TaxonomyCategoryItem, TaxonomySubcategoryItem, TaxonomySkillItem,
+    CategoriesResponse, CategorySummaryItem,
+    SubcategoriesResponse, SubcategorySummaryItem,
+    SkillsResponse
 )
 from app.schemas.common import PaginationParams
 
@@ -501,5 +504,194 @@ async def get_skill_summary(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching skill summary"
+        )
+
+
+# === Lazy-loading Taxonomy Endpoints ===
+
+@router.get("/capability/categories", response_model=CategoriesResponse)
+async def get_categories(db: Session = Depends(get_db)):
+    """
+    Get lightweight list of all categories with counts only.
+    Used for initial page load to minimize data transfer.
+    
+    Returns:
+        List of categories with subcategory_count and skill_count for each.
+    """
+    logger.info("Fetching categories with counts for lazy loading")
+    
+    try:
+        # Get all categories with counts
+        categories = db.query(SkillCategory)\
+            .order_by(SkillCategory.category_name)\
+            .all()
+        
+        category_items = []
+        
+        for category in categories:
+            # Count subcategories
+            subcategory_count = db.query(func.count(SkillSubcategory.subcategory_id))\
+                .filter(SkillSubcategory.category_id == category.category_id)\
+                .scalar() or 0
+            
+            # Count skills in this category
+            skill_count = db.query(func.count(Skill.skill_id))\
+                .filter(Skill.category_id == category.category_id)\
+                .scalar() or 0
+            
+            category_items.append(CategorySummaryItem(
+                category_id=category.category_id,
+                category_name=category.category_name,
+                subcategory_count=subcategory_count,
+                skill_count=skill_count
+            ))
+        
+        logger.info(f"Returning {len(category_items)} categories")
+        return CategoriesResponse(categories=category_items)
+        
+    except Exception as e:
+        logger.error(f"Error fetching categories: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching categories"
+        )
+
+
+@router.get("/capability/categories/{category_id}/subcategories", response_model=SubcategoriesResponse)
+async def get_subcategories_for_category(
+    category_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get subcategories for a specific category with skill counts.
+    Used when user expands a category node.
+    
+    Args:
+        category_id: The category ID to fetch subcategories for
+        
+    Returns:
+        List of subcategories with skill_count for each.
+    """
+    logger.info(f"Fetching subcategories for category {category_id}")
+    
+    try:
+        # Verify category exists
+        category = db.query(SkillCategory)\
+            .filter(SkillCategory.category_id == category_id)\
+            .first()
+        
+        if not category:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Category {category_id} not found"
+            )
+        
+        # Get subcategories with skill counts
+        subcategories = db.query(SkillSubcategory)\
+            .filter(SkillSubcategory.category_id == category_id)\
+            .order_by(SkillSubcategory.subcategory_name)\
+            .all()
+        
+        subcategory_items = []
+        
+        for subcategory in subcategories:
+            # Count skills in this subcategory
+            skill_count = db.query(func.count(Skill.skill_id))\
+                .filter(
+                    Skill.category_id == category_id,
+                    Skill.subcategory_id == subcategory.subcategory_id
+                )\
+                .scalar() or 0
+            
+            subcategory_items.append(SubcategorySummaryItem(
+                subcategory_id=subcategory.subcategory_id,
+                subcategory_name=subcategory.subcategory_name,
+                skill_count=skill_count
+            ))
+        
+        logger.info(f"Returning {len(subcategory_items)} subcategories for category {category_id}")
+        return SubcategoriesResponse(
+            category_id=category.category_id,
+            category_name=category.category_name,
+            subcategories=subcategory_items
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching subcategories for category {category_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching subcategories"
+        )
+
+
+@router.get("/capability/subcategories/{subcategory_id}/skills", response_model=SkillsResponse)
+async def get_skills_for_subcategory(
+    subcategory_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get skills for a specific subcategory.
+    Used when user expands a subcategory node.
+    
+    Args:
+        subcategory_id: The subcategory ID to fetch skills for
+        
+    Returns:
+        List of skills in the subcategory.
+    """
+    logger.info(f"Fetching skills for subcategory {subcategory_id}")
+    
+    try:
+        # Verify subcategory exists and get category info
+        subcategory = db.query(SkillSubcategory)\
+            .filter(SkillSubcategory.subcategory_id == subcategory_id)\
+            .first()
+        
+        if not subcategory:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Subcategory {subcategory_id} not found"
+            )
+        
+        # Get category info
+        category = db.query(SkillCategory)\
+            .filter(SkillCategory.category_id == subcategory.category_id)\
+            .first()
+        
+        # Get skills
+        skills = db.query(Skill)\
+            .filter(
+                Skill.category_id == subcategory.category_id,
+                Skill.subcategory_id == subcategory_id
+            )\
+            .order_by(Skill.skill_name)\
+            .all()
+        
+        skill_items = [
+            TaxonomySkillItem(
+                skill_id=skill.skill_id,
+                skill_name=skill.skill_name
+            )
+            for skill in skills
+        ]
+        
+        logger.info(f"Returning {len(skill_items)} skills for subcategory {subcategory_id}")
+        return SkillsResponse(
+            subcategory_id=subcategory.subcategory_id,
+            subcategory_name=subcategory.subcategory_name,
+            category_id=category.category_id,
+            category_name=category.category_name,
+            skills=skill_items
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching skills for subcategory {subcategory_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching skills"
         )
 

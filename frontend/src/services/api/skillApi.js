@@ -122,6 +122,41 @@ export const skillApi = {
       console.error('Failed to fetch taxonomy tree:', error);
       throw error;
     }
+  },
+
+  // === Lazy-loading Taxonomy Methods ===
+
+  // Get categories with counts only (for initial load)
+  async getCategories() {
+    try {
+      const response = await httpClient.get('/skills/capability/categories');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch categories:', error);
+      throw error;
+    }
+  },
+
+  // Get subcategories for a specific category
+  async getSubcategories(categoryId) {
+    try {
+      const response = await httpClient.get(`/skills/capability/categories/${categoryId}/subcategories`);
+      return response;
+    } catch (error) {
+      console.error(`Failed to fetch subcategories for category ${categoryId}:`, error);
+      throw error;
+    }
+  },
+
+  // Get skills for a specific subcategory
+  async getSkills(subcategoryId) {
+    try {
+      const response = await httpClient.get(`/skills/capability/subcategories/${subcategoryId}/skills`);
+      return response;
+    } catch (error) {
+      console.error(`Failed to fetch skills for subcategory ${subcategoryId}:`, error);
+      throw error;
+    }
   }
 };
 

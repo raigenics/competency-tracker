@@ -126,3 +126,56 @@ class TaxonomyTreeResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+# === Lazy-loading Taxonomy Schemas ===
+
+class CategorySummaryItem(BaseModel):
+    """Lightweight category summary for initial load."""
+    category_id: int = Field(description="Category ID")
+    category_name: str = Field(description="Category name")
+    subcategory_count: int = Field(description="Number of subcategories")
+    skill_count: int = Field(description="Total number of skills in category")
+    
+    class Config:
+        from_attributes = True
+
+
+class CategoriesResponse(BaseModel):
+    """Response for categories list endpoint."""
+    categories: List[CategorySummaryItem] = Field(description="List of categories with counts")
+    
+    class Config:
+        from_attributes = True
+
+
+class SubcategorySummaryItem(BaseModel):
+    """Lightweight subcategory summary for on-demand load."""
+    subcategory_id: int = Field(description="Subcategory ID")
+    subcategory_name: str = Field(description="Subcategory name")
+    skill_count: int = Field(description="Number of skills in subcategory")
+    
+    class Config:
+        from_attributes = True
+
+
+class SubcategoriesResponse(BaseModel):
+    """Response for subcategories list endpoint."""
+    category_id: int = Field(description="Parent category ID")
+    category_name: str = Field(description="Parent category name")
+    subcategories: List[SubcategorySummaryItem] = Field(description="List of subcategories with skill counts")
+    
+    class Config:
+        from_attributes = True
+
+
+class SkillsResponse(BaseModel):
+    """Response for skills list endpoint."""
+    subcategory_id: int = Field(description="Parent subcategory ID")
+    subcategory_name: str = Field(description="Parent subcategory name")
+    category_id: int = Field(description="Parent category ID")
+    category_name: str = Field(description="Parent category name")
+    skills: List[TaxonomySkillItem] = Field(description="List of skills in subcategory")
+    
+    class Config:
+        from_attributes = True

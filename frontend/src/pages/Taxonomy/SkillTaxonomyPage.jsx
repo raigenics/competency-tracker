@@ -78,7 +78,7 @@ const SkillTaxonomyPage = () => {
       }
     };
   }, []);
-    const loadSkillTaxonomy = async () => {
+  const loadSkillTaxonomy = async () => {
     // If we have cached data, use it instead of fetching
     if (hasCachedData && skillTreeCached) {
       setSkillTree(skillTreeCached);
@@ -89,23 +89,21 @@ const SkillTaxonomyPage = () => {
     
     setIsLoading(true);
     try {
-      // Fetch real taxonomy data from API
-      const response = await skillApi.getTaxonomyTree();
+      // Use lazy-loading: fetch only categories with counts
+      const response = await skillApi.getCategories();
       
       // Transform API response to match component's expected format
+      // Initially, categories have no subcategories (will be loaded on expand)
       const taxonomyData = response.categories.map(category => ({
         id: category.category_id,
         name: category.category_name,
-        subcategories: category.subcategories.map(subcategory => ({
-          id: subcategory.subcategory_id,
-          name: subcategory.subcategory_name,
-          skills: subcategory.skills.map(skill => ({
-            id: skill.skill_id,        // Real DB skill_id
-            skill_id: skill.skill_id,   // Keep both for compatibility
-            name: skill.skill_name
-          }))
-        }))
-      }));        console.log(`Loaded ${taxonomyData.length} categories from database`);
+        subcategory_count: category.subcategory_count,
+        skill_count: category.skill_count,
+        subcategories: [], // Empty initially - lazy load on expand
+        isLoaded: false // Track if subcategories have been loaded
+      }));
+
+      console.log(`Loaded ${taxonomyData.length} categories (lazy-loading mode)`);
       setSkillTree(taxonomyData);
       setFilteredTree(taxonomyData);
       
@@ -121,6 +119,93 @@ const SkillTaxonomyPage = () => {
       setIsLoading(false);
     }
   };
+
+  // Lazy-load subcategories when a category is expanded
+  const loadSubcategories = async (categoryId) => {
+    try {
+      console.log(`Lazy-loading subcategories for category ${categoryId}`);
+      const response = await skillApi.getSubcategories(categoryId);
+      
+      // Transform subcategories
+      const subcategories = response.subcategories.map(subcategory => ({
+        id: subcategory.subcategory_id,
+        name: subcategory.subcategory_name,
+        skill_count: subcategory.skill_count,
+        skills: [], // Empty initially - lazy load on expand
+        isLoaded: false // Track if skills have been loaded
+      }));
+      
+      // Update the category in skillTree with loaded subcategories
+      const updatedTree = skillTree.map(category => {
+        if (category.id === categoryId) {
+          return {
+            ...category,
+            subcategories,
+            isLoaded: true
+          };
+        }
+        return category;
+      });
+      
+      setSkillTree(updatedTree);
+      setFilteredTree(updatedTree);
+      
+      // Update cache
+      setSkillTreeStore(updatedTree);
+      setFilteredTreeStore(updatedTree);
+      
+      console.log(`Loaded ${subcategories.length} subcategories for category ${categoryId}`);
+    } catch (error) {
+      console.error(`Failed to load subcategories for category ${categoryId}:`, error);
+    }
+  };
+
+  // Lazy-load skills when a subcategory is expanded
+  const loadSkills = async (categoryId, subcategoryId) => {
+    try {
+      console.log(`Lazy-loading skills for subcategory ${subcategoryId}`);
+      const response = await skillApi.getSkills(subcategoryId);
+      
+      // Transform skills
+      const skills = response.skills.map(skill => ({
+        id: skill.skill_id,
+        skill_id: skill.skill_id,
+        name: skill.skill_name
+      }));
+      
+      // Update the subcategory in skillTree with loaded skills
+      const updatedTree = skillTree.map(category => {
+        if (category.id === categoryId) {
+          return {
+            ...category,
+            subcategories: category.subcategories.map(subcategory => {
+              if (subcategory.id === subcategoryId) {
+                return {
+                  ...subcategory,
+                  skills,
+                  isLoaded: true
+                };
+              }
+              return subcategory;
+            })
+          };
+        }
+        return category;
+      });
+      
+      setSkillTree(updatedTree);
+      setFilteredTree(updatedTree);
+      
+      // Update cache
+      setSkillTreeStore(updatedTree);
+      setFilteredTreeStore(updatedTree);
+      
+      console.log(`Loaded ${skills.length} skills for subcategory ${subcategoryId}`);
+    } catch (error) {
+      console.error(`Failed to load skills for subcategory ${subcategoryId}:`, error);
+    }
+  };
+
   const filterSkillTree = (term) => {
     const lowerTerm = term.toLowerCase();
     
@@ -263,17 +348,18 @@ const SkillTaxonomyPage = () => {
                     <span className="text-xs font-medium text-slate-700">{taxonomyCounts.skills}</span>
                     <span className="text-xs text-slate-500">Skills</span>
                   </div>                </div>
-              </div>
-              <div ref={leftPanelRef} className="p-6 pb-12 flex-1 overflow-y-auto min-h-0">
+              </div>              <div ref={leftPanelRef} className="p-6 pb-12 flex-1 overflow-y-auto min-h-0">
                 <TaxonomyTree 
                   skillTree={filteredTree} 
                   onSkillSelect={handleSkillSelect}
                   selectedSkill={selectedSkill}
                   searchTerm={searchTerm}
+                  onLoadSubcategories={loadSubcategories}
+                  onLoadSkills={loadSkills}
                 />
               </div>
             </div>
-          </div>          {/* Skill Details Panel - Expanded width */}
+          </div>{/* Skill Details Panel - Expanded width */}
           <div className="lg:col-span-7 h-full min-h-0">
             <div ref={rightPanelRef} className="h-full overflow-y-auto min-h-0">
               <SkillDetailsPanel 

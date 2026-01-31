@@ -25,6 +25,17 @@ const EmployeeProfileDrawer = ({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+
+  // Handle slide-in animation
+  useEffect(() => {
+    if (isOpen) {
+      // Trigger slide-in animation after a brief delay to ensure CSS transition works
+      setTimeout(() => setIsAnimating(true), 10);
+    } else {
+      setIsAnimating(false);
+    }
+  }, [isOpen]);
 
   // Fetch employee profile when drawer opens or employeeId changes
   useEffect(() => {
@@ -113,19 +124,24 @@ const EmployeeProfileDrawer = ({
       .filter(Boolean)
       .map(d => new Date(d));
     return dates.length > 0 ? new Date(Math.max(...dates)) : null;
-  };
+  };  if (!isOpen) return null;
 
-  if (!isOpen) return null;
   return (
     <>
       {/* Overlay */}
       <div 
-        className="fixed inset-0 bg-black/30 z-40 transition-opacity"
+        className={`fixed inset-0 bg-black/30 z-40 transition-opacity duration-300 ${
+          isAnimating ? 'opacity-100' : 'opacity-0'
+        }`}
         onClick={onClose}
       />
 
       {/* Drawer */}
-      <div className="fixed top-0 right-0 h-full w-[450px] bg-white shadow-2xl z-50 flex flex-col transform transition-transform">
+      <div 
+        className={`fixed top-0 right-0 h-full w-[450px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-300 ease-in-out ${
+          isAnimating ? 'translate-x-0' : 'translate-x-full'
+        }`}
+      >
         {/* Header */}
         <div className="border-b border-slate-200 p-6 flex-shrink-0">
           <button

@@ -1,28 +1,48 @@
 import React, { useState, useEffect } from 'react';
-import { ChevronDown, ChevronRight, Folder, FolderOpen, Tag } from 'lucide-react';
+import { ChevronDown, ChevronRight, Folder, FolderOpen, Tag, Loader2 } from 'lucide-react';
 
-const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill, searchTerm = '' }) => {
+const TaxonomyTree = ({ 
+  skillTree, 
+  onSkillSelect, 
+  selectedSkill, 
+  searchTerm = '',
+  onLoadSubcategories,
+  onLoadSkills
+}) => {
   const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
-
+  const [loadingCategories, setLoadingCategories] = useState(new Set());
+  const [loadingSubcategories, setLoadingSubcategories] = useState(new Set());
   // Auto-expand categories and subcategories that have the 'expanded' flag from search results
+  // PRESERVE existing expansion state and ADD nodes with 'expanded' flag
   useEffect(() => {
-    const categoriesToExpand = new Set();
-    const subcategoriesToExpand = new Set();
-    
-    skillTree.forEach(category => {
-      if (category.expanded) {
-        categoriesToExpand.add(category.id);
-        category.subcategories.forEach(subcategory => {
-          if (subcategory.expanded) {
-            subcategoriesToExpand.add(subcategory.id);
-          }
-        });
-      }
+    setExpandedCategories(prev => {
+      const updated = new Set(prev); // Start with existing state
+      
+      skillTree.forEach(category => {
+        if (category.expanded) {
+          updated.add(category.id);
+        }
+      });
+      
+      return updated;
     });
     
-    setExpandedCategories(categoriesToExpand);
-    setExpandedSubcategories(subcategoriesToExpand);
+    setExpandedSubcategories(prev => {
+      const updated = new Set(prev); // Start with existing state
+      
+      skillTree.forEach(category => {
+        if (category.subcategories) {
+          category.subcategories.forEach(subcategory => {
+            if (subcategory.expanded) {
+              updated.add(subcategory.id);
+            }
+          });
+        }
+      });
+      
+      return updated;
+    });
   }, [skillTree]);
 
   // Helper function to highlight matching text
@@ -38,37 +58,71 @@ const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill, searchTerm = ''
       )
     );
   };
-
-  const toggleCategory = (categoryId) => {
+  const toggleCategory = async (categoryId, category) => {
     const newExpanded = new Set(expandedCategories);
-    if (newExpanded.has(categoryId)) {
+    const wasExpanded = newExpanded.has(categoryId);
+    
+    if (wasExpanded) {
       newExpanded.delete(categoryId);
     } else {
       newExpanded.add(categoryId);
+      
+      // Lazy-load subcategories if not already loaded
+      if (!category.isLoaded && onLoadSubcategories) {
+        setLoadingCategories(prev => new Set(prev).add(categoryId));
+        try {
+          await onLoadSubcategories(categoryId);
+        } finally {
+          setLoadingCategories(prev => {
+            const next = new Set(prev);
+            next.delete(categoryId);
+            return next;
+          });
+        }
+      }
     }
     setExpandedCategories(newExpanded);
   };
 
-  const toggleSubcategory = (subcategoryId) => {
+  const toggleSubcategory = async (categoryId, subcategoryId, subcategory) => {
     const newExpanded = new Set(expandedSubcategories);
-    if (newExpanded.has(subcategoryId)) {
+    const wasExpanded = newExpanded.has(subcategoryId);
+    
+    if (wasExpanded) {
       newExpanded.delete(subcategoryId);
     } else {
       newExpanded.add(subcategoryId);
+      
+      // Lazy-load skills if not already loaded
+      if (!subcategory.isLoaded && onLoadSkills) {
+        setLoadingSubcategories(prev => new Set(prev).add(subcategoryId));
+        try {
+          await onLoadSkills(categoryId, subcategoryId);
+        } finally {
+          setLoadingSubcategories(prev => {
+            const next = new Set(prev);
+            next.delete(subcategoryId);
+            return next;
+          });
+        }
+      }
     }
     setExpandedSubcategories(newExpanded);
-  };
-  const CategoryItem = ({ category }) => {
+  };  const CategoryItem = ({ category }) => {
     const isExpanded = expandedCategories.has(category.id);
-    const skillCount = category.subcategories.reduce((total, sub) => total + sub.skills.length, 0);
+    const isLoading = loadingCategories.has(category.id);
+    const skillCount = category.skill_count || category.subcategories.reduce((total, sub) => total + (sub.skill_count || sub.skills.length), 0);
 
     return (
       <div className="mb-2">
         <button
-          onClick={() => toggleCategory(category.id)}
+          onClick={() => toggleCategory(category.id, category)}
           className="flex items-center gap-2 w-full text-left p-2 rounded-lg hover:bg-gray-100 group"
+          disabled={isLoading}
         >
-          {isExpanded ? (
+          {isLoading ? (
+            <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
+          ) : isExpanded ? (
             <ChevronDown className="h-4 w-4 text-gray-600" />
           ) : (
             <ChevronRight className="h-4 w-4 text-gray-600" />
@@ -84,12 +138,13 @@ const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill, searchTerm = ''
           <span className="text-sm text-gray-500 ml-auto">
             {skillCount} skills
           </span>
-        </button>        {isExpanded && (
+        </button>        {isExpanded && category.subcategories && category.subcategories.length > 0 && (
           <div className="ml-6 mt-2 space-y-1">
             {category.subcategories.map((subcategory) => (
               <SubcategoryItem 
                 key={subcategory.id} 
                 subcategory={subcategory}
+                categoryId={category.id}
                 categoryName={category.name}
               />
             ))}
@@ -97,17 +152,20 @@ const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill, searchTerm = ''
         )}
       </div>
     );
-  };
-  const SubcategoryItem = ({ subcategory, categoryName }) => {
+  };  const SubcategoryItem = ({ subcategory, categoryId, categoryName }) => {
     const isExpanded = expandedSubcategories.has(subcategory.id);
+    const isLoading = loadingSubcategories.has(subcategory.id);
 
     return (
       <div>
         <button
-          onClick={() => toggleSubcategory(subcategory.id)}
+          onClick={() => toggleSubcategory(categoryId, subcategory.id, subcategory)}
           className="flex items-center gap-2 w-full text-left p-2 rounded-lg hover:bg-gray-50 group"
+          disabled={isLoading}
         >
-          {isExpanded ? (
+          {isLoading ? (
+            <Loader2 className="h-3 w-3 text-gray-600 animate-spin" />
+          ) : isExpanded ? (
             <ChevronDown className="h-3 w-3 text-gray-600" />
           ) : (
             <ChevronRight className="h-3 w-3 text-gray-600" />
@@ -117,9 +175,9 @@ const TaxonomyTree = ({ skillTree, onSkillSelect, selectedSkill, searchTerm = ''
             {highlightText(subcategory.name, searchTerm)}
           </span>
           <span className="text-xs text-gray-500 ml-auto">
-            {subcategory.skills.length}
+            {subcategory.skill_count || subcategory.skills.length}
           </span>
-        </button>        {isExpanded && (
+        </button>        {isExpanded && subcategory.skills && subcategory.skills.length > 0 && (
           <div className="ml-6 mt-1 space-y-1">
             {subcategory.skills.map((skill) => (
               <SkillItem 
