@@ -16,7 +16,8 @@ class SkillCategory(Base):
     
     # Relationships
     subcategories = relationship("SkillSubcategory", back_populates="category")
-    skills = relationship("Skill", back_populates="category")
+    # Note: Direct skills relationship removed since skills.category_id column was dropped
+    # To access skills in a category, use: category.subcategories -> subcategory.skills
     
     def __repr__(self):
         return f"<SkillCategory(id={self.category_id}, name='{self.category_name}')>"

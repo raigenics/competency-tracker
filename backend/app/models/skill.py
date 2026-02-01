@@ -13,13 +13,19 @@ class Skill(Base):
     
     skill_id = Column(Integer, primary_key=True, index=True)
     skill_name = Column(String, nullable=False, index=True)
-    category_id = Column(Integer, ForeignKey("skill_categories.category_id", ondelete="CASCADE"), nullable=False)
-    subcategory_id = Column(Integer, ForeignKey("skill_subcategories.subcategory_id", ondelete="CASCADE"), nullable=True)
+    subcategory_id = Column(Integer, ForeignKey("skill_subcategories.subcategory_id", ondelete="CASCADE"), nullable=False)
     
     # Relationships
-    category = relationship("SkillCategory", back_populates="skills")
     subcategory = relationship("SkillSubcategory", back_populates="skills")
     employee_skills = relationship("EmployeeSkill", back_populates="skill")
     
+    @property
+    def category(self):
+        """
+        Compatibility property: derive category from subcategory.
+        This maintains API compatibility while the category_id column has been removed from the database.
+        """
+        return self.subcategory.category if self.subcategory else None
+    
     def __repr__(self):
-        return f"<Skill(id={self.skill_id}, name='{self.skill_name}', category_id={self.category_id})>"
+        return f"<Skill(id={self.skill_id}, name='{self.skill_name}', subcategory_id={self.subcategory_id})>"

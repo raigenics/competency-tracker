@@ -72,8 +72,7 @@ class ImportService:
                 '%d-%m-%Y',      # 02-02-2011
                 '%m/%d/%Y',      # 02/02/2011
                 '%d/%m/%Y',      # 02/02/2011
-                '%Y/%m/%d',      # 2011/02/02
-                '%d-%b-%y',      # 1-Sep-25
+                '%Y/%m/%d',      # 2011/02/02                '%d-%b-%y',      # 1-Sep-25
                 '%d-%B-%y',      # 1-September-25
                 '%d-%b-%Y',      # 1-Sep-2025
                 '%d-%B-%Y',      # 1-September-2025
@@ -109,6 +108,41 @@ class ImportService:
         except Exception as e:
             logger.warning(f"Date conversion error for {field_name} '{date_str}' in record {record_id}: {e}")
             return None
+
+    @staticmethod
+    def _normalize_name(name: str) -> str:
+        """
+        Normalize any name for case-insensitive comparison.
+        Matches database unique constraints: lower(trim(name))
+        
+        Args:
+            name: Raw name from Excel
+            
+        Returns:
+            Normalized name (trimmed, collapsed spaces, lowercased)
+        """
+        if not name:
+            return ""
+        # Strip leading/trailing spaces and collapse multiple internal spaces
+        import re
+        name = name.strip()
+        name = re.sub(r'\s+', ' ', name)
+        # Return lowercased for comparison
+        return name.lower()
+    
+    @staticmethod
+    def _normalize_subcategory_name(name: str) -> str:
+        """
+        Normalize subcategory name for case-insensitive comparison.
+        Wrapper for _normalize_name() for backward compatibility.
+        
+        Args:
+            name: Raw subcategory name from Excel
+            
+        Returns:
+            Normalized name (trimmed, collapsed spaces, lowercased)
+        """
+        return ImportService._normalize_name(name)
 
     def import_excel(self, file_path: str) -> Dict[str, Any]:
         """
@@ -386,6 +420,9 @@ class ImportService:
         """Process Skill Subcategories with Category validation."""
         logger.info("Processing subcategories with category validation...")
         
+        # Track seen subcategories to deduplicate case/space variants
+        seen_subcategories = {}  # (category_id, normalized_name) -> display_name
+        
         for category_name, subcategory_name in mappings:
             category = self.db.query(SkillCategory).filter(
                 SkillCategory.category_name == category_name
@@ -394,19 +431,31 @@ class ImportService:
             if not category:
                 raise ImportServiceError(f"Category '{category_name}' not found for subcategory '{subcategory_name}'")
             
+            # Normalize for deduplication
+            subcategory_normalized = self._normalize_subcategory_name(subcategory_name)
+            dedupe_key = (category.category_id, subcategory_normalized)
+            
+            # Skip if we've already seen this normalized subcategory
+            if dedupe_key in seen_subcategories:
+                logger.debug(f"Skipping duplicate subcategory '{subcategory_name}' (normalized form already seen as '{seen_subcategories[dedupe_key]}')")
+                continue
+            
+            seen_subcategories[dedupe_key] = subcategory_name.strip()
+              # Use case-insensitive query to check database
+            from sqlalchemy import func
             existing_subcategory = self.db.query(SkillSubcategory).filter(
-                SkillSubcategory.subcategory_name == subcategory_name,
+                func.lower(func.trim(SkillSubcategory.subcategory_name)) == subcategory_normalized,
                 SkillSubcategory.category_id == category.category_id
             ).first()
             
             if not existing_subcategory:
                 new_subcategory = SkillSubcategory(
-                    subcategory_name=subcategory_name,
+                    subcategory_name=subcategory_name.strip(),
                     category_id=category.category_id
                 )
                 self.db.add(new_subcategory)
-                self.import_stats['new_skill_subcategories'].append(subcategory_name)
-                logger.info(f"Added new subcategory: {subcategory_name} under category: {category_name}")
+                self.import_stats['new_skill_subcategories'].append(subcategory_name.strip())
+                logger.info(f"Added new subcategory: {subcategory_name.strip()} under category: {category_name}")
 
     def _process_teams_with_validation(self, teams: Set[str], mappings: Set[Tuple[str, str]]):
         """Process Teams with Project validation."""
@@ -445,8 +494,12 @@ class ImportService:
         """
         logger.info("Processing skills with subcategory validation...")
         
-        for category_name, subcategory_name, skill_name in mappings:
-            # Normalize names            category_name = category_name.strip() if category_name else category_name
+        # Track seen skills to deduplicate case/space variants
+        seen_skills = {}  # (subcategory_id, normalized_skill_name) -> display_name
+        
+        for category_name, subcategory_name, skill_name in mappings:            
+            # Normalize names            
+            category_name = category_name.strip() if category_name else category_name
             subcategory_name = subcategory_name.strip() if subcategory_name else subcategory_name
             skill_name = skill_name.strip() if skill_name else skill_name
             
@@ -459,23 +512,38 @@ class ImportService:
             if not category:
                 raise ImportServiceError(f"Category '{category_name}' not found for subcategory '{subcategory_name}'")
             
+            # Normalize subcategory name for case-insensitive lookup
+            subcategory_normalized = self._normalize_subcategory_name(subcategory_name)
+              # Use case-insensitive query to find subcategory
+            from sqlalchemy import func
             subcategory = self.db.query(SkillSubcategory).filter(
                 SkillSubcategory.category_id == category.category_id,  # ← Added to fix collision bug
-                SkillSubcategory.subcategory_name == subcategory_name
+                func.lower(func.trim(SkillSubcategory.subcategory_name)) == subcategory_normalized
             ).first()
             
             if not subcategory:
                 raise ImportServiceError(f"Subcategory '{subcategory_name}' not found under category '{category_name}' for skill '{skill_name}'")
             
+            # Normalize skill name for deduplication
+            skill_normalized = self._normalize_name(skill_name)
+            dedupe_key = (subcategory.subcategory_id, skill_normalized)
+            
+            # Skip if we've already seen this normalized skill
+            if dedupe_key in seen_skills:
+                logger.debug(f"Skipping duplicate skill '{skill_name}' (normalized form already seen as '{seen_skills[dedupe_key]}')")
+                continue
+            
+            seen_skills[dedupe_key] = skill_name
+            
+            # Use case-insensitive query to check database
             existing_skill = self.db.query(Skill).filter(
-                Skill.skill_name == skill_name,
+                func.lower(func.trim(Skill.skill_name)) == skill_normalized,
                 Skill.subcategory_id == subcategory.subcategory_id
             ).first()
             
             if not existing_skill:
                 new_skill = Skill(
                     skill_name=skill_name,
-                    category_id=subcategory.category_id,
                     subcategory_id=subcategory.subcategory_id
                 )
                 self.db.add(new_skill)
@@ -838,69 +906,74 @@ class ImportService:
                 expanded_rows.append(row)
         
         # Create new DataFrame from expanded rows
-        if expanded_rows:
-            return pd.DataFrame(expanded_rows).reset_index(drop=True)
+        if expanded_rows:            return pd.DataFrame(expanded_rows).reset_index(drop=True)
         else:
             return skills_df
     
     def _get_or_create_skill(self, row: pd.Series) -> Optional[Skill]:
         """Get existing skill or create it if missing (defensive programming)."""
         skill_name = str(row.get('skill_name', ''))
-        
-        # Try to find existing skill
-        skill = self.db.query(Skill).filter(
-            Skill.skill_name == skill_name
-        ).first()
-        
-        if skill:
-            return skill
-        
-        # Skill not found - try to create it
-        logger.warning(f"Skill '{skill_name}' not found, attempting to create it")
-        
         category_name = row.get('skill_category')
         subcategory_name = row.get('skill_subcategory')
         
         if not category_name or not subcategory_name:
-            raise ImportServiceError(f"Cannot create skill '{skill_name}': Missing category or subcategory")
+            raise ImportServiceError(f"Cannot resolve skill '{skill_name}': Missing category or subcategory")
         
-        # Get or create category
+        # Get category
         category = self.db.query(SkillCategory).filter(
             SkillCategory.category_name == category_name
         ).first()
         
         if not category:
+            # Create missing category
             category = SkillCategory(category_name=category_name)
             self.db.add(category)
             self.db.flush()
             self.import_stats['new_skill_categories'].append(category_name)
             logger.info(f"Created missing category: {category_name}")
-          # Get or create subcategory
+        
+        # Normalize subcategory name for case-insensitive lookup
+        subcategory_normalized = self._normalize_subcategory_name(subcategory_name)
+        
+        # Get or create subcategory using case-insensitive query
+        from sqlalchemy import func
         subcategory = self.db.query(SkillSubcategory).filter(
             SkillSubcategory.category_id == category.category_id,
-            SkillSubcategory.subcategory_name == subcategory_name
+            func.lower(func.trim(SkillSubcategory.subcategory_name)) == subcategory_normalized
         ).first()
         
         if not subcategory:
             subcategory = SkillSubcategory(
-                subcategory_name=subcategory_name,
+                subcategory_name=subcategory_name.strip(),
                 category_id=category.category_id
             )
             self.db.add(subcategory)
             self.db.flush()
-            self.import_stats['new_skill_subcategories'].append(subcategory_name)
-            logger.info(f"Created missing subcategory: {subcategory_name}")
+            self.import_stats['new_skill_subcategories'].append(subcategory_name.strip())
+            logger.info(f"Created missing subcategory: {subcategory_name.strip()}")
         
-        # Create the skill
+        # Normalize skill name for case-insensitive lookup
+        skill_normalized = self._normalize_name(skill_name)
+        
+        # Try to find existing skill using case-insensitive query
+        skill = self.db.query(Skill).filter(
+            func.lower(func.trim(Skill.skill_name)) == skill_normalized,
+            Skill.subcategory_id == subcategory.subcategory_id
+        ).first()
+        
+        if skill:
+            return skill
+        
+        # Skill not found - create it
+        logger.warning(f"Skill '{skill_name}' not found, creating it")
         skill = Skill(
-            skill_name=skill_name,
-            category_id=category.category_id,
+            skill_name=skill_name.strip(),
             subcategory_id=subcategory.subcategory_id
         )
         self.db.add(skill)
         self.db.flush()
-        self.import_stats['new_skills'].append(skill_name)
-        logger.info(f"Created missing skill: {skill_name}")
+        self.import_stats['new_skills'].append(skill_name.strip())
+        logger.info(f"Created missing skill: {skill_name.strip()}")
         
         return skill
     

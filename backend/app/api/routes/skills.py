@@ -43,9 +43,9 @@ async def get_skills(
     
     try:
         # Build query with joins
+        # Load subcategory and its category for API response compatibility
         query = db.query(Skill).options(
-            joinedload(Skill.category),
-            joinedload(Skill.subcategory)
+            joinedload(Skill.subcategory).joinedload(SkillSubcategory.category)
         )
         
         # Apply filters
@@ -110,9 +110,9 @@ async def get_skill(
     logger.info(f"Fetching skill details for ID: {skill_id}")
     
     try:
+        # Load subcategory and its category for API response compatibility
         skill = db.query(Skill).options(
-            joinedload(Skill.category),
-            joinedload(Skill.subcategory)
+            joinedload(Skill.subcategory).joinedload(SkillSubcategory.category)
         ).filter(Skill.skill_id == skill_id).first()
         
         if not skill:
@@ -237,10 +237,11 @@ async def get_categories(db: Session = Depends(get_db)):
         
         response_items = []
         for category in categories:
-            # Count skills and subcategories
-            skill_count = db.query(func.count(Skill.skill_id)).filter(
-                Skill.category_id == category.category_id
-            ).scalar()
+            # Count skills via join through subcategories
+            skill_count = db.query(func.count(Skill.skill_id))\
+                .join(SkillSubcategory)\
+                .filter(SkillSubcategory.category_id == category.category_id)\
+                .scalar()
             
             subcategory_count = db.query(func.count(SkillSubcategory.subcategory_id)).filter(
                 SkillSubcategory.category_id == category.category_id
@@ -325,8 +326,7 @@ async def get_taxonomy_tree(db: Session = Depends(get_db)):
     """
     logger.info("Fetching complete skill taxonomy tree")
     
-    try:
-        # Get ALL categories (no filtering)
+    try:        # Get ALL categories (no filtering)
         categories = db.query(SkillCategory)\
             .order_by(SkillCategory.category_name)\
             .all()
@@ -347,10 +347,7 @@ async def get_taxonomy_tree(db: Session = Depends(get_db)):
             for subcategory in subcategories:
                 # Get all skills for this subcategory
                 skills = db.query(Skill)\
-                    .filter(
-                        Skill.category_id == category.category_id,
-                        Skill.subcategory_id == subcategory.subcategory_id
-                    )\
+                    .filter(Skill.subcategory_id == subcategory.subcategory_id)\
                     .order_by(Skill.skill_name)\
                     .all()
                 
@@ -533,10 +530,10 @@ async def get_categories(db: Session = Depends(get_db)):
             subcategory_count = db.query(func.count(SkillSubcategory.subcategory_id))\
                 .filter(SkillSubcategory.category_id == category.category_id)\
                 .scalar() or 0
-            
-            # Count skills in this category
+              # Count skills in this category
             skill_count = db.query(func.count(Skill.skill_id))\
-                .filter(Skill.category_id == category.category_id)\
+                .join(SkillSubcategory)\
+                .filter(SkillSubcategory.category_id == category.category_id)\
                 .scalar() or 0
             
             category_items.append(CategorySummaryItem(
@@ -594,13 +591,9 @@ async def get_subcategories_for_category(
         
         subcategory_items = []
         
-        for subcategory in subcategories:
-            # Count skills in this subcategory
+        for subcategory in subcategories:            # Count skills in this subcategory
             skill_count = db.query(func.count(Skill.skill_id))\
-                .filter(
-                    Skill.category_id == category_id,
-                    Skill.subcategory_id == subcategory.subcategory_id
-                )\
+                .filter(Skill.subcategory_id == subcategory.subcategory_id)\
                 .scalar() or 0
             
             subcategory_items.append(SubcategorySummaryItem(
@@ -659,13 +652,9 @@ async def get_skills_for_subcategory(
         category = db.query(SkillCategory)\
             .filter(SkillCategory.category_id == subcategory.category_id)\
             .first()
-        
-        # Get skills
+          # Get skills
         skills = db.query(Skill)\
-            .filter(
-                Skill.category_id == subcategory.category_id,
-                Skill.subcategory_id == subcategory_id
-            )\
+            .filter(Skill.subcategory_id == subcategory_id)\
             .order_by(Skill.skill_name)\
             .all()
         
