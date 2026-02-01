@@ -183,23 +183,22 @@ def _validate_and_normalize_skills(df: pd.DataFrame) -> pd.DataFrame:
         if col in df_normalized.columns:
             df_normalized[col] = df_normalized[col].astype(str).str.strip()
             # Replace 'nan' string with None
-            df_normalized[col] = df_normalized[col].replace('nan', None)
-      # Convert numeric columns
+            df_normalized[col] = df_normalized[col].replace('nan', None)    # Convert numeric columns
     if 'years_experience' in df_normalized.columns:
         df_normalized['years_experience'] = pd.to_numeric(df_normalized['years_experience'], errors='coerce')
-      # Handle last_used - keep as string for import service to parse dates  
-    # The import service has logic to handle both date strings and year integers
+    
+    # Parse last_used - can be date string, "Jun-24" format, or year
+    # Keep as string for import service to parse with _parse_date_safely
     if 'last_used' in df_normalized.columns:
-        # Clean the column but don't convert to numeric yet
-        df_normalized['last_used'] = df_normalized['last_used'].astype(str).str.strip()
+        # Keep the raw value for the import service to parse
+        # Don't convert to string 'nan' - keep as None for proper handling
         df_normalized['last_used'] = df_normalized['last_used'].replace('nan', None)
     
-    # Parse dates
+    # Parse started_learning_from date
     if 'started_learning_from' in df_normalized.columns:
-        df_normalized['started_learning_from'] = pd.to_datetime(
-            df_normalized['started_learning_from'], 
-            errors='coerce'
-        ).dt.date
+        # Keep as raw value for import service to parse with _parse_date_safely
+        # The import service handles various formats better than pandas
+        df_normalized['started_learning_from'] = df_normalized['started_learning_from'].replace('nan', None)
       # Validate proficiency levels (Dreyfus Model)
     valid_proficiency = ['Novice', 'Advanced Beginner', 'Competent', 'Proficient', 'Expert']
     invalid_prof = df_normalized[~df_normalized['proficiency'].isin(valid_proficiency)]['proficiency'].unique()

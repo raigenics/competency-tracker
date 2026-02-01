@@ -4,6 +4,7 @@ Handles Excel data import with hierarchical master data processing and PostgreSQ
 """
 import logging
 import pandas as pd
+import uuid
 from typing import Dict, List, Any, Optional, Tuple, Set
 from datetime import datetime, date, timezone
 from sqlalchemy.orm import Session
@@ -42,7 +43,8 @@ class ImportService:
             'new_skill_subcategories': [],
             'new_skills': [],
             'new_roles': [],
-            'hierarchical_validations': []
+            'hierarchical_validations': [],
+            'failed_rows': []
         }
     
     def _parse_date_safely(self, date_str: str, field_name: str, record_id: str = "") -> Optional[date]:
@@ -157,21 +159,45 @@ class ImportService:
             
             # Step 5: Process hierarchical master data (Step 2 of 2-step approach)
             self._process_hierarchical_master_data(master_data)
-            
-            # Step 6: Import employees with proper ZID handling
+              # Step 6: Import employees with proper ZID handling
             zid_to_employee_id_mapping = self._import_employees(employees_df, import_timestamp)
             
-            # Step 7: Import employee skills
-            self._import_employee_skills(skills_df, zid_to_employee_id_mapping, import_timestamp)
-            
-            # Step 7: Ensure all changes are flushed and committed
+            # Step 7: Import employee skills (stores expanded count in import_stats)
+            expanded_skill_count = self._import_employee_skills(skills_df, zid_to_employee_id_mapping, import_timestamp)
+              # Step 7: Ensure all changes are flushed and committed
             self.db.flush()
             self.db.commit()
             
             logger.info("Excel import completed successfully with PostgreSQL")
             
+            # Determine status based on failures
+            total_employee_rows = len(employees_df)
+            total_skill_rows_original = len(skills_df)
+            total_skill_rows_expanded = expanded_skill_count
+            
+            employee_imported = self.import_stats['employees_imported']
+            skill_imported = self.import_stats['skills_imported']
+            
+            # Count failed employees vs failed skills
+            failed_employee_count = len([r for r in self.import_stats['failed_rows'] if r.get('sheet') == 'Employee'])
+            failed_skill_count = len([r for r in self.import_stats['failed_rows'] if r.get('sheet') == 'Employee_Skills'])
+            total_failed = len(self.import_stats['failed_rows'])
+            
+            status = 'success' if total_failed == 0 else 'completed_with_errors'
+            
             return {
-                'status': 'success',
+                'status': status,
+                'employee_total': total_employee_rows,
+                'employee_imported': employee_imported,
+                'employee_failed': failed_employee_count,
+                'skill_total': total_skill_rows_expanded,
+                'skill_original_total': total_skill_rows_original,
+                'skill_imported': skill_imported,
+                'skill_failed': failed_skill_count,
+                # Legacy fields for backward compatibility
+                'total_rows': total_employee_rows,
+                'success_count': employee_imported,
+                'failed_count': total_failed,
                 **self.import_stats
             }
             
@@ -420,11 +446,11 @@ class ImportService:
         logger.info("Processing skills with subcategory validation...")
         
         for category_name, subcategory_name, skill_name in mappings:
-            # Normalize names
-            category_name = category_name.strip() if category_name else category_name
+            # Normalize names            category_name = category_name.strip() if category_name else category_name
             subcategory_name = subcategory_name.strip() if subcategory_name else subcategory_name
             skill_name = skill_name.strip() if skill_name else skill_name
-              # Lookup subcategory using BOTH category_id and subcategory_name to prevent collisions
+            
+            # Lookup subcategory using BOTH category_id and subcategory_name to prevent collisions
             # (e.g., "Frameworks" can exist under both "Web Development" and "Desktop Development")
             category = self.db.query(SkillCategory).filter(
                 SkillCategory.category_name == category_name
@@ -455,175 +481,435 @@ class ImportService:
                 self.db.add(new_skill)
                 self.import_stats['new_skills'].append(skill_name)
                 logger.info(f"Added new skill: {skill_name} under subcategory: {subcategory_name} (category: {category_name})")
-
+    
     def _import_employees(self, employees_df: pd.DataFrame, import_timestamp: datetime) -> Dict[str, int]:
-        """Import employees and return mapping of ZIDs to database employee IDs."""
-        logger.info(f"Importing {len(employees_df)} employees")
+        """Import employees with per-employee transaction scope for partial success.
+        Each employee is committed independently so failures don't affect others."""
+        logger.info(f"Importing {len(employees_df)} employees (per-employee transactions)")
         
         zid_to_employee_id_mapping = {}
+        successful_imports = 0
+        failed_employees = []
         
-        for _, row in employees_df.iterrows():
-            zid = str(row['zid'])
+        for row_idx, row in employees_df.iterrows():
+            row_number = row_idx + 2  # Excel row number (accounting for header)
+            zid = str(row.get('zid', ''))
+            full_name = str(row.get('full_name', ''))
             
-            # Get foreign key IDs - master data should exist from hierarchical processing
-            sub_segment = self.db.query(SubSegment).filter(
-                SubSegment.sub_segment_name == row['sub_segment']
-            ).first()
-            
-            if not sub_segment:
-                raise ImportServiceError(f"Sub-segment not found: {row['sub_segment']}")
-            
-            project = self.db.query(Project).filter(
-                Project.project_name == row['project'],
-                Project.sub_segment_id == sub_segment.sub_segment_id
-            ).first()
-            
-            if not project:
-                raise ImportServiceError(f"Project not found: {row['project']} under sub-segment: {row['sub_segment']}")
-            
-            team = self.db.query(Team).filter(
-                Team.team_name == row['team'],
-                Team.project_id == project.project_id
-            ).first()
-            
-            if not team:
-                raise ImportServiceError(f"Team not found: {row['team']} under project: {row['project']}")
-            
-            # Lookup role by name (optional)
-            role = None
-            if row.get('role'):
-                role = self.db.query(Role).filter(Role.role_name == row['role']).first()
-            
-            # Convert start_date_of_working using safe parsing
-            start_date = self._parse_date_safely(
-                row.get('start_date_of_working'), 
-                'start_date_of_working', 
-                zid
-            )
-            
-            # Parse email column (case-insensitive, optional)
-            email = None
-            email_raw = row.get('email') or row.get('Email')
-            if email_raw and not pd.isna(email_raw):
-                email = str(email_raw).strip()
-                if email == '':
-                    email = None
-              # Create employee with explicit created_at timestamp
-            # Note: created_at is set explicitly to import_timestamp to ensure all records
-            # imported in a single batch have the same creation time
-            employee = Employee(
-                zid=zid,
-                full_name=row['full_name'],
-                sub_segment_id=sub_segment.sub_segment_id,
-                project_id=project.project_id,
-                team_id=team.team_id,
-                role_id=role.role_id if role else None,
-                start_date_of_working=start_date,
-                email=email,
-                created_at=import_timestamp  # Explicit timestamp for import tracking
-            )
-            
-            self.db.add(employee)
-            self.db.flush()  # Get the auto-generated ID
-            
-            zid_to_employee_id_mapping[zid] = employee.employee_id
+            try:
+                # Get foreign key IDs - master data should exist from hierarchical processing
+                sub_segment = self.db.query(SubSegment).filter(
+                    SubSegment.sub_segment_name == row['sub_segment']
+                ).first()
+                
+                if not sub_segment:
+                    raise ImportServiceError(f"Sub-segment not found: {row['sub_segment']}")
+                
+                project = self.db.query(Project).filter(
+                    Project.project_name == row['project'],
+                    Project.sub_segment_id == sub_segment.sub_segment_id
+                ).first()
+                
+                if not project:
+                    raise ImportServiceError(f"Project not found: {row['project']} under sub-segment: {row['sub_segment']}")
+                
+                team = self.db.query(Team).filter(
+                    Team.team_name == row['team'],
+                    Team.project_id == project.project_id
+                ).first()
+                
+                if not team:
+                    raise ImportServiceError(f"Team not found: {row['team']} under project: {row['project']}")
+                
+                # Lookup role by name (optional)
+                role = None
+                if row.get('role'):
+                    role = self.db.query(Role).filter(Role.role_name == row['role']).first()
+                
+                # Convert start_date_of_working using safe parsing
+                start_date = self._parse_date_safely(
+                    row.get('start_date_of_working'), 
+                    'start_date_of_working', 
+                    zid
+                )
+                
+                # Parse email column (case-insensitive, optional)
+                email = None
+                email_raw = row.get('email') or row.get('Email')
+                if email_raw and not pd.isna(email_raw):
+                    email = str(email_raw).strip()
+                    if email == '':
+                        email = None
+                  
+                # Create employee with explicit created_at timestamp
+                employee = Employee(
+                    zid=zid,
+                    full_name=full_name,
+                    sub_segment_id=sub_segment.sub_segment_id,
+                    project_id=project.project_id,
+                    team_id=team.team_id,
+                    role_id=role.role_id if role else None,
+                    start_date_of_working=start_date,
+                    email=email,
+                    created_at=import_timestamp
+                )
+                
+                self.db.add(employee)
+                self.db.flush()  # Get the auto-generated ID
+                
+                # CRITICAL: Commit this employee immediately (per-employee transaction)
+                self.db.commit()
+                
+                zid_to_employee_id_mapping[zid] = employee.employee_id
+                successful_imports += 1
+                logger.debug(f"Committed employee {zid} (ID: {employee.employee_id})")
+                
+            except Exception as e:
+                # Log the error and continue with next row
+                error_message = str(e)
+                logger.warning(f"Failed to import employee at row {row_number} (ZID: {zid}, Name: {full_name}): {error_message}")
+                  # Determine error code
+                error_code = "IMPORT_ERROR"
+                if "not found" in error_message.lower():
+                    error_code = "MISSING_REFERENCE"
+                elif "duplicate" in error_message.lower():
+                    error_code = "DUPLICATE_ENTRY"
+                elif "constraint" in error_message.lower():
+                    error_code = "CONSTRAINT_VIOLATION"
+                
+                # Track failed employee
+                failed_employee = {
+                    'sheet': 'Employee',
+                    'excel_row_number': row_number,
+                    'row_number': row_number,  # Legacy field
+                    'zid': zid if zid else None,
+                    'full_name': full_name if full_name else None,
+                    'employee_name': full_name if full_name else None,  # For consistency
+                    'skill_name': None,  # Not applicable for employee rows
+                    'error_code': error_code,
+                    'message': error_message
+                }
+                failed_employees.append(failed_employee)
+                self.import_stats['failed_rows'].append(failed_employee)
+                
+                # Rollback ONLY this employee (won't affect previous commits)
+                self.db.rollback()
+                continue
         
-        self.import_stats['employees_imported'] = len(employees_df)
-        logger.info(f"Imported {len(employees_df)} employees successfully")
+        self.import_stats['employees_imported'] = successful_imports
+        self.import_stats['failed_employees'] = failed_employees
+        logger.info(f"Imported {successful_imports} of {len(employees_df)} employees (failed: {len(failed_employees)})")
         
         return zid_to_employee_id_mapping
-
-    def _import_employee_skills(self, skills_df: pd.DataFrame, zid_to_employee_id_mapping: Dict[str, int], import_timestamp: datetime):
-        """Import employee skills using the ZID to employee ID mapping with history tracking."""
-        logger.info(f"Importing {len(skills_df)} employee skill records")
+    
+    def _import_employee_skills(self, skills_df: pd.DataFrame, zid_to_employee_id_mapping: Dict[str, int], import_timestamp: datetime) -> int:
+        """Import employee skills with per-employee transaction batches.
+        Skills are grouped by employee and committed together to ensure atomicity.
+        Handles comma-separated skills in a single cell by splitting them.
         
-        # Initialize history service for bulk tracking
+        Returns:
+            Number of expanded skill rows (after comma splitting)
+        """
+        logger.info(f"Importing {len(skills_df)} employee skill records (per-employee batches)")
+        
+        # Expand comma-separated skills BEFORE processing
+        expanded_skills_df = self._expand_comma_separated_skills(skills_df)
+        expanded_count = len(expanded_skills_df)
+        logger.info(f"Expanded to {expanded_count} individual skill entries after splitting comma-separated values")
+          # Create a ZID to employee name mapping for error reporting
+        zid_to_name_mapping = {}
+        for zid, emp_id in zid_to_employee_id_mapping.items():
+            employee = self.db.query(Employee).filter(Employee.employee_id == emp_id).first()
+            if employee:
+                zid_to_name_mapping[zid] = employee.full_name
+        
+        # Initialize history service
         history_service = SkillHistoryService(self.db)
-        skill_records = []  # Collect all skills for bulk history tracking
+        successful_skill_imports = 0
         
-        for _, row in skills_df.iterrows():
-            zid = str(row['zid'])
+        # Group skills by ZID for per-employee processing
+        skills_by_zid = {}
+        for row_idx, row in expanded_skills_df.iterrows():
+            zid = str(row.get('zid', ''))
+            excel_row = row_idx + 2  # Excel row number (1-based + header)
+            if zid not in skills_by_zid:
+                skills_by_zid[zid] = []
+            skills_by_zid[zid].append((excel_row, row))  # (excel_row_number, row_data)
+        
+        # Process each employee's skills as a batch
+        for zid, skill_rows in skills_by_zid.items():
             db_employee_id = zid_to_employee_id_mapping.get(zid)
+            employee_name = zid_to_name_mapping.get(zid, None)
             
             if not db_employee_id:
-                raise ImportServiceError(f"Employee ZID mapping not found: {zid}")
+                # Employee was not imported (failed earlier), skip all their skills
+                logger.warning(f"Skipping {len(skill_rows)} skills for ZID {zid}: Employee was not imported")
+                for excel_row, row in skill_rows:
+                    self.import_stats['failed_rows'].append({
+                        'sheet': 'Employee_Skills',
+                        'excel_row_number': excel_row,
+                        'row_number': excel_row,  # Legacy field
+                        'zid': zid,
+                        'employee_name': employee_name or row.get('employee_full_name'),
+                        'skill_name': str(row.get('skill_name', '')),
+                        'category': row.get('skill_category'),
+                        'subcategory': row.get('skill_subcategory'),
+                        'error_code': 'EMPLOYEE_NOT_IMPORTED',
+                        'message': f'Employee ZID {zid} was not successfully imported'
+                    })
+                continue
             
-            # Get skill ID - skill should exist from hierarchical processing
-            skill = self.db.query(Skill).filter(
-                Skill.skill_name == row['skill_name']
-            ).first()
+            # Process all skills for this employee in one batch
+            employee_skill_records = []
             
-            if not skill:
-                raise ImportServiceError(f"Skill not found: {row['skill_name']}")
-            
-            # Get proficiency level ID
-            proficiency = self.db.query(ProficiencyLevel).filter(
-                ProficiencyLevel.level_name == row['proficiency']
-            ).first()
-            
-            if not proficiency:
-                raise ImportServiceError(f"Proficiency level not found: {row['proficiency']}")
-              # Process date fields using safe parsing
-            last_used = self._parse_date_safely(
-                row.get('last_used'), 
-                'last_used', 
-                f"employee {zid}"
-            )
-            
-            started_learning_from = self._parse_date_safely(
-                row.get('started_learning_from'), 
-                'started_learning_from', 
-                f"employee {zid}"
-            )
-            
-            # Sanitize numeric fields - convert pandas NaN to None for PostgreSQL INTEGER compatibility
-            years_experience = row.get('years_experience')
-            if pd.isna(years_experience):
-                years_experience = None
-            else:
+            for excel_row, row in skill_rows:
+                skill_name = str(row.get('skill_name', ''))
+                
                 try:
-                    years_experience = int(years_experience)
-                except (ValueError, TypeError):
-                    logger.warning(f"Invalid years_experience value '{years_experience}' for employee {zid}, setting to None")
-                    years_experience = None
+                    # Get or create skill (defensive programming)
+                    skill = self._get_or_create_skill(row)
+                    
+                    if not skill:
+                        raise ImportServiceError(f"Could not resolve skill: {skill_name}")
+                    
+                    # Get proficiency level ID
+                    proficiency = self.db.query(ProficiencyLevel).filter(
+                        ProficiencyLevel.level_name == row['proficiency']
+                    ).first()
+                    
+                    if not proficiency:
+                        raise ImportServiceError(f"Proficiency level not found: {row['proficiency']}")
+                    
+                    # Process date fields using safe parsing
+                    last_used = self._parse_date_safely(
+                        row.get('last_used'), 
+                        'last_used', 
+                        f"employee {zid}"
+                    )
+                    
+                    started_learning_from = self._parse_date_safely(
+                        row.get('started_learning_from'), 
+                        'started_learning_from', 
+                        f"employee {zid}"
+                    )
+                    
+                    # Sanitize numeric fields
+                    years_experience = self._sanitize_integer_field(row.get('years_experience'), 'years_experience', zid)
+                    interest_level = self._sanitize_integer_field(row.get('interest_level'), 'interest_level', zid)
+                    
+                    # Create employee skill
+                    employee_skill = EmployeeSkill(
+                        employee_id=db_employee_id,
+                        skill_id=skill.skill_id,
+                        proficiency_level_id=proficiency.proficiency_level_id,
+                        years_experience=years_experience,
+                        last_used=last_used,
+                        started_learning_from=started_learning_from,
+                        certification=row.get('certification'),
+                        comment=row.get('comment'),
+                        interest_level=interest_level,
+                        created_at=import_timestamp
+                    )
+                    
+                    self.db.add(employee_skill)
+                    self.db.flush()  # Get emp_skill_id
+                    
+                    employee_skill_records.append(employee_skill)
+                    successful_skill_imports += 1
+                    
+                except Exception as e:
+                    # Log the error but don't fail the entire employee batch yet
+                    error_message = str(e)
+                    logger.warning(f"Failed to prepare skill at Excel row {excel_row} (ZID: {zid}, Skill: {skill_name}): {error_message}")
+                    
+                    # Determine error code
+                    error_code = "SKILL_IMPORT_ERROR"
+                    if "not found" in error_message.lower():
+                        error_code = "MISSING_REFERENCE"
+                    elif "proficiency" in error_message.lower():
+                        error_code = "INVALID_PROFICIENCY"
+                    elif "duplicate" in error_message.lower():
+                        error_code = "DUPLICATE_SKILL"
+                    elif "constraint" in error_message.lower():
+                        error_code = "CONSTRAINT_VIOLATION"
+                    
+                    # Track failed skill row with full context
+                    self.import_stats['failed_rows'].append({
+                        'sheet': 'Employee_Skills',
+                        'excel_row_number': excel_row,
+                        'row_number': excel_row,  # Legacy field
+                        'zid': zid,
+                        'employee_name': employee_name or row.get('employee_full_name'),
+                        'skill_name': skill_name,
+                        'category': row.get('skill_category'),
+                        'subcategory': row.get('skill_subcategory'),
+                        'error_code': error_code,
+                        'message': error_message
+                    })
+                    continue
             
-            interest_level = row.get('interest_level')
-            if pd.isna(interest_level):
-                interest_level = None
-            else:
-                try:
-                    interest_level = int(interest_level)
-                except (ValueError, TypeError):
-                    logger.warning(f"Invalid interest_level value '{interest_level}' for employee {zid}, setting to None")
-                    interest_level = None
-              # Create employee skill with explicit created_at timestamp
-            # Note: created_at is set explicitly to import_timestamp to ensure all records
-            # imported in a single batch have the same creation time
-            employee_skill = EmployeeSkill(
-                employee_id=db_employee_id,
-                skill_id=skill.skill_id,
-                proficiency_level_id=proficiency.proficiency_level_id,
-                years_experience=years_experience,
-                last_used=last_used,
-                started_learning_from=started_learning_from,
-                certification=row.get('certification'),
-                comment=row.get('comment'),
-                interest_level=interest_level,
-                created_at=import_timestamp  # Explicit timestamp for import tracking
-            )
-            
-            self.db.add(employee_skill)
-            self.db.flush()  # Get the ID for history tracking
-            skill_records.append(employee_skill)
+            # CRITICAL: Commit all skills for this employee as a batch
+            try:
+                if employee_skill_records:
+                    # Add history tracking BEFORE commit (so it's in same transaction)
+                    batch_id = str(uuid.uuid4())[:8]
+                    for skill_record in employee_skill_records:
+                        history_service.record_skill_change(
+                            employee_id=skill_record.employee_id,
+                            skill_id=skill_record.skill_id,
+                            old_skill_record=None,
+                            new_skill_record=skill_record,
+                            change_source=ChangeSource.IMPORT,
+                            changed_by="system",
+                            change_reason="Excel bulk import",
+                            batch_id=batch_id
+                        )
+                    
+                    # Commit employee's skills + history together
+                    self.db.commit()
+                    logger.debug(f"Committed {len(employee_skill_records)} skills for employee ZID {zid}")
+                    
+            except Exception as e:
+                # If commit fails, rollback this employee's skills only
+                error_message = str(e)
+                logger.error(f"Failed to commit skills for employee ZID {zid}: {error_message}")
+                self.db.rollback()
+                
+                # Mark all this employee's skills as failed
+                for skill_record in employee_skill_records:
+                    self.import_stats['failed_rows'].append({
+                        'sheet': 'Employee_Skills',
+                        'excel_row_number': None,  # Not tied to specific row
+                        'row_number': None,
+                        'zid': zid,
+                        'employee_name': employee_name,
+                        'skill_name': None,
+                        'category': None,
+                        'subcategory': None,
+                        'error_code': 'BATCH_COMMIT_FAILED',
+                        'message': f'Failed to commit skill batch for ZID {zid}: {error_message}'
+                    })
+                successful_skill_imports -= len(employee_skill_records)
+                continue
         
-        # Bulk history tracking for all imported skills
-        logger.info("Recording skill import history...")
-        history_service.bulk_import_with_history(
-            skill_records=skill_records,
-            change_source=ChangeSource.IMPORT,
-            changed_by="system",
-            change_reason="Excel bulk import"
+        self.import_stats['skills_imported'] = successful_skill_imports
+        logger.info(f"Imported {successful_skill_imports} of {expanded_count} employee skill records")
+        
+        return expanded_count  # Return expanded count for statistics
+    
+    def _expand_comma_separated_skills(self, skills_df: pd.DataFrame) -> pd.DataFrame:
+        """
+        Expand comma-separated skills in a single cell into multiple rows.
+        
+        Example:
+            Input row: skill_name="Git, VSCode, Tmux"
+            Output: 3 rows with skill_name="Git", "VSCode", "Tmux"
+        
+        All other fields (category, subcategory, proficiency, etc.) are duplicated for each split skill.
+        
+        Args:
+            skills_df: Original skills DataFrame
+            
+        Returns:
+            Expanded DataFrame with one row per individual skill
+        """
+        expanded_rows = []
+        
+        for idx, row in skills_df.iterrows():
+            skill_name_raw = str(row.get('skill_name', '')).strip()
+            
+            # Check if skill_name contains comma (indicates multiple skills)
+            if ',' in skill_name_raw:
+                # Split by comma and process each skill
+                individual_skills = [s.strip() for s in skill_name_raw.split(',')]
+                
+                # Filter out empty strings
+                individual_skills = [s for s in individual_skills if s]
+                
+                logger.debug(f"Splitting skill '{skill_name_raw}' into {len(individual_skills)} individual skills")
+                
+                # Create a copy of the row for each individual skill
+                for skill_name in individual_skills:
+                    row_copy = row.copy()
+                    row_copy['skill_name'] = skill_name
+                    expanded_rows.append(row_copy)
+            else:
+                # Single skill - keep as is
+                expanded_rows.append(row)
+        
+        # Create new DataFrame from expanded rows
+        if expanded_rows:
+            return pd.DataFrame(expanded_rows).reset_index(drop=True)
+        else:
+            return skills_df
+    
+    def _get_or_create_skill(self, row: pd.Series) -> Optional[Skill]:
+        """Get existing skill or create it if missing (defensive programming)."""
+        skill_name = str(row.get('skill_name', ''))
+        
+        # Try to find existing skill
+        skill = self.db.query(Skill).filter(
+            Skill.skill_name == skill_name
+        ).first()
+        
+        if skill:
+            return skill
+        
+        # Skill not found - try to create it
+        logger.warning(f"Skill '{skill_name}' not found, attempting to create it")
+        
+        category_name = row.get('skill_category')
+        subcategory_name = row.get('skill_subcategory')
+        
+        if not category_name or not subcategory_name:
+            raise ImportServiceError(f"Cannot create skill '{skill_name}': Missing category or subcategory")
+        
+        # Get or create category
+        category = self.db.query(SkillCategory).filter(
+            SkillCategory.category_name == category_name
+        ).first()
+        
+        if not category:
+            category = SkillCategory(category_name=category_name)
+            self.db.add(category)
+            self.db.flush()
+            self.import_stats['new_skill_categories'].append(category_name)
+            logger.info(f"Created missing category: {category_name}")
+          # Get or create subcategory
+        subcategory = self.db.query(SkillSubcategory).filter(
+            SkillSubcategory.category_id == category.category_id,
+            SkillSubcategory.subcategory_name == subcategory_name
+        ).first()
+        
+        if not subcategory:
+            subcategory = SkillSubcategory(
+                subcategory_name=subcategory_name,
+                category_id=category.category_id
+            )
+            self.db.add(subcategory)
+            self.db.flush()
+            self.import_stats['new_skill_subcategories'].append(subcategory_name)
+            logger.info(f"Created missing subcategory: {subcategory_name}")
+        
+        # Create the skill
+        skill = Skill(
+            skill_name=skill_name,
+            category_id=category.category_id,
+            subcategory_id=subcategory.subcategory_id
         )
+        self.db.add(skill)
+        self.db.flush()
+        self.import_stats['new_skills'].append(skill_name)
+        logger.info(f"Created missing skill: {skill_name}")
         
-        self.import_stats['skills_imported'] = len(skills_df)
-        logger.info(f"Imported {len(skills_df)} employee skill records with history tracking")
+        return skill
+    
+    def _sanitize_integer_field(self, value: Any, field_name: str, zid: str) -> Optional[int]:
+        """Sanitize integer fields - convert pandas NaN to None for PostgreSQL."""
+        if pd.isna(value):
+            return None
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            logger.warning(f"Invalid {field_name} value '{value}' for employee {zid}, setting to None")
+            return None

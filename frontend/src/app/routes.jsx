@@ -7,6 +7,7 @@ import MyProfilePage from '../pages/Profile/MyProfilePage.jsx';
 import EmployeeProfilePage from '../pages/Profile/EmployeeProfilePage.jsx';
 import ComparisonPage from '../pages/Comparison/ComparisonPage.jsx';
 import EmployeesPage from '../pages/Employees/EmployeesPage.jsx';
+import BulkImportPage from '../pages/BulkImport/BulkImportPage.jsx';
 
 export const router = createBrowserRouter([
   {
@@ -35,10 +36,13 @@ export const router = createBrowserRouter([
       },      {
         path: "comparison",
         element: <ComparisonPage />,
-      },
-      {
+      },      {
         path: "employees",
         element: <EmployeesPage />,
+      },
+      {
+        path: "bulk-import",
+        element: <BulkImportPage />,
       },
     ],
   },

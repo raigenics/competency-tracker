@@ -19,16 +19,31 @@ class HttpClient {  async get(endpoint, params = {}) {
       console.error('GET request failed:', error);
       throw error;
     }
-  }
-  async post(endpoint, data = {}) {
+  }  async post(endpoint, data = {}, options = {}) {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      // Detect if data is FormData
+      const isFormData = data instanceof FormData;
+      
+      // Build fetch options
+      const fetchOptions = {
         method: 'POST',
-        headers: {
+        ...options,
+      };
+      
+      if (isFormData) {
+        // For FormData: Do NOT set Content-Type (browser sets it with boundary)
+        // Do NOT stringify - send FormData directly
+        fetchOptions.body = data;
+      } else {
+        // For regular objects: Use JSON
+        fetchOptions.headers = {
           'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data),
-      });
+          ...(options.headers || {}),
+        };
+        fetchOptions.body = JSON.stringify(data);
+      }
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
