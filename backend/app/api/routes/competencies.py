@@ -45,7 +45,7 @@ async def get_employee_competency_profile(
             joinedload(Employee.sub_segment),
             joinedload(Employee.project),
             joinedload(Employee.team),
-            joinedload(Employee.employee_skills).joinedload(EmployeeSkill.skill).joinedload(Skill.category),
+            joinedload(Employee.employee_skills).joinedload(EmployeeSkill.skill).joinedload(Skill.subcategory).joinedload(SkillSubcategory.category),
             joinedload(Employee.employee_skills).joinedload(EmployeeSkill.proficiency_level)
         ).filter(Employee.employee_id == employee_id).first()
         
@@ -405,14 +405,12 @@ async def search_competencies(
     """
     logger.info("Searching competencies with filters")
     
-    try:
-        # Build complex query
+    try:        # Build complex query
         query = db.query(EmployeeSkill).options(
             joinedload(EmployeeSkill.employee).joinedload(Employee.sub_segment),
             joinedload(EmployeeSkill.employee).joinedload(Employee.project),
             joinedload(EmployeeSkill.employee).joinedload(Employee.team),
-            joinedload(EmployeeSkill.skill).joinedload(Skill.category),
-            joinedload(EmployeeSkill.skill).joinedload(Skill.subcategory),
+            joinedload(EmployeeSkill.skill).joinedload(Skill.subcategory).joinedload(SkillSubcategory.category),
             joinedload(EmployeeSkill.proficiency_level)
         )
         
