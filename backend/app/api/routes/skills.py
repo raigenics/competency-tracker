@@ -19,7 +19,7 @@ from app.schemas.skill import (
     TaxonomyCategoryItem, TaxonomySubcategoryItem, TaxonomySkillItem,
     CategoriesResponse, CategorySummaryItem,
     SubcategoriesResponse, SubcategorySummaryItem,
-    SkillsResponse
+    SkillsResponse, SkillSearchResponse, SkillSearchResultItem
 )
 from app.schemas.common import PaginationParams
 
@@ -398,15 +398,15 @@ async def get_skill_summary(
     db: Session = Depends(get_db)
 ):
     """
-    Get summary statistics for a specific skill, aggregating across all related skills with similar names.
+    Get summary statistics for a specific skill using EXACT skill_id match.
     
-    For example, if the skill is "ReactJS", this will find all skills matching "react" 
-    (ReactJS, React, React.js, etc.) and aggregate employee counts across them.
+    Returns employees who have THIS SPECIFIC SKILL only, not related skills with similar names.
+    For example, clicking "React" returns only employees with React, NOT ReactJS or React.js.
     
     Returns:
-        - skill_id: The primary skill identifier
-        - skill_name: The primary skill name
-        - employee_count: Number of distinct employees who have ANY matching skill
+        - skill_id: The skill identifier
+        - skill_name: The skill name
+        - employee_count: Number of distinct employees with this exact skill_id
         - employee_ids: List of employee IDs with this skill (for "View All" functionality)
         - avg_experience_years: Average years of experience (rounded to 1 decimal)
         - certified_count: Number of distinct certified employees (backward compatibility)
@@ -419,7 +419,7 @@ async def get_skill_summary(
     logger.info(f"Fetching summary for skill_id: {skill_id}")
     
     try:
-        # Check if primary skill exists
+        # Check if skill exists
         skill = db.query(Skill).filter(Skill.skill_id == skill_id).first()
         if not skill:
             logger.warning(f"Skill not found: {skill_id}")
@@ -428,36 +428,28 @@ async def get_skill_summary(
                 detail=f"Skill with ID {skill_id} not found"
             )
         
-        # Extract the core skill name for matching (e.g., "ReactJS" -> "react")
-        # This will match ReactJS, React, React.js, etc.
-        skill_name_pattern = skill.skill_name.lower()
+        # FIXED: Use exact skill_id match instead of pattern matching
+        # This ensures clicking "React" only shows employees with that exact skill,
+        # not employees with "ReactJS" or "React.js"
+        logger.info(f"Fetching employees for exact skill_id: {skill_id} ('{skill.skill_name}')")
         
-        # Find all related skill IDs with similar names
-        related_skills = db.query(Skill.skill_id)\
-            .filter(Skill.skill_name.ilike(f"%{skill_name_pattern}%"))\
-            .all()
-        
-        related_skill_ids = [s.skill_id for s in related_skills]
-        
-        logger.info(f"Found {len(related_skill_ids)} related skills for '{skill.skill_name}': {related_skill_ids}")
-        
-        # Get distinct employee count across all related skills
+        # Get distinct employee count for THIS SPECIFIC SKILL only
         employee_count_query = db.query(func.count(EmployeeSkill.employee_id.distinct()))\
-            .filter(EmployeeSkill.skill_id.in_(related_skill_ids))
+            .filter(EmployeeSkill.skill_id == skill_id)
         
         employee_count = employee_count_query.scalar() or 0
         
         # Get list of employee IDs (for "View All" functionality)
         employee_ids_query = db.query(EmployeeSkill.employee_id.distinct())\
-            .filter(EmployeeSkill.skill_id.in_(related_skill_ids))\
+            .filter(EmployeeSkill.skill_id == skill_id)\
             .order_by(EmployeeSkill.employee_id)
         
         employee_ids = [row[0] for row in employee_ids_query.all()]
         
-        # Get average years of experience (ignore nulls, across all related skills)
+        # Get average years of experience (ignore nulls, for this specific skill)
         avg_experience = db.query(func.avg(EmployeeSkill.years_experience))\
             .filter(
-                EmployeeSkill.skill_id.in_(related_skill_ids),
+                EmployeeSkill.skill_id == skill_id,
                 EmployeeSkill.years_experience.isnot(None),
                 EmployeeSkill.years_experience > 0
             )\
@@ -470,7 +462,7 @@ async def get_skill_summary(
         # - Count distinct employees (not rows)
         certified_employee_count = db.query(func.count(EmployeeSkill.employee_id.distinct()))\
             .filter(
-                EmployeeSkill.skill_id.in_(related_skill_ids),
+                EmployeeSkill.skill_id == skill_id,
                 EmployeeSkill.certification.isnot(None),
                 func.nullif(func.trim(EmployeeSkill.certification), '') != None,
                 func.lower(func.trim(EmployeeSkill.certification)) != 'no'
@@ -478,7 +470,7 @@ async def get_skill_summary(
             .scalar() or 0
         
         logger.info(
-            f"Skill summary for {skill.skill_name} (ID: {skill_id}, {len(related_skill_ids)} related): "
+            f"Skill summary for {skill.skill_name} (ID: {skill_id}, EXACT MATCH): "
             f"employees={employee_count} (IDs: {len(employee_ids)}), "
             f"avg_exp={avg_experience_years}y, certified={certified_employee_count}"
         )
@@ -682,5 +674,58 @@ async def get_skills_for_subcategory(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching skills"
+        )
+
+
+@router.get("/capability/search", response_model=SkillSearchResponse)
+async def search_skills_in_taxonomy(
+    q: str = Query(..., min_length=2, description="Search query (minimum 2 characters)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Search for skills by name across the entire taxonomy.
+    Returns matching skills with their full hierarchy path (category → subcategory → skill).
+    
+    This endpoint enables instant search without requiring the tree to be expanded first.
+    Minimum 2 characters required for search query.
+    
+    Query is case-insensitive and matches partial skill names.
+    """
+    logger.info(f"Searching skills in taxonomy with query: '{q}'")
+    
+    try:
+        # Search skills with case-insensitive partial match
+        # Join with subcategory and category to get full hierarchy
+        skills = db.query(Skill, SkillSubcategory, SkillCategory)\
+            .join(SkillSubcategory, Skill.subcategory_id == SkillSubcategory.subcategory_id)\
+            .join(SkillCategory, SkillSubcategory.category_id == SkillCategory.category_id)\
+            .filter(Skill.skill_name.ilike(f"%{q}%"))\
+            .order_by(SkillCategory.category_name, SkillSubcategory.subcategory_name, Skill.skill_name)\
+            .all()
+        
+        # Transform to response format
+        results = [
+            SkillSearchResultItem(
+                skill_id=skill.skill_id,
+                skill_name=skill.skill_name,
+                category_id=category.category_id,
+                category_name=category.category_name,
+                subcategory_id=subcategory.subcategory_id,
+                subcategory_name=subcategory.subcategory_name
+            )
+            for skill, subcategory, category in skills
+        ]
+        
+        logger.info(f"Found {len(results)} skills matching '{q}'")
+        return SkillSearchResponse(
+            results=results,
+            count=len(results)
+        )
+        
+    except Exception as e:
+        logger.error(f"Error searching skills with query '{q}': {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error searching skills"
         )
 

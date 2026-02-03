@@ -195,3 +195,98 @@ async def get_org_skill_coverage(db: Session = Depends(get_db)):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve organization skill coverage data"
         )
+
+
+@router.get("/skill-update-activity")
+async def get_skill_update_activity(
+    days: int = Query(90, description="Time window in days for activity analysis"),
+    sub_segment_id: Optional[int] = Query(None, description="Filter by sub-segment ID"),
+    project_id: Optional[int] = Query(None, description="Filter by project ID"),
+    team_id: Optional[int] = Query(None, description="Filter by team ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get skill update activity metrics based on employee skill update timestamps.
+    
+    Returns:
+        - total_updates: DISTINCT employees with >= 1 update in last N days
+        - active_learners: DISTINCT employees with >= 2 updates in last N days
+        - low_activity: DISTINCT employees with 0-1 updates in last N days
+        - stagnant_180_days: DISTINCT employees with no updates in last 180 days
+    """
+    from datetime import datetime, timedelta
+    
+    try:
+        logger.info(f"Fetching skill update activity: days={days}, sub_segment_id={sub_segment_id}, project_id={project_id}, team_id={team_id}")
+        
+        # Validate days parameter
+        if days <= 0 or days > 365:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Days must be between 1 and 365")
+        
+        now = datetime.utcnow()
+        cutoff_date = now - timedelta(days=days)
+        stagnant_cutoff = now - timedelta(days=180)
+          # Build base query for employees in scope
+        employee_filter = db.query(Employee.employee_id)
+        if team_id:
+            employee_filter = employee_filter.filter(Employee.team_id == team_id)
+        elif project_id:
+            employee_filter = employee_filter.filter(Employee.project_id == project_id)
+        elif sub_segment_id:
+            employee_filter = employee_filter.filter(Employee.sub_segment_id == sub_segment_id)
+        
+        employee_ids = [e[0] for e in employee_filter.all()]
+        
+        if not employee_ids:
+            return {
+                "days": days,
+                "total_updates": 0,
+                "active_learners": 0,
+                "low_activity": 0,
+                "stagnant_180_days": 0
+            }
+        
+        # Count updates per employee in last N days
+        updates_per_employee = db.query(
+            EmployeeSkill.employee_id,
+            func.count(EmployeeSkill.emp_skill_id).label('update_count')
+        ).filter(
+            EmployeeSkill.employee_id.in_(employee_ids),
+            EmployeeSkill.last_updated >= cutoff_date
+        ).group_by(EmployeeSkill.employee_id).all()
+        
+        update_counts_dict = {emp_id: count for emp_id, count in updates_per_employee}
+        
+        # DISTINCT employees with >= 1 update in last N days
+        total_updates = len([emp_id for emp_id, count in update_counts_dict.items() if count >= 1])
+        
+        # Active learners: DISTINCT employees with >= 2 updates in last N days
+        active_learners = sum(1 for count in update_counts_dict.values() if count >= 2)
+        
+        # Low activity: DISTINCT employees with 0-1 updates in last N days (from employees in scope)
+        low_activity = len(employee_ids) - active_learners
+        
+        # Stagnant: DISTINCT employees with no updates in last 180 days
+        employees_with_recent_updates = db.query(func.distinct(EmployeeSkill.employee_id)).filter(
+            EmployeeSkill.employee_id.in_(employee_ids),
+            EmployeeSkill.last_updated >= stagnant_cutoff
+        ).all()
+        
+        employees_with_recent_updates_set = {e[0] for e in employees_with_recent_updates}
+        stagnant_180_days = len(employee_ids) - len(employees_with_recent_updates_set)
+        
+        return {
+            "days": days,
+            "total_updates": total_updates,
+            "active_learners": active_learners,
+            "low_activity": low_activity,
+            "stagnant_180_days": stagnant_180_days
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching skill update activity: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve skill update activity data"
+        )

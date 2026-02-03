@@ -179,3 +179,27 @@ class SkillsResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+# === Capability Overview Search Schemas ===
+
+class SkillSearchResultItem(BaseModel):
+    """Single skill search result with full hierarchy path."""
+    skill_id: int = Field(description="Skill ID")
+    skill_name: str = Field(description="Skill name")
+    category_id: int = Field(description="Parent category ID")
+    category_name: str = Field(description="Parent category name")
+    subcategory_id: int = Field(description="Parent subcategory ID")
+    subcategory_name: str = Field(description="Parent subcategory name")
+    
+    class Config:
+        from_attributes = True
+
+
+class SkillSearchResponse(BaseModel):
+    """Response for skill search endpoint."""
+    results: List[SkillSearchResultItem] = Field(description="List of matching skills with hierarchy")
+    count: int = Field(description="Number of results")
+    
+    class Config:
+        from_attributes = True
