@@ -1,38 +1,26 @@
 """
-BACKWARD COMPATIBILITY WRAPPER
+Master Import Parser - Facade for Excel parsing.
 
-This module maintains backward compatibility with the old import location.
-The actual implementation has been refactored into:
-app/services/imports/master_import/
-
-Usage:
-    from app.services.master_import_parser import MasterImportParser, MasterSkillRow
-    # Works exactly as before, but uses refactored code under the hood
+Single Responsibility: Provide backward-compatible interface to the new ExcelParser.
 """
 import logging
 from typing import List
-
-# Import from new location
-from app.services.imports.master_import import MasterImportParser as _MasterImportParser
-from app.services.imports.master_import.excel_parser import MasterSkillRow
+from .excel_parser import ExcelParser, MasterSkillRow
 
 logger = logging.getLogger(__name__)
-
-# Re-export for backward compatibility
-__all__ = ['MasterImportParser', 'MasterSkillRow']
 
 
 class MasterImportParser:
     """Parser for master skills import Excel files.
     
-    BACKWARD COMPATIBILITY WRAPPER - delegates to refactored implementation.
+    This is a backward-compatible wrapper around the refactored ExcelParser.
     """
     
     # Expected column names (case-insensitive)
     EXPECTED_COLUMNS = ["category", "subcategory", "skill name", "alias"]
     
     def __init__(self):
-        self._parser = _MasterImportParser()
+        self._parser = ExcelParser()
     
     @property
     def errors(self):
