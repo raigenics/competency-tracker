@@ -1,27 +1,36 @@
 """
 API routes for skill data management and queries.
+
+Refactored for Clean Code, SRP, and testability.
+All business logic extracted to isolated service modules.
 """
 import logging
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, status, Query
-from sqlalchemy.orm import Session, joinedload
-from sqlalchemy import func, desc
+from sqlalchemy.orm import Session
 
 from app.db.session import get_db
-from app.models import (
-    Skill, SkillCategory, SkillSubcategory, EmployeeSkill, 
-    Employee, ProficiencyLevel
-)
 from app.schemas.skill import (
-    SkillResponse, SkillListResponse, SkillDetailResponse,
+    SkillListResponse, SkillDetailResponse,
     SkillStatsResponse, CategoryResponse, SubcategoryResponse,
-    CategoryInfo, SkillSummaryResponse, TaxonomyTreeResponse,
-    TaxonomyCategoryItem, TaxonomySubcategoryItem, TaxonomySkillItem,
-    CategoriesResponse, CategorySummaryItem,
-    SubcategoriesResponse, SubcategorySummaryItem,
-    SkillsResponse, SkillSearchResponse, SkillSearchResultItem
+    SkillSummaryResponse, TaxonomyTreeResponse,
+    CategoriesResponse, SubcategoriesResponse,
+    SkillsResponse, SkillSearchResponse
 )
 from app.schemas.common import PaginationParams
+
+# Import isolated service modules
+from app.services.capability_overview import list_skills_service
+from app.services.capability_overview import skill_detail_service
+from app.services.capability_overview import skill_stats_service
+from app.services.capability_overview import categories_service
+from app.services.capability_overview import subcategories_service
+from app.services.capability_overview import taxonomy_tree_service
+from app.services.capability_overview import skill_summary_service
+from app.services.capability_overview import taxonomy_categories_service
+from app.services.capability_overview import taxonomy_subcategories_service
+from app.services.capability_overview import taxonomy_skills_service
+from app.services.capability_overview import taxonomy_search_service
 
 logger = logging.getLogger(__name__)
 
@@ -39,57 +48,13 @@ async def get_skills(
     """
     Get a paginated list of skills with optional filters.
     """
-    logger.info(f"Fetching skills with pagination: page={pagination.page}, size={pagination.size}")
+    logger.info(f"GET /skills - page={pagination.page}, size={pagination.size}")
     
     try:
-        # Build query with joins
-        # Load subcategory and its category for API response compatibility
-        query = db.query(Skill).options(
-            joinedload(Skill.subcategory).joinedload(SkillSubcategory.category)
+        skills, total = list_skills_service.get_skills_paginated(
+            db, pagination, category, subcategory, search
         )
-        
-        # Apply filters
-        if category:
-            query = query.join(SkillCategory).filter(
-                SkillCategory.category_name.ilike(f"%{category}%")
-            )
-        
-        if subcategory:
-            query = query.join(SkillSubcategory).filter(
-                SkillSubcategory.subcategory_name.ilike(f"%{subcategory}%")
-            )
-        
-        if search:
-            query = query.filter(Skill.skill_name.ilike(f"%{search}%"))
-        
-        # Get total count
-        total = query.count()
-        
-        # Apply pagination
-        skills = query.offset(pagination.offset).limit(pagination.size).all()
-        
-        # Build response data
-        response_items = []
-        for skill in skills:
-            # Count employees with this skill
-            employee_count = db.query(func.count(EmployeeSkill.employee_id.distinct())).filter(
-                EmployeeSkill.skill_id == skill.skill_id
-            ).scalar()
-            
-            skill_data = SkillResponse(
-                skill_id=skill.skill_id,
-                skill_name=skill.skill_name,
-                category=CategoryInfo(
-                    category_id=skill.category.category_id,
-                    category_name=skill.category.category_name,
-                    subcategory_id=skill.subcategory.subcategory_id if skill.subcategory else None,
-                    subcategory_name=skill.subcategory.subcategory_name if skill.subcategory else None
-                ),
-                employee_count=employee_count
-            )
-            response_items.append(skill_data)
-        
-        return SkillListResponse.create(response_items, total, pagination)
+        return SkillListResponse.create(skills, total, pagination)
         
     except Exception as e:
         logger.error(f"Error fetching skills: {str(e)}")
@@ -107,62 +72,16 @@ async def get_skill(
     """
     Get detailed information about a specific skill including proficiency distribution.
     """
-    logger.info(f"Fetching skill details for ID: {skill_id}")
+    logger.info(f"GET /skills/{skill_id}")
     
     try:
-        # Load subcategory and its category for API response compatibility
-        skill = db.query(Skill).options(
-            joinedload(Skill.subcategory).joinedload(SkillSubcategory.category)
-        ).filter(Skill.skill_id == skill_id).first()
+        return skill_detail_service.get_skill_detail(db, skill_id)
         
-        if not skill:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Skill with ID {skill_id} not found"
-            )
-        
-        # Get proficiency distribution
-        proficiency_dist = dict(
-            db.query(ProficiencyLevel.level_name, func.count(EmployeeSkill.emp_skill_id))
-            .join(EmployeeSkill)
-            .filter(EmployeeSkill.skill_id == skill_id)
-            .group_by(ProficiencyLevel.level_name)
-            .all()
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
-        
-        # Get averages
-        avg_experience = db.query(func.avg(EmployeeSkill.years_experience)).filter(
-            EmployeeSkill.skill_id == skill_id,
-            EmployeeSkill.years_experience.isnot(None)
-        ).scalar()
-        
-        avg_interest = db.query(func.avg(EmployeeSkill.interest_level)).filter(
-            EmployeeSkill.skill_id == skill_id,
-            EmployeeSkill.interest_level.isnot(None)
-        ).scalar()
-        
-        # Count unique employees
-        employee_count = db.query(func.count(EmployeeSkill.employee_id.distinct())).filter(
-            EmployeeSkill.skill_id == skill_id
-        ).scalar()
-        
-        return SkillDetailResponse(
-            skill_id=skill.skill_id,
-            skill_name=skill.skill_name,
-            category=CategoryInfo(
-                category_id=skill.category.category_id,
-                category_name=skill.category.category_name,
-                subcategory_id=skill.subcategory.subcategory_id if skill.subcategory else None,
-                subcategory_name=skill.subcategory.subcategory_name if skill.subcategory else None
-            ),
-            employee_count=employee_count,
-            proficiency_distribution=proficiency_dist,
-            avg_years_experience=round(avg_experience, 2) if avg_experience else None,
-            avg_interest_level=round(avg_interest, 2) if avg_interest else None
-        )
-        
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error fetching skill {skill_id}: {str(e)}")
         raise HTTPException(
@@ -176,46 +95,10 @@ async def get_skill_stats(db: Session = Depends(get_db)):
     """
     Get skill statistics and overview.
     """
-    logger.info("Fetching skill statistics")
+    logger.info("GET /skills/stats/overview")
     
     try:
-        # Total skills
-        total_skills = db.query(func.count(Skill.skill_id)).scalar()
-        
-        # Count by category
-        by_category = dict(
-            db.query(SkillCategory.category_name, func.count(Skill.skill_id))
-            .join(Skill)
-            .group_by(SkillCategory.category_name)
-            .all()
-        )
-        
-        # Count by subcategory  
-        by_subcategory = dict(
-            db.query(SkillSubcategory.subcategory_name, func.count(Skill.skill_id))
-            .join(Skill)
-            .group_by(SkillSubcategory.subcategory_name)
-            .all()
-        )
-        
-        # Most popular skills (top 10 by employee count)
-        most_popular_skills = [
-            {"skill_name": skill_name, "employee_count": count}
-            for skill_name, count in 
-            db.query(Skill.skill_name, func.count(EmployeeSkill.employee_id.distinct()))
-            .join(EmployeeSkill)
-            .group_by(Skill.skill_name)
-            .order_by(desc(func.count(EmployeeSkill.employee_id.distinct())))
-            .limit(10)
-            .all()
-        ]
-        
-        return SkillStatsResponse(
-            total_skills=total_skills,
-            by_category=by_category,
-            by_subcategory=by_subcategory,
-            most_popular_skills=most_popular_skills
-        )
+        return skill_stats_service.get_skill_stats(db)
         
     except Exception as e:
         logger.error(f"Error fetching skill stats: {str(e)}")
@@ -230,32 +113,10 @@ async def get_categories(db: Session = Depends(get_db)):
     """
     Get all skill categories with counts.
     """
-    logger.info("Fetching skill categories")
+    logger.info("GET /skills/categories/")
     
     try:
-        categories = db.query(SkillCategory).all()
-        
-        response_items = []
-        for category in categories:
-            # Count skills via join through subcategories
-            skill_count = db.query(func.count(Skill.skill_id))\
-                .join(SkillSubcategory)\
-                .filter(SkillSubcategory.category_id == category.category_id)\
-                .scalar()
-            
-            subcategory_count = db.query(func.count(SkillSubcategory.subcategory_id)).filter(
-                SkillSubcategory.category_id == category.category_id
-            ).scalar()
-            
-            category_data = CategoryResponse(
-                category_id=category.category_id,
-                category_name=category.category_name,
-                skill_count=skill_count,
-                subcategory_count=subcategory_count
-            )
-            response_items.append(category_data)
-        
-        return response_items
+        return categories_service.get_categories(db)
         
     except Exception as e:
         logger.error(f"Error fetching categories: {str(e)}")
@@ -273,36 +134,10 @@ async def get_subcategories(
     """
     Get all skill subcategories with optional category filter.
     """
-    logger.info("Fetching skill subcategories")
+    logger.info(f"GET /skills/subcategories/ - category={category}")
     
     try:
-        query = db.query(SkillSubcategory).options(
-            joinedload(SkillSubcategory.category)
-        )
-        
-        if category:
-            query = query.join(SkillCategory).filter(
-                SkillCategory.category_name.ilike(f"%{category}%")
-            )
-        
-        subcategories = query.all()
-        
-        response_items = []
-        for subcategory in subcategories:
-            # Count skills in this subcategory
-            skill_count = db.query(func.count(Skill.skill_id)).filter(
-                Skill.subcategory_id == subcategory.subcategory_id
-            ).scalar()
-            
-            subcategory_data = SubcategoryResponse(
-                subcategory_id=subcategory.subcategory_id,
-                subcategory_name=subcategory.subcategory_name,
-                category_name=subcategory.category.category_name,
-                skill_count=skill_count
-            )
-            response_items.append(subcategory_data)
-        
-        return response_items
+        return subcategories_service.get_subcategories(db, category)
         
     except Exception as e:
         logger.error(f"Error fetching subcategories: {str(e)}")
@@ -324,65 +159,10 @@ async def get_taxonomy_tree(db: Session = Depends(get_db)):
           - subcategories: All subcategories for each category
             - skills: All skills for each subcategory
     """
-    logger.info("Fetching complete skill taxonomy tree")
+    logger.info("GET /skills/taxonomy/tree")
     
-    try:        # Get ALL categories (no filtering)
-        categories = db.query(SkillCategory)\
-            .order_by(SkillCategory.category_name)\
-            .all()
-        
-        logger.info(f"Found {len(categories)} categories in database")
-        
-        taxonomy_categories = []
-        
-        for category in categories:
-            # Get all subcategories for this category
-            subcategories = db.query(SkillSubcategory)\
-                .filter(SkillSubcategory.category_id == category.category_id)\
-                .order_by(SkillSubcategory.subcategory_name)\
-                .all()
-            
-            taxonomy_subcategories = []
-            
-            for subcategory in subcategories:
-                # Get all skills for this subcategory
-                skills = db.query(Skill)\
-                    .filter(Skill.subcategory_id == subcategory.subcategory_id)\
-                    .order_by(Skill.skill_name)\
-                    .all()
-                
-                # Build skill items with real database IDs
-                taxonomy_skills = [
-                    TaxonomySkillItem(
-                        skill_id=skill.skill_id,
-                        skill_name=skill.skill_name
-                    )
-                    for skill in skills
-                ]
-                
-                taxonomy_subcategories.append(
-                    TaxonomySubcategoryItem(
-                        subcategory_id=subcategory.subcategory_id,
-                        subcategory_name=subcategory.subcategory_name,
-                        skills=taxonomy_skills
-                    )
-                )
-            
-            # Add category even if it has no subcategories (empty list is ok)
-            taxonomy_categories.append(
-                TaxonomyCategoryItem(
-                    category_id=category.category_id,
-                    category_name=category.category_name,
-                    subcategories=taxonomy_subcategories
-                )
-            )
-        
-        logger.info(
-            f"Taxonomy tree built: {len(taxonomy_categories)} categories, "
-            f"{sum(len(c.subcategories) for c in taxonomy_categories)} subcategories total"
-        )
-        
-        return TaxonomyTreeResponse(categories=taxonomy_categories)
+    try:
+        return taxonomy_tree_service.get_taxonomy_tree(db)
         
     except Exception as e:
         logger.error(f"Error fetching taxonomy tree: {str(e)}", exc_info=True)
@@ -416,78 +196,16 @@ async def get_skill_summary(
         - 404: If skill not found
         - 200: With zeros if skill exists but no employees have it
     """
-    logger.info(f"Fetching summary for skill_id: {skill_id}")
+    logger.info(f"GET /skills/{skill_id}/summary")
     
     try:
-        # Check if skill exists
-        skill = db.query(Skill).filter(Skill.skill_id == skill_id).first()
-        if not skill:
-            logger.warning(f"Skill not found: {skill_id}")
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Skill with ID {skill_id} not found"
-            )
+        return skill_summary_service.get_skill_summary(db, skill_id)
         
-        # FIXED: Use exact skill_id match instead of pattern matching
-        # This ensures clicking "React" only shows employees with that exact skill,
-        # not employees with "ReactJS" or "React.js"
-        logger.info(f"Fetching employees for exact skill_id: {skill_id} ('{skill.skill_name}')")
-        
-        # Get distinct employee count for THIS SPECIFIC SKILL only
-        employee_count_query = db.query(func.count(EmployeeSkill.employee_id.distinct()))\
-            .filter(EmployeeSkill.skill_id == skill_id)
-        
-        employee_count = employee_count_query.scalar() or 0
-        
-        # Get list of employee IDs (for "View All" functionality)
-        employee_ids_query = db.query(EmployeeSkill.employee_id.distinct())\
-            .filter(EmployeeSkill.skill_id == skill_id)\
-            .order_by(EmployeeSkill.employee_id)
-        
-        employee_ids = [row[0] for row in employee_ids_query.all()]
-        
-        # Get average years of experience (ignore nulls, for this specific skill)
-        avg_experience = db.query(func.avg(EmployeeSkill.years_experience))\
-            .filter(
-                EmployeeSkill.skill_id == skill_id,
-                EmployeeSkill.years_experience.isnot(None),
-                EmployeeSkill.years_experience > 0
-            )\
-            .scalar()
-        
-        avg_experience_years = round(float(avg_experience), 1) if avg_experience else 0.0
-        
-        # Get certified employee count using proper business rules:
-        # - Exclude NULL, empty string, and "no" (case-insensitive)
-        # - Count distinct employees (not rows)
-        certified_employee_count = db.query(func.count(EmployeeSkill.employee_id.distinct()))\
-            .filter(
-                EmployeeSkill.skill_id == skill_id,
-                EmployeeSkill.certification.isnot(None),
-                func.nullif(func.trim(EmployeeSkill.certification), '') != None,
-                func.lower(func.trim(EmployeeSkill.certification)) != 'no'
-            )\
-            .scalar() or 0
-        
-        logger.info(
-            f"Skill summary for {skill.skill_name} (ID: {skill_id}, EXACT MATCH): "
-            f"employees={employee_count} (IDs: {len(employee_ids)}), "
-            f"avg_exp={avg_experience_years}y, certified={certified_employee_count}"
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
-        
-        return SkillSummaryResponse(
-            skill_id=skill.skill_id,
-            skill_name=skill.skill_name,
-            employee_count=employee_count,
-            employee_ids=employee_ids,
-            avg_experience_years=avg_experience_years,
-            certified_count=certified_employee_count,  # Backward compatibility
-            certified_employee_count=certified_employee_count
-        )
-        
-    except HTTPException:
-        # Re-raise HTTP exceptions (like 404)
-        raise
     except Exception as e:
         logger.error(f"Error fetching skill summary for skill_id {skill_id}: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -499,7 +217,7 @@ async def get_skill_summary(
 # === Lazy-loading Taxonomy Endpoints ===
 
 @router.get("/capability/categories", response_model=CategoriesResponse)
-async def get_categories(db: Session = Depends(get_db)):
+async def get_categories_for_lazy_loading(db: Session = Depends(get_db)):
     """
     Get lightweight list of all categories with counts only.
     Used for initial page load to minimize data transfer.
@@ -507,36 +225,10 @@ async def get_categories(db: Session = Depends(get_db)):
     Returns:
         List of categories with subcategory_count and skill_count for each.
     """
-    logger.info("Fetching categories with counts for lazy loading")
+    logger.info("GET /skills/capability/categories")
     
     try:
-        # Get all categories with counts
-        categories = db.query(SkillCategory)\
-            .order_by(SkillCategory.category_name)\
-            .all()
-        
-        category_items = []
-        
-        for category in categories:
-            # Count subcategories
-            subcategory_count = db.query(func.count(SkillSubcategory.subcategory_id))\
-                .filter(SkillSubcategory.category_id == category.category_id)\
-                .scalar() or 0
-              # Count skills in this category
-            skill_count = db.query(func.count(Skill.skill_id))\
-                .join(SkillSubcategory)\
-                .filter(SkillSubcategory.category_id == category.category_id)\
-                .scalar() or 0
-            
-            category_items.append(CategorySummaryItem(
-                category_id=category.category_id,
-                category_name=category.category_name,
-                subcategory_count=subcategory_count,
-                skill_count=skill_count
-            ))
-        
-        logger.info(f"Returning {len(category_items)} categories")
-        return CategoriesResponse(categories=category_items)
+        return taxonomy_categories_service.get_categories_for_lazy_loading(db)
         
     except Exception as e:
         logger.error(f"Error fetching categories: {str(e)}")
@@ -561,48 +253,16 @@ async def get_subcategories_for_category(
     Returns:
         List of subcategories with skill_count for each.
     """
-    logger.info(f"Fetching subcategories for category {category_id}")
+    logger.info(f"GET /skills/capability/categories/{category_id}/subcategories")
     
     try:
-        # Verify category exists
-        category = db.query(SkillCategory)\
-            .filter(SkillCategory.category_id == category_id)\
-            .first()
+        return taxonomy_subcategories_service.get_subcategories_for_category(db, category_id)
         
-        if not category:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Category {category_id} not found"
-            )
-        
-        # Get subcategories with skill counts
-        subcategories = db.query(SkillSubcategory)\
-            .filter(SkillSubcategory.category_id == category_id)\
-            .order_by(SkillSubcategory.subcategory_name)\
-            .all()
-        
-        subcategory_items = []
-        
-        for subcategory in subcategories:            # Count skills in this subcategory
-            skill_count = db.query(func.count(Skill.skill_id))\
-                .filter(Skill.subcategory_id == subcategory.subcategory_id)\
-                .scalar() or 0
-            
-            subcategory_items.append(SubcategorySummaryItem(
-                subcategory_id=subcategory.subcategory_id,
-                subcategory_name=subcategory.subcategory_name,
-                skill_count=skill_count
-            ))
-        
-        logger.info(f"Returning {len(subcategory_items)} subcategories for category {category_id}")
-        return SubcategoriesResponse(
-            category_id=category.category_id,
-            category_name=category.category_name,
-            subcategories=subcategory_items
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
-        
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error fetching subcategories for category {category_id}: {str(e)}")
         raise HTTPException(
@@ -626,49 +286,16 @@ async def get_skills_for_subcategory(
     Returns:
         List of skills in the subcategory.
     """
-    logger.info(f"Fetching skills for subcategory {subcategory_id}")
+    logger.info(f"GET /skills/capability/subcategories/{subcategory_id}/skills")
     
     try:
-        # Verify subcategory exists and get category info
-        subcategory = db.query(SkillSubcategory)\
-            .filter(SkillSubcategory.subcategory_id == subcategory_id)\
-            .first()
+        return taxonomy_skills_service.get_skills_for_subcategory(db, subcategory_id)
         
-        if not subcategory:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Subcategory {subcategory_id} not found"
-            )
-        
-        # Get category info
-        category = db.query(SkillCategory)\
-            .filter(SkillCategory.category_id == subcategory.category_id)\
-            .first()
-          # Get skills
-        skills = db.query(Skill)\
-            .filter(Skill.subcategory_id == subcategory_id)\
-            .order_by(Skill.skill_name)\
-            .all()
-        
-        skill_items = [
-            TaxonomySkillItem(
-                skill_id=skill.skill_id,
-                skill_name=skill.skill_name
-            )
-            for skill in skills
-        ]
-        
-        logger.info(f"Returning {len(skill_items)} skills for subcategory {subcategory_id}")
-        return SkillsResponse(
-            subcategory_id=subcategory.subcategory_id,
-            subcategory_name=subcategory.subcategory_name,
-            category_id=category.category_id,
-            category_name=category.category_name,
-            skills=skill_items
+    except ValueError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
         )
-        
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(f"Error fetching skills for subcategory {subcategory_id}: {str(e)}")
         raise HTTPException(
@@ -691,36 +318,10 @@ async def search_skills_in_taxonomy(
     
     Query is case-insensitive and matches partial skill names.
     """
-    logger.info(f"Searching skills in taxonomy with query: '{q}'")
+    logger.info(f"GET /skills/capability/search?q={q}")
     
     try:
-        # Search skills with case-insensitive partial match
-        # Join with subcategory and category to get full hierarchy
-        skills = db.query(Skill, SkillSubcategory, SkillCategory)\
-            .join(SkillSubcategory, Skill.subcategory_id == SkillSubcategory.subcategory_id)\
-            .join(SkillCategory, SkillSubcategory.category_id == SkillCategory.category_id)\
-            .filter(Skill.skill_name.ilike(f"%{q}%"))\
-            .order_by(SkillCategory.category_name, SkillSubcategory.subcategory_name, Skill.skill_name)\
-            .all()
-        
-        # Transform to response format
-        results = [
-            SkillSearchResultItem(
-                skill_id=skill.skill_id,
-                skill_name=skill.skill_name,
-                category_id=category.category_id,
-                category_name=category.category_name,
-                subcategory_id=subcategory.subcategory_id,
-                subcategory_name=subcategory.subcategory_name
-            )
-            for skill, subcategory, category in skills
-        ]
-        
-        logger.info(f"Found {len(results)} skills matching '{q}'")
-        return SkillSearchResponse(
-            results=results,
-            count=len(results)
-        )
+        return taxonomy_search_service.search_skills_in_taxonomy(db, q)
         
     except Exception as e:
         logger.error(f"Error searching skills with query '{q}': {str(e)}")
