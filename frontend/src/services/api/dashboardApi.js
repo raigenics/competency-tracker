@@ -74,6 +74,24 @@ export const dashboardApi = {
       console.error('Failed to fetch skill momentum:', error);
       throw error;
     }
+  },
+
+  /**
+   * Get skill update activity metrics based on filters.
+   * This endpoint responds to filter changes.
+   */
+  async getSkillUpdateActivity(filters = {}, days = 90) {
+    try {
+      const params = { days };
+      if (filters.subSegment) params.sub_segment_id = filters.subSegment;
+      if (filters.project) params.project_id = filters.project;
+      if (filters.team) params.team_id = filters.team;
+      
+      return await httpClient.get('/dashboard/skill-update-activity', params);
+    } catch (error) {
+      console.error('Failed to fetch skill update activity:', error);
+      throw error;
+    }
   }
 };
 

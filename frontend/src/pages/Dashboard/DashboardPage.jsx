@@ -3,7 +3,7 @@ import { Search, ChevronRight, BarChart3, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import EmployeesInScopeCard from './components/EmployeesInScopeCard.jsx';
 import SkillDistributionTable from './components/SkillDistributionTable.jsx';
-import SkillProgressMomentum from './components/SkillProgressMomentum.jsx';
+import SkillUpdateActivity from './components/SkillUpdateActivity.jsx';
 import OrgCoverageTable from './components/OrgCoverageTable.jsx';
 import LoadingState from '../../components/LoadingState.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
@@ -34,12 +34,13 @@ const DashboardPage = () => {
     projects: false,
     teams: false
   });
-  
   // Data state
   const [metrics, setMetrics] = useState({});
   const [skillDistribution, setSkillDistribution] = useState([]);
-  const [momentum, setMomentum] = useState({});
-  const [orgCoverage, setOrgCoverage] = useState([]);  // Load sub-segments on component mount
+  const [orgCoverage, setOrgCoverage] = useState([]);
+  const [updateActivity, setUpdateActivity] = useState({});
+  const [activityDays, setActivityDays] = useState(90);
+  const [activityLoading, setActivityLoading] = useState(false);// Load sub-segments on component mount
   useEffect(() => {
     const initializeDashboard = async () => {
       setLoading(true);
@@ -50,6 +51,7 @@ const DashboardPage = () => {
         ]);
         // Load initial dashboard data
         await loadDashboardData();
+        await loadSkillUpdateActivity();
       } catch (error) {
         console.error('Failed to initialize dashboard:', error);
       } finally {
@@ -59,28 +61,25 @@ const DashboardPage = () => {
 
     initializeDashboard();
   }, []);
-
   // Reload dashboard data when filters change (excluding org coverage)
   useEffect(() => {
     // Skip on initial mount (handled above)
     if (loading) return;
     
     loadDashboardData();
+    loadSkillUpdateActivity();
   }, [dashboardFilters]);
-
   // Load dashboard data function
   const loadDashboardData = async () => {
     setDataLoading(true);
     try {
-      const [metricsData, skillData, momentumData] = await Promise.all([
+      const [metricsData, skillData] = await Promise.all([
         dashboardApi.getDashboardMetrics(dashboardFilters),
-        dashboardApi.getSkillDistribution(dashboardFilters),
-        dashboardApi.getSkillProgressMomentum(dashboardFilters)
+        dashboardApi.getSkillDistribution(dashboardFilters)
       ]);
 
       setMetrics(metricsData);
       setSkillDistribution(skillData);
-      setMomentum(momentumData);
     } catch (error) {
       console.error('Failed to load dashboard data:', error);
     } finally {
@@ -147,6 +146,25 @@ const DashboardPage = () => {
     } catch (error) {
       console.error('Failed to load organization coverage:', error);
     }
+  };
+
+  // Load skill update activity data
+  const loadSkillUpdateActivity = async (days = activityDays) => {
+    setActivityLoading(true);
+    try {
+      const activityData = await dashboardApi.getSkillUpdateActivity(dashboardFilters, days);
+      setUpdateActivity(activityData);
+    } catch (error) {
+      console.error('Failed to load skill update activity:', error);
+    } finally {
+      setActivityLoading(false);
+    }
+  };
+
+  // Handle time window change for activity section
+  const handleActivityDaysChange = (days) => {
+    setActivityDays(days);
+    loadSkillUpdateActivity(days);
   };
 
   // Determine scope level and employee count
@@ -379,13 +397,18 @@ const DashboardPage = () => {
         {/* Core Section: Skill Distribution with Proficiency */}
         <SkillDistributionTable 
           skillDistribution={skillDistribution}
-          topSkillsCount={topSkillsCount}
-          scopeLevel={scopeLevel}
+          topSkillsCount={topSkillsCount}          scopeLevel={scopeLevel}
         />
 
-        {/* Skill Progress Momentum */}
-        <SkillProgressMomentum momentum={momentum} />        {/* Organizational Skill Coverage Table */}
-        <OrgCoverageTable 
+        {/* Skill Update Activity */}
+        <SkillUpdateActivity 
+          activityData={updateActivity}
+          loading={activityLoading}
+          onDaysChange={handleActivityDaysChange}
+        />
+
+        {/* Organizational Skill Coverage Table */}
+        <OrgCoverageTable
           coverageData={orgCoverage}
           onSegmentSelect={handleSegmentSelect}
         />

@@ -17,6 +17,7 @@ from app.api.routes.competencies import router as competencies_router
 from app.api.routes.dropdown import router as dropdown_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.capability_finder import router as capability_finder_router
+from app.api.routes.admin_master_import import router as admin_master_import_router
 from app.db.init_db import create_all_tables
 
 # Configure logging
@@ -56,6 +57,7 @@ app.include_router(competencies_router, prefix="/api")
 app.include_router(dropdown_router, prefix="/api")
 app.include_router(dashboard_router, prefix="/api")
 app.include_router(capability_finder_router, prefix="/api")
+app.include_router(admin_master_import_router, prefix="/api")
 
 @app.on_event("startup")
 async def startup_event():

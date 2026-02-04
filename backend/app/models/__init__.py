@@ -26,6 +26,10 @@ from app.models.employee_skill import EmployeeSkill
 # History/Audit tables (permanent - track changes over time)
 from app.models.skill_history import EmployeeSkillHistory, ProficiencyChangeHistory, ChangeAction, ChangeSource
 
+# Skill normalization and tracking tables
+from app.models.raw_skill_input import RawSkillInput
+from app.models.skill_alias import SkillAlias
+
 __all__ = [
     # Master/Dimension tables
     "SubSegment",
@@ -48,4 +52,8 @@ __all__ = [
     "ProficiencyChangeHistory", 
     "ChangeAction",
     "ChangeSource",
+    
+    # Skill normalization and tracking tables
+    "RawSkillInput",
+    "SkillAlias",
 ]

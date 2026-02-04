@@ -37,9 +37,12 @@ def get_db():
     try:
         yield db
     except Exception as e:
-        # Enhanced error logging for PostgreSQL debugging
+        # Enhanced error logging for PostgreSQL debugging with full traceback
         logger = logging.getLogger(__name__)
-        logger.error(f"Database session error: {str(e)}")
+        logger.error(
+            f"Database session error: {type(e).__name__}: {str(e)}",
+            exc_info=True  # Includes full traceback
+        )
         # If an exception occurred, rollback the transaction
         db.rollback()
         raise

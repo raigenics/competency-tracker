@@ -30,25 +30,53 @@ const SkillTaxonomyPage = () => {
   const leftPanelRef = useRef(null);
   const rightPanelRef = useRef(null);
   const isRestoringScroll = useRef(false);
-  
   const [skillTree, setSkillTree] = useState(skillTreeCached || []);
   const [selectedSkill, setSelectedSkill] = useState(selectedSkillCached || null);
   const [isLoading, setIsLoading] = useState(!hasCachedData);
   const [searchTerm, setSearchTerm] = useState(searchTermCached || '');
   const [filteredTree, setFilteredTree] = useState(filteredTreeCached || []);
   const [showViewAll, setShowViewAll] = useState(showViewAllCached || false);
+  const [isSearching, setIsSearching] = useState(false);
+  const [searchResults, setSearchResults] = useState([]);
+  
   useEffect(() => {
     loadSkillTaxonomy();
   }, []);
 
+  // Server-side search effect with debounce
   useEffect(() => {
-    if (searchTerm) {
-      filterSkillTree(searchTerm);
-    } else {
-      setFilteredTree(skillTree);
-    }
+    const performSearch = async () => {
+      // If search term is less than 2 characters, reset to base tree
+      if (!searchTerm || searchTerm.trim().length < 2) {
+        setFilteredTree(skillTree);
+        setSearchResults([]);
+        setIsSearching(false);
+        return;
+      }
+
+      setIsSearching(true);
+      try {
+        const response = await skillApi.searchSkillsInTaxonomy(searchTerm.trim());
+        setSearchResults(response.results || []);
+        
+        // Build tree from search results
+        const searchTree = buildTreeFromSearchResults(response.results || []);
+        setFilteredTree(searchTree);
+      } catch (error) {
+        console.error('Search failed:', error);
+        setSearchResults([]);
+        setFilteredTree([]);
+      } finally {
+        setIsSearching(false);
+      }
+    };
+
+    // Debounce search by 300ms
+    const timeoutId = setTimeout(performSearch, 300);
+    return () => clearTimeout(timeoutId);
   }, [searchTerm, skillTree]);
-    // Restore scroll position after data is loaded
+  
+  // Restore scroll position after data is loaded
   useEffect(() => {
     if (!isLoading && skillTree.length > 0 && hasCachedData && !isRestoringScroll.current) {
       isRestoringScroll.current = true;
@@ -61,11 +89,11 @@ const SkillTaxonomyPage = () => {
         if (rightPanelRef.current && rightPanelScrollTopCached > 0) {
           rightPanelRef.current.scrollTop = rightPanelScrollTopCached;
         }
-        isRestoringScroll.current = false;
-      });
+        isRestoringScroll.current = false;      });
     }
   }, [isLoading, skillTree.length, hasCachedData, leftPanelScrollTopCached, rightPanelScrollTopCached]);
-    // Save scroll position when unmounting or navigating away
+  
+  // Save scroll position when unmounting or navigating away
   useEffect(() => {
     return () => {
       // Use getState() to avoid subscription loops during unmount
@@ -79,6 +107,7 @@ const SkillTaxonomyPage = () => {
       }
     };
   }, []);
+  
   const loadSkillTaxonomy = async () => {
     // If we have cached data, use it instead of fetching
     if (hasCachedData && skillTreeCached) {
@@ -121,6 +150,65 @@ const SkillTaxonomyPage = () => {
     }
   };
 
+  // Build tree structure from search results with full hierarchy
+  const buildTreeFromSearchResults = (results) => {
+    if (!results || results.length === 0) {
+      return [];
+    }
+
+    // Group results by category
+    const categoryMap = new Map();
+    
+    results.forEach(result => {
+      const { category_id, category_name, subcategory_id, subcategory_name, skill_id, skill_name } = result;
+      
+      // Get or create category
+      if (!categoryMap.has(category_id)) {
+        categoryMap.set(category_id, {
+          id: category_id,
+          name: category_name,
+          subcategories: new Map(),
+          expanded: true, // Auto-expand for search results
+          isLoaded: true
+        });
+      }
+      
+      const category = categoryMap.get(category_id);
+      
+      // Get or create subcategory
+      if (!category.subcategories.has(subcategory_id)) {
+        category.subcategories.set(subcategory_id, {
+          id: subcategory_id,
+          name: subcategory_name,
+          skills: [],
+          expanded: true, // Auto-expand for search results
+          isLoaded: true
+        });
+      }
+      
+      const subcategory = category.subcategories.get(subcategory_id);
+      
+      // Add skill (avoid duplicates)
+      if (!subcategory.skills.some(s => s.skill_id === skill_id)) {
+        subcategory.skills.push({
+          id: skill_id,
+          skill_id: skill_id,
+          name: skill_name
+        });
+      }
+    });
+    
+    // Convert maps to arrays
+    const tree = Array.from(categoryMap.values()).map(category => ({
+      ...category,
+      subcategories: Array.from(category.subcategories.values()),
+      subcategory_count: category.subcategories.size,
+      skill_count: Array.from(category.subcategories.values()).reduce((sum, sub) => sum + sub.skills.length, 0)
+    }));
+    
+    return tree;
+  };
+
   // Lazy-load subcategories when a category is expanded
   const loadSubcategories = async (categoryId) => {
     try {
@@ -155,8 +243,7 @@ const SkillTaxonomyPage = () => {
       setSkillTreeStore(updatedTree);
       setFilteredTreeStore(updatedTree);
       
-      console.log(`Loaded ${subcategories.length} subcategories for category ${categoryId}`);
-    } catch (error) {
+      console.log(`Loaded ${subcategories.length} subcategories for category ${categoryId}`);    } catch (error) {
       console.error(`Failed to load subcategories for category ${categoryId}:`, error);
     }
   };
@@ -200,56 +287,13 @@ const SkillTaxonomyPage = () => {
       // Update cache
       setSkillTreeStore(updatedTree);
       setFilteredTreeStore(updatedTree);
-      
-      console.log(`Loaded ${skills.length} skills for subcategory ${subcategoryId}`);
+        console.log(`Loaded ${skills.length} skills for subcategory ${subcategoryId}`);
     } catch (error) {
       console.error(`Failed to load skills for subcategory ${subcategoryId}:`, error);
     }
   };
 
-  const filterSkillTree = (term) => {
-    const lowerTerm = term.toLowerCase();
-    
-    const filtered = skillTree.map(category => {
-      const categoryMatches = category.name.toLowerCase().includes(lowerTerm);
-      
-      // Filter subcategories and their skills
-      const filteredSubcategories = category.subcategories.map(subcategory => {
-        const subcategoryMatches = subcategory.name.toLowerCase().includes(lowerTerm);
-        
-        // Filter skills within this subcategory
-        const filteredSkills = subcategory.skills.filter(skill =>
-          skill.name.toLowerCase().includes(lowerTerm) ||
-          skill.description?.toLowerCase().includes(lowerTerm)
-        );
-        
-        // Include subcategory if:
-        // 1. Category matches (show all subcategories under matching category)
-        // 2. Subcategory name matches (show all skills under matching subcategory)
-        // 3. At least one skill matches (show only matching skills)
-        if (categoryMatches) {
-          return { ...subcategory, expanded: true }; // Show all skills
-        } else if (subcategoryMatches) {
-          return { ...subcategory, skills: subcategory.skills, expanded: true }; // Show all skills in matching subcategory
-        } else if (filteredSkills.length > 0) {
-          return { ...subcategory, skills: filteredSkills, expanded: true }; // Show only matching skills
-        }
-        return null;
-      }).filter(Boolean);
-
-      // Include category if it matches or has matching subcategories
-      if (categoryMatches || filteredSubcategories.length > 0) {
-        return {
-          ...category,
-          subcategories: filteredSubcategories,
-          expanded: true // Auto-expand for search results
-        };
-      }
-      return null;    }).filter(Boolean);    setFilteredTree(filtered);
-    
-    // Update store with filtered results
-    setFilteredTreeStore(filtered);
-  };  const handleSkillSelect = async (skill) => {
+  const handleSkillSelect = async (skill) => {
     setSelectedSkill(skill);
     setShowViewAll(false); // Reset to summary view when selecting a new skill
     
@@ -258,12 +302,13 @@ const SkillTaxonomyPage = () => {
     setShowViewAllStore(false);
     
     try {
-      // Normalize skill ID - handle both 'id' (from mock data) and 'skill_id' (from API)
-      const skillId = skill?.skill_id || skill?.id;
+      // Normalize skill ID - handle both 'id' (from mock data) and 'skill_id' (from API)      const skillId = skill?.skill_id || skill?.id;
       if (!skillId) {
         console.warn('Skill selected without valid ID:', skill);
         return;
-      }        // TODO: Load additional skill details from API
+      }
+      
+      // TODO: Load additional skill details from API
       const skillDetails = await skillApi.getSkill(skillId);
       setSelectedSkill({ ...skill, ...skillDetails });
       

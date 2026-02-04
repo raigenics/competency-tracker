@@ -157,6 +157,17 @@ export const skillApi = {
       console.error(`Failed to fetch skills for subcategory ${subcategoryId}:`, error);
       throw error;
     }
+  },
+
+  // Search skills across entire taxonomy with hierarchy path
+  async searchSkillsInTaxonomy(query) {
+    try {
+      const response = await httpClient.get('/skills/capability/search', { q: query });
+      return response;
+    } catch (error) {
+      console.error(`Failed to search skills with query '${query}':`, error);
+      throw error;
+    }
   }
 };
 

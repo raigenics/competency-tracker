@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ChevronDown, ChevronRight, Folder, FolderOpen, Tag, Loader2 } from 'lucide-react';
 
 const TaxonomyTree = ({ 
@@ -13,6 +13,32 @@ const TaxonomyTree = ({
   const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
   const [loadingCategories, setLoadingCategories] = useState(new Set());
   const [loadingSubcategories, setLoadingSubcategories] = useState(new Set());
+    // Reference to store scroll position
+  const scrollContainerRef = useRef(null);
+
+  // Effect to find and store reference to scroll container
+  useEffect(() => {
+    // Find the scroll container (parent with overflow-y-auto)
+    const findScrollContainer = (element) => {
+      if (!element) return null;
+      
+      const parent = element.parentElement;
+      if (!parent) return null;
+      
+      const style = window.getComputedStyle(parent);
+      if (style.overflowY === 'auto' || style.overflowY === 'scroll') {
+        return parent;
+      }
+      
+      return findScrollContainer(parent);
+    };
+    
+    const treeContainer = document.querySelector('.space-y-2');
+    if (treeContainer) {
+      scrollContainerRef.current = findScrollContainer(treeContainer);
+    }
+  }, []);
+
   // Auto-expand categories and subcategories that have the 'expanded' flag from search results
   // PRESERVE existing expansion state and ADD nodes with 'expanded' flag
   useEffect(() => {
@@ -57,8 +83,10 @@ const TaxonomyTree = ({
         part
       )
     );
-  };
-  const toggleCategory = async (categoryId, category) => {
+  };  const toggleCategory = async (categoryId, category) => {
+    // Preserve scroll position
+    const scrollTop = scrollContainerRef.current?.scrollTop || 0;
+    
     const newExpanded = new Set(expandedCategories);
     const wasExpanded = newExpanded.has(categoryId);
     
@@ -82,9 +110,18 @@ const TaxonomyTree = ({
       }
     }
     setExpandedCategories(newExpanded);
+    
+    // Restore scroll position after state update
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollTop;
+      }
+    });
   };
-
   const toggleSubcategory = async (categoryId, subcategoryId, subcategory) => {
+    // Preserve scroll position
+    const scrollTop = scrollContainerRef.current?.scrollTop || 0;
+    
     const newExpanded = new Set(expandedSubcategories);
     const wasExpanded = newExpanded.has(subcategoryId);
     
@@ -108,7 +145,14 @@ const TaxonomyTree = ({
       }
     }
     setExpandedSubcategories(newExpanded);
-  };  const CategoryItem = ({ category }) => {
+    
+    // Restore scroll position after state update
+    requestAnimationFrame(() => {
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollTop = scrollTop;
+      }
+    });
+  };const CategoryItem = ({ category }) => {
     const isExpanded = expandedCategories.has(category.id);
     const isLoading = loadingCategories.has(category.id);
     const skillCount = category.skill_count || category.subcategories.reduce((total, sub) => total + (sub.skill_count || sub.skills.length), 0);

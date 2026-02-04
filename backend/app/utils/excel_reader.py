@@ -29,13 +29,14 @@ EMPLOYEE_COLUMN_MAPPING = {
 EMPLOYEE_SKILLS_COLUMN_MAPPING = {
     'Employee ID (ZID)': 'zid',
     'Employee Full Name': 'employee_full_name',  # For validation only
-    'Skill Category': 'skill_category',
-    'Skill Subcategory': 'skill_subcategory', 
     'Skill Name': 'skill_name',
-    'Proficiency': 'proficiency',    'Experience Years': 'years_experience',    'Last Used': 'last_used',  # Changed from last_used_year to last_used
+    'Proficiency': 'proficiency',
+    'Experience Years': 'years_experience',
+    'Last Used': 'last_used',
     'Started learning from (Date)': 'started_learning_from',
     'Certification': 'certification',
-    'Comment': 'comment'
+    'Comment': 'comment',
+    'Interest Level': 'interest_level'  # Added optional field
 }
 
 # Required columns for validation
@@ -47,9 +48,10 @@ REQUIRED_EMPLOYEE_COLUMNS = [
     'Team'
 ]
 
+# Required columns for skills - only ZID, Skill Name, and Proficiency are mandatory
+# Skill Category is optional (for skills-only format)
 REQUIRED_EMPLOYEE_SKILLS_COLUMNS = [
     'Employee ID (ZID)',
-    'Skill Category',
     'Skill Name',
     'Proficiency'
 ]
@@ -156,8 +158,13 @@ def _validate_and_normalize_employees(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _validate_and_normalize_skills(df: pd.DataFrame) -> pd.DataFrame:
-    """Validate and normalize skills data."""
-    logger.info("Validating skills data...")
+    """
+    Validate and normalize skills data.
+    
+    NOTE: NEW FORMAT - No longer expects Skill Category or Skill Subcategory columns.
+    Skills will be resolved against master skill data using exact match or alias match.
+    """
+    logger.info("Validating skills data (NEW FORMAT - no category/subcategory columns)...")
     
     # Check for required columns
     missing_cols = []
@@ -171,19 +178,22 @@ def _validate_and_normalize_skills(df: pd.DataFrame) -> pd.DataFrame:
     # Rename columns to database field names
     df_normalized = df.rename(columns=EMPLOYEE_SKILLS_COLUMN_MAPPING)
     
+    # Log normalized columns for debugging
+    logger.info(f"Normalized skills columns: {list(df_normalized.columns)}")
+    
     # Clean and validate data
     df_normalized = df_normalized.dropna(subset=['zid', 'skill_name', 'proficiency'])
     
     # Convert ZID to string
     df_normalized['zid'] = df_normalized['zid'].astype(str)
     
-    # Clean string columns
-    string_cols = ['skill_category', 'skill_subcategory', 'skill_name', 'proficiency', 'certification', 'comment']
+    # Clean string columns (removed skill_category and skill_subcategory)
+    string_cols = ['skill_name', 'proficiency', 'certification', 'comment']
     for col in string_cols:
         if col in df_normalized.columns:
             df_normalized[col] = df_normalized[col].astype(str).str.strip()
             # Replace 'nan' string with None
-            df_normalized[col] = df_normalized[col].replace('nan', None)    # Convert numeric columns
+            df_normalized[col] = df_normalized[col].replace('nan', None)# Convert numeric columns
     if 'years_experience' in df_normalized.columns:
         df_normalized['years_experience'] = pd.to_numeric(df_normalized['years_experience'], errors='coerce')
     
@@ -214,28 +224,26 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
     Extract all unique master data values from the DataFrames for hierarchical validation.
     This follows the 2-step approach: scan first, then validate/update master tables.
     
+    NOTE: NEW FORMAT - Only scans EMPLOYEE sheet for org hierarchy (SubSegment/Project/Team/Role).
+    Does NOT scan skills sheet for Category/Subcategory - those are derived from DB lookups.
+    
     Returns:
         Dict with sets of unique values for each master data type
     """
-    logger.info("Scanning Excel data for master data values...")
+    logger.info("Scanning Excel data for org master data (NEW FORMAT - employee sheet only)...")
     
     master_data = {
-        # Hierarchical data (Sub-Segment → Project → Team)
+        # Hierarchical org data (Sub-Segment → Project → Team) from Employee sheet
         'sub_segments': set(),
         'projects': set(),
         'teams': set(),
         'sub_segment_project_mappings': set(),  # (sub_segment, project) pairs
         'project_team_mappings': set(),  # (project, team) pairs
         
-    # Hierarchical skills data (Category → Subcategory → Skills)
-        'skill_categories': set(),
-        'skill_subcategories': set(),
-        'skills': set(),
-        'category_subcategory_mappings': set(),  # (category, subcategory) pairs
-        'subcategory_skill_mappings': set(),  # (category, subcategory, skill) triplets - category added to prevent collisions
+        # Other master data from Employee sheet
+        'roles': set(),
         
-        # Other master data
-        'roles': set()
+        # Removed: skill_categories, skill_subcategories, skills - these come from DB, not Excel
     }
     
     # Process employees data
@@ -252,22 +260,11 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
             if pd.notna(row['project']) and pd.notna(row['team']):
                 master_data['project_team_mappings'].add((row['project'], row['team']))
     
-    # Process skills data
-    if not skills_df.empty:
-        master_data['skill_categories'].update(skills_df['skill_category'].dropna().unique())
-        master_data['skill_subcategories'].update(skills_df['skill_subcategory'].dropna().unique())
-        master_data['skills'].update(skills_df['skill_name'].dropna().unique())
-          # Create hierarchical mappings
-        for _, row in skills_df.iterrows():
-            if pd.notna(row['skill_category']) and pd.notna(row['skill_subcategory']):
-                master_data['category_subcategory_mappings'].add((row['skill_category'], row['skill_subcategory']))
-            # Changed to triplet (category, subcategory, skill) to prevent subcategory name collisions across categories
-            if pd.notna(row['skill_category']) and pd.notna(row['skill_subcategory']) and pd.notna(row['skill_name']):
-                master_data['subcategory_skill_mappings'].add((row['skill_category'], row['skill_subcategory'], row['skill_name']))
-    
     # Log summary
     for key, value_set in master_data.items():
         logger.info(f"Found {len(value_set)} unique {key}")
+    
+    logger.info("NOTE: Skills will be resolved from DB master data (skills table + skill_aliases), not from Excel")
     
     return master_data
 
