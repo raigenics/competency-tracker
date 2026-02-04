@@ -46,8 +46,7 @@ class OrgMasterDataProcessor:
         # Step 3: Process third-level org entities with hierarchical validation
         self._process_teams_with_validation(master_data['teams'], master_data['project_team_mappings'])
         self.db.flush()  # Ensure all org master data is flushed to session
-        
-        # CRITICAL FIX: Commit org master data NOW before employee import
+          # CRITICAL FIX: Commit org master data NOW before employee import
         self.db.commit()
         logger.info("Committed org master data (SubSegment/Project/Team/Role)")
         logger.info("Org master data processing completed (skills will be resolved from DB)")
@@ -65,6 +64,7 @@ class OrgMasterDataProcessor:
     
     def _process_sub_segments(self, sub_segments: Set[str]):
         """Process Sub-Segment master data."""
+        
         for sub_segment_name in sub_segments:
             if not sub_segment_name or pd.isna(sub_segment_name):
                 continue
@@ -81,6 +81,7 @@ class OrgMasterDataProcessor:
 
     def _process_roles(self, roles: Set[str]):
         """Process Role master data."""
+        
         for role_name in roles:
             if not role_name or pd.isna(role_name):
                 continue
@@ -88,7 +89,7 @@ class OrgMasterDataProcessor:
             existing = self.db.query(Role).filter(
                 Role.role_name == role_name
             ).first()
-
+            
             if not existing:
                 new_role = Role(role_name=role_name)
                 self.db.add(new_role)
@@ -103,7 +104,7 @@ class OrgMasterDataProcessor:
             sub_segment = self.db.query(SubSegment).filter(
                 SubSegment.sub_segment_name == sub_segment_name
             ).first()
-
+            
             if not sub_segment:
                 from app.services.import_service import ImportServiceError
                 raise ImportServiceError(f"Sub-Segment '{sub_segment_name}' not found for project '{project_name}'")
@@ -112,7 +113,7 @@ class OrgMasterDataProcessor:
                 Project.project_name == project_name,
                 Project.sub_segment_id == sub_segment.sub_segment_id
             ).first()
-
+            
             if not existing_project:
                 new_project = Project(
                     project_name=project_name,
@@ -122,18 +123,33 @@ class OrgMasterDataProcessor:
                 self.stats['new_projects'].append(project_name)
                 logger.info(f"Added new project: {project_name} under sub-segment: {sub_segment_name}")
 
-    def _process_teams_with_validation(self, teams: Set[str], mappings: Set[Tuple[str, str]]):
-        """Process Teams with Project validation."""
+    def _process_teams_with_validation(self, teams: Set[str], mappings: Set[Tuple[str, str, str]]):
+        """
+        Process Teams with Project validation.
+        
+        FIX: mappings now contains (sub_segment, project, team) triples to handle duplicate project names.
+        """
         logger.info("Processing teams with project validation...")
 
-        for project_name, team_name in mappings:
+        for sub_segment_name, project_name, team_name in mappings:
+            # FIX: Lookup sub_segment first to resolve project correctly
+            sub_segment = self.db.query(SubSegment).filter(
+                SubSegment.sub_segment_name == sub_segment_name
+            ).first()
+            
+            if not sub_segment:
+                from app.services.import_service import ImportServiceError
+                raise ImportServiceError(f"Sub-Segment '{sub_segment_name}' not found for team '{team_name}'")
+            
+            # FIX: Lookup project using BOTH project_name AND sub_segment_id
             project = self.db.query(Project).filter(
-                Project.project_name == project_name
+                Project.project_name == project_name,
+                Project.sub_segment_id == sub_segment.sub_segment_id
             ).first()
 
             if not project:
                 from app.services.import_service import ImportServiceError
-                raise ImportServiceError(f"Project '{project_name}' not found for team '{team_name}'")
+                raise ImportServiceError(f"Project '{project_name}' not found under sub-segment '{sub_segment_name}' for team '{team_name}'")
 
             existing_team = self.db.query(Team).filter(
                 Team.team_name == team_name,
@@ -147,4 +163,4 @@ class OrgMasterDataProcessor:
                 )
                 self.db.add(new_team)
                 self.stats['new_teams'].append(team_name)
-                logger.info(f"Added new team: {team_name} under project: {project_name}")
+                logger.info(f"Added new team: {team_name} under project: {project_name} (sub-segment: {sub_segment_name}, project_id: {project.project_id})")

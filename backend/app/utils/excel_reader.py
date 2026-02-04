@@ -228,8 +228,7 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
     Does NOT scan skills sheet for Category/Subcategory - those are derived from DB lookups.
     
     Returns:
-        Dict with sets of unique values for each master data type
-    """
+        Dict with sets of unique values for each master data type    """
     logger.info("Scanning Excel data for org master data (NEW FORMAT - employee sheet only)...")
     
     master_data = {
@@ -238,7 +237,7 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
         'projects': set(),
         'teams': set(),
         'sub_segment_project_mappings': set(),  # (sub_segment, project) pairs
-        'project_team_mappings': set(),  # (project, team) pairs
+        'project_team_mappings': set(),  # (sub_segment, project, team) triples - FIXED to include sub_segment
         
         # Other master data from Employee sheet
         'roles': set(),
@@ -257,8 +256,9 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
         for _, row in employees_df.iterrows():
             if pd.notna(row['sub_segment']) and pd.notna(row['project']):
                 master_data['sub_segment_project_mappings'].add((row['sub_segment'], row['project']))
-            if pd.notna(row['project']) and pd.notna(row['team']):
-                master_data['project_team_mappings'].add((row['project'], row['team']))
+            # FIX: Include sub_segment in project_team_mappings to handle duplicate project names across sub_segments
+            if pd.notna(row['sub_segment']) and pd.notna(row['project']) and pd.notna(row['team']):
+                master_data['project_team_mappings'].add((row['sub_segment'], row['project'], row['team']))
     
     # Log summary
     for key, value_set in master_data.items():
