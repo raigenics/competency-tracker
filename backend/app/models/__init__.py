@@ -30,6 +30,9 @@ from app.models.skill_history import EmployeeSkillHistory, ProficiencyChangeHist
 from app.models.raw_skill_input import RawSkillInput
 from app.models.skill_alias import SkillAlias
 
+# Skill embeddings for semantic search
+from app.models.skill_embedding import SkillEmbedding
+
 __all__ = [
     # Master/Dimension tables
     "SubSegment",
@@ -56,4 +59,7 @@ __all__ = [
     # Skill normalization and tracking tables
     "RawSkillInput",
     "SkillAlias",
+    
+    # Skill embeddings
+    "SkillEmbedding",
 ]

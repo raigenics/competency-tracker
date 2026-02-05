@@ -18,6 +18,7 @@ from app.models.role import Role
 from app.models.skill import Skill
 from app.models.employee import Employee
 from app.models.employee_skill import EmployeeSkill
+from app.models.skill_embedding import SkillEmbedding
 
 logger = logging.getLogger(__name__)
 

@@ -18,7 +18,6 @@ from app.api.routes.dropdown import router as dropdown_router
 from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.capability_finder import router as capability_finder_router
 from app.api.routes.admin_master_import import router as admin_master_import_router
-from app.db.init_db import create_all_tables
 
 # Configure logging
 logging.basicConfig(
@@ -64,13 +63,12 @@ async def startup_event():
     """Initialize database on startup."""
     logger.info("Starting up Competency Tracking System API")
     try:
-        # NOTE: Table creation can be slow on remote databases
-        # Tables are auto-created on first query if they don't exist
-        logger.info("Database initialization deferred to first request")
-        # create_all_tables()
-        # logger.info("Database initialized successfully")
+        # NOTE: Database schema is managed via Alembic migrations
+        # Run 'alembic upgrade head' to apply migrations before starting the app
+        logger.info("Database migrations should be applied via 'alembic upgrade head'")
+        logger.info("Application ready")
     except Exception as e:
-        logger.error(f"Failed to initialize database: {str(e)}")
+        logger.error(f"Failed to initialize application: {str(e)}")
         raise
 
 @app.get("/")

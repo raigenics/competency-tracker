@@ -98,8 +98,7 @@ class ExcelParser:
             )
             logger.error(error_msg)
             raise ValueError(error_msg)
-        
-        # Map columns (case-insensitive)
+          # Map columns (case-insensitive)
         column_map = {}
         missing_columns = []
         
@@ -148,7 +147,6 @@ class ExcelParser:
                     "error_type": "VALIDATION_ERROR",
                     "message": f"Error parsing row: {type(e).__name__}: {str(e)}"
                 })
-        
         return rows
     
     def _parse_single_row(self, row, row_number: int, column_map: Dict[str, str],
@@ -159,15 +157,46 @@ class ExcelParser:
         skill_name = str(row[column_map["skill name"]]).strip()
         alias_text = str(row[column_map["alias"]]).strip()
         
-        # Skip empty rows
-        if self._is_empty_row(category, subcategory, skill_name):
+        # Normalize empty values
+        if category in ["nan", "None"]:
+            category = ""
+        if subcategory in ["nan", "None"]:
+            subcategory = ""
+        if skill_name in ["nan", "None"]:
+            skill_name = ""
+        if alias_text in ["nan", "None"]:
+            alias_text = ""
+        
+        # REQUIREMENT 1: Silently ignore rows with no skill name
+        if not skill_name:
+            logger.debug(f"Row {row_number}: Skipping row with no skill name")
             return None
         
-        # Validate required fields
-        if not self._validate_row_fields(row_number, category, subcategory, skill_name):
-            return None
+        # REQUIREMENT 2: Validate required fields when skill name is present
+        validation_errors = []
+        if not category:
+            validation_errors.append("Missing category")
+        if not subcategory:
+            validation_errors.append("Missing subcategory")
+        if not alias_text:
+            validation_errors.append("Missing alias")
         
-        # Parse aliases (comma-separated)
+        # If validation errors exist, capture them but continue processing
+        if validation_errors:
+            self.errors.append({
+                "row_number": row_number,
+                "skill_name": skill_name,
+                "category": category,
+                "subcategory": subcategory,
+                "alias": alias_text,
+                "error_type": "VALIDATION_ERROR",
+                "message": "; ".join(validation_errors)
+            })
+            logger.warning(
+                f"Row {row_number}: Validation failed for skill '{skill_name}': {', '.join(validation_errors)}"
+            )
+            return None
+          # Parse aliases (comma-separated)
         aliases = self._parse_aliases(alias_text)
         
         # Create normalized versions
@@ -188,46 +217,8 @@ class ExcelParser:
             aliases_norm=aliases_norm
         )
     
-    def _is_empty_row(self, category: str, subcategory: str, skill_name: str) -> bool:
-        """Check if row is empty."""
-        return (category in ["", "nan", "None"] and 
-                subcategory in ["", "nan", "None"] and 
-                skill_name in ["", "nan", "None"])
-    
-    def _validate_row_fields(self, row_number: int, category: str, 
-                            subcategory: str, skill_name: str) -> bool:
-        """Validate required fields in a row."""
-        if category in ["", "nan", "None"]:
-            self.errors.append({
-                "row_number": row_number,
-                "error_type": "VALIDATION_ERROR",
-                "message": "Category is required"
-            })
-            return False
-        
-        if subcategory in ["", "nan", "None"]:
-            self.errors.append({
-                "row_number": row_number,
-                "category": category,
-                "error_type": "VALIDATION_ERROR",
-                "message": "SubCategory is required"
-            })
-            return False
-        
-        if skill_name in ["", "nan", "None"]:
-            self.errors.append({
-                "row_number": row_number,
-                "category": category,
-                "subcategory": subcategory,
-                "error_type": "VALIDATION_ERROR",
-                "message": "Skill Name is required"
-            })
-            return False
-        
-        return True
-    
     def _parse_aliases(self, alias_text: str) -> List[str]:
         """Parse comma-separated aliases."""
-        if alias_text in ["", "nan", "None"]:
+        if not alias_text or alias_text in ["nan", "None"]:
             return []
         return [a.strip() for a in alias_text.split(",") if a.strip()]
