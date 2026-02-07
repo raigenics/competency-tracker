@@ -18,7 +18,8 @@ class ExcelReaderError(Exception):
 # Excel column to database field mapping
 EMPLOYEE_COLUMN_MAPPING = {
     'Employee ID (ZID)': 'zid',
-    'Employee Full Name': 'full_name', 
+    'Employee Full Name': 'full_name',
+    'Segment': 'segment',  # NEW: Top-level organizational unit
     'Sub-Segment': 'sub_segment',
     'Project': 'project',
     'Team': 'team',
@@ -224,7 +225,7 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
     Extract all unique master data values from the DataFrames for hierarchical validation.
     This follows the 2-step approach: scan first, then validate/update master tables.
     
-    NOTE: NEW FORMAT - Only scans EMPLOYEE sheet for org hierarchy (SubSegment/Project/Team/Role).
+    NOTE: NEW FORMAT - Only scans EMPLOYEE sheet for org hierarchy (Segment → SubSegment → Project → Team/Role).
     Does NOT scan skills sheet for Category/Subcategory - those are derived from DB lookups.
     
     Returns:
@@ -232,10 +233,12 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
     logger.info("Scanning Excel data for org master data (NEW FORMAT - employee sheet only)...")
     
     master_data = {
-        # Hierarchical org data (Sub-Segment → Project → Team) from Employee sheet
+        # Hierarchical org data (Segment → Sub-Segment → Project → Team) from Employee sheet
+        'segments': set(),
         'sub_segments': set(),
         'projects': set(),
         'teams': set(),
+        'segment_subsegment_mappings': set(),  # (segment, sub_segment) pairs
         'sub_segment_project_mappings': set(),  # (sub_segment, project) pairs
         'project_team_mappings': set(),  # (sub_segment, project, team) triples - FIXED to include sub_segment
         
@@ -247,6 +250,10 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
     
     # Process employees data
     if not employees_df.empty:
+        # Extract unique values for each organizational level
+        # Segment is optional - if not present or empty, will use default "Legacy" segment
+        if 'segment' in employees_df.columns:
+            master_data['segments'].update(employees_df['segment'].dropna().unique())
         master_data['sub_segments'].update(employees_df['sub_segment'].dropna().unique())
         master_data['projects'].update(employees_df['project'].dropna().unique())
         master_data['teams'].update(employees_df['team'].dropna().unique())
@@ -254,6 +261,12 @@ def get_master_data_for_scanning(employees_df: pd.DataFrame, skills_df: pd.DataF
         
         # Create hierarchical mappings
         for _, row in employees_df.iterrows():
+            # Segment → Sub-Segment mapping (optional, backward compatible)
+            if 'segment' in employees_df.columns and pd.notna(row.get('segment')) and pd.notna(row['sub_segment']):
+                segment_val = str(row['segment']).strip()
+                if segment_val:  # Only add if not empty/whitespace
+                    master_data['segment_subsegment_mappings'].add((segment_val, row['sub_segment']))
+            
             if pd.notna(row['sub_segment']) and pd.notna(row['project']):
                 master_data['sub_segment_project_mappings'].add((row['sub_segment'], row['project']))
             # FIX: Include sub_segment in project_team_mappings to handle duplicate project names across sub_segments

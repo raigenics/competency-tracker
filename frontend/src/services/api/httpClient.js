@@ -73,16 +73,39 @@ class HttpClient {  async get(endpoint, params = {}) {
       throw error;
     }
   }
-  async delete(endpoint) {
+  
+  async delete(endpoint, data = null) {
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const options = {
         method: 'DELETE',
-      });
+      };
+      
+      // Add body if data is provided
+      if (data) {
+        options.headers = {
+          'Content-Type': 'application/json',
+        };
+        options.body = JSON.stringify(data);
+      }
+      
+      const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.json();
+      
+      // 204 No Content - return null immediately
+      if (response.status === 204) {
+        return null;
+      }
+      
+      // Check if response has content (for other 2xx responses)
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
+        return await response.json();
+      }
+      
+      return null;
     } catch (error) {
       console.error('DELETE request failed:', error);
       throw error;

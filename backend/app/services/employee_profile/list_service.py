@@ -3,6 +3,12 @@ List Service - GET /employees
 
 Handles paginated employee listing with optional filters.
 Zero dependencies on other services.
+
+PHASE 1 BEHAVIORAL NORMALIZATION:
+- Organizational filters now use join-based derivation (team_id is canonical)
+- Database schema unchanged (project_id, sub_segment_id columns still exist)
+- Query logic enforces: employee.team_id -> team.project_id -> project.sub_segment_id
+- API contracts preserved (responses unchanged)
 """
 import logging
 from typing import List, Optional, Tuple
@@ -12,6 +18,7 @@ from sqlalchemy import func
 from app.models import Employee, EmployeeSkill
 from app.schemas.employee import EmployeeResponse, OrganizationInfo
 from app.schemas.common import PaginationParams
+from app.services.utils.org_query_helpers import apply_org_filters
 
 logger = logging.getLogger(__name__)
 
@@ -73,6 +80,11 @@ def _build_employee_query(
     """
     Build filtered employee query with eager loading.
     Returns query object (not executed).
+    
+    PHASE 1 NORMALIZATION:
+    - Organizational filters applied via centralized helper (join-based)
+    - No longer filters directly on Employee.project_id or Employee.sub_segment_id
+    - Canonical: team_id is source of truth, project/sub_segment derived via joins
     """
     query = db.query(Employee).options(
         joinedload(Employee.sub_segment),
@@ -81,16 +93,12 @@ def _build_employee_query(
         joinedload(Employee.role)
     )
     
-    # Apply ID-based filters (more efficient than name-based)
-    if sub_segment_id:
-        query = query.filter(Employee.sub_segment_id == sub_segment_id)
+    # PHASE 1 NORMALIZATION: Apply org filters using canonical join-based logic
+    # OLD: Direct filters on Employee.sub_segment_id, Employee.project_id
+    # NEW: Centralized helper enforces team_id as source of truth
+    query = apply_org_filters(query, sub_segment_id, project_id, team_id)
     
-    if project_id:
-        query = query.filter(Employee.project_id == project_id)
-    
-    if team_id:
-        query = query.filter(Employee.team_id == team_id)
-    
+    # Role filter (unchanged - not part of org hierarchy)
     if role_id:
         query = query.filter(Employee.role_id == role_id)
     

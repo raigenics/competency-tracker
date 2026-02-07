@@ -6,6 +6,12 @@ Uses AND logic for required skills (employee must have ALL specified skills).
 
 Isolated from export service - no shared helpers to ensure changes in search
 cannot break export functionality.
+
+PHASE 1 BEHAVIORAL NORMALIZATION:
+- Organizational filters now use join-based derivation (team_id is canonical)
+- No longer filters directly on Employee.sub_segment_id
+- Canonical: employee.team_id -> team.project_id -> project.sub_segment_id
+- API contracts unchanged (returns same schema objects)
 """
 from typing import List, Optional
 from sqlalchemy.orm import Session
@@ -16,6 +22,7 @@ from app.models.role import Role
 from app.models.employee import Employee
 from app.models.employee_skill import EmployeeSkill
 from app.schemas.capability_finder import EmployeeSearchResult, SkillInfo
+from app.services.utils.org_query_helpers import apply_org_filters
 
 
 def search_matching_talent(
@@ -126,11 +133,28 @@ def _query_matching_employees(
             filters.append(Employee.employee_id.in_(skill_subquery))
     
     # Organization filters
-    if sub_segment_id:
-        filters.append(Employee.sub_segment_id == sub_segment_id)
-    
-    if team_id:
-        filters.append(Employee.team_id == team_id)
+    # PHASE 1 NORMALIZATION: Use centralized join-based filtering
+    # OLD: Direct filters on Employee.sub_segment_id, Employee.team_id
+    # NEW: Join-based derivation through canonical helper
+    # Note: team_id still direct (it's the canonical FK), sub_segment_id via joins
+    if sub_segment_id or team_id:
+        # Need to apply org filters to the base Employee query
+        # But we already joined Employee, so we filter on the existing query
+        if team_id:
+            filters.append(Employee.team_id == team_id)
+        elif sub_segment_id:
+            # PHASE 1 NORMALIZATION: Derive sub_segment via Team->Project join
+            # OLD: Employee.sub_segment_id == sub_segment_id (direct redundant column)
+            # NEW: Must join through Team -> Project to derive sub_segment membership
+            # Import locally to avoid these models being loaded too early
+            from app.models.team import Team
+            from app.models.project import Project
+            # We need to add joins to the query itself
+            if not any(Team in [mapper.class_ for mapper in query.column_descriptions]):
+                query = query.join(Team, Employee.team_id == Team.team_id)
+            if not any(Project in [mapper.class_ for mapper in query.column_descriptions]):
+                query = query.join(Project, Team.project_id == Project.project_id)
+            filters.append(Project.sub_segment_id == sub_segment_id)
     
     if role:
         query = query.join(Role, Employee.role_id == Role.role_id)

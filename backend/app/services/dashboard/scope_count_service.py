@@ -28,6 +28,7 @@ from app.models.employee import Employee
 from app.models.sub_segment import SubSegment
 from app.models.project import Project
 from app.models.team import Team
+from app.services.utils.org_query_helpers import apply_org_filters
 
 
 def get_employee_scope_count(
@@ -125,6 +126,11 @@ def _query_project_scope(db: Session, project_id: int) -> Tuple[int, str, str]:
     """
     Query employee count and details for project-level scope.
     
+    PHASE 1 NORMALIZATION:
+    - Counts employees via Team join (employee.team.project_id == project_id)
+    - No longer filters directly on Employee.project_id
+    - Canonical derivation: employee -> team -> project
+    
     Args:
         db: Database session
         project_id: Project ID to filter by
@@ -139,9 +145,12 @@ def _query_project_scope(db: Session, project_id: int) -> Tuple[int, str, str]:
     if not project:
         raise ValueError(f"Project with ID {project_id} not found")
     
-    count = db.query(func.count(Employee.employee_id)).filter(
-        Employee.project_id == project_id
-    ).scalar()
+    # PHASE 1 NORMALIZATION: Use join-based filtering
+    # OLD: Employee.project_id == project_id (direct redundant column)
+    # NEW: Join through Team to derive project membership
+    query = db.query(func.count(Employee.employee_id))
+    query = apply_org_filters(query, project_id=project_id)
+    count = query.scalar()
     
     return count, "PROJECT", project.project_name
 
@@ -149,6 +158,11 @@ def _query_project_scope(db: Session, project_id: int) -> Tuple[int, str, str]:
 def _query_sub_segment_scope(db: Session, sub_segment_id: int) -> Tuple[int, str, str]:
     """
     Query employee count and details for sub-segment-level scope.
+    
+    PHASE 1 NORMALIZATION:
+    - Counts employees via Team->Project joins
+    - No longer filters directly on Employee.sub_segment_id
+    - Canonical derivation: employee -> team -> project -> sub_segment
     
     Args:
         db: Database session
@@ -166,9 +180,12 @@ def _query_sub_segment_scope(db: Session, sub_segment_id: int) -> Tuple[int, str
     if not sub_segment:
         raise ValueError(f"Sub-segment with ID {sub_segment_id} not found")
     
-    count = db.query(func.count(Employee.employee_id)).filter(
-        Employee.sub_segment_id == sub_segment_id
-    ).scalar()
+    # PHASE 1 NORMALIZATION: Use join-based filtering
+    # OLD: Employee.sub_segment_id == sub_segment_id (direct redundant column)
+    # NEW: Join through Team->Project to derive sub-segment membership
+    query = db.query(func.count(Employee.employee_id))
+    query = apply_org_filters(query, sub_segment_id=sub_segment_id)
+    count = query.scalar()
     
     return count, "SUB_SEGMENT", sub_segment.sub_segment_name
 

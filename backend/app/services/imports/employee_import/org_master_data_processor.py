@@ -8,7 +8,7 @@ from typing import Set, Dict, Tuple
 from sqlalchemy.orm import Session
 import pandas as pd
 
-from app.models import SubSegment, Project, Team, Role
+from app.models import Segment, SubSegment, Project, Team, Role
 
 logger = logging.getLogger(__name__)
 
@@ -22,20 +22,27 @@ class OrgMasterDataProcessor:
     
     def process_all(self, master_data: Dict[str, Set]):
         """
-        Process all org master data (SubSegment/Project/Team/Role only).
+        Process all org master data (Segment/SubSegment/Project/Team/Role).
 
         NOTE: Does NOT process skill categories/subcategories/skills.
         Those are resolved from existing DB master data during skill import.
         
         CRITICAL: Must commit org master data BEFORE employee import starts.
         """
-        logger.info("Processing org master data (SubSegment/Project/Team/Role only)...")
+        logger.info("Processing org master data (Segment/SubSegment/Project/Team/Role)...")
         
         # Log summary
         self._log_master_data_summary(master_data)
         
-        # Step 1: Process top-level org entities
-        self._process_sub_segments(master_data['sub_segments'])
+        # Step 0: Process segments (top of hierarchy)
+        self._process_segments(master_data.get('segments', set()))
+        self.db.flush()  # Ensure segments exist
+        
+        # Step 1: Process sub-segments with segment linkage
+        self._process_sub_segments_with_segment_mapping(
+            master_data['sub_segments'],
+            master_data.get('segment_subsegment_mappings', set())
+        )
         self._process_roles(master_data['roles'])
         self.db.flush()  # Ensure parent entities exist
 
@@ -48,12 +55,13 @@ class OrgMasterDataProcessor:
         self.db.flush()  # Ensure all org master data is flushed to session
           # CRITICAL FIX: Commit org master data NOW before employee import
         self.db.commit()
-        logger.info("Committed org master data (SubSegment/Project/Team/Role)")
+        logger.info("Committed org master data (Segment/SubSegment/Project/Team/Role)")
         logger.info("Org master data processing completed (skills will be resolved from DB)")
     
     def _log_master_data_summary(self, master_data: Dict[str, Set]):
         """Log summary of master data to process."""
         logger.info(f"Master data summary:")
+        logger.info(f"  Segments: {len(master_data.get('segments', set()))}")
         logger.info(f"  Sub-segments: {len(master_data.get('sub_segments', set()))}")
         logger.info(f"  Projects: {len(master_data.get('sub_segment_project_mappings', set()))}")
         logger.info(f"  Teams: {len(master_data.get('project_team_mappings', set()))}")
@@ -62,8 +70,43 @@ class OrgMasterDataProcessor:
         if master_data.get('project_team_mappings'):
             logger.debug(f"Team mappings to create: {sorted(master_data['project_team_mappings'])}")
     
-    def _process_sub_segments(self, sub_segments: Set[str]):
-        """Process Sub-Segment master data."""
+    def _process_segments(self, segments: Set[str]):
+        """Process Segment master data (top-level org units)."""
+        
+        for segment_name in segments:
+            if not segment_name or pd.isna(segment_name):
+                continue
+            
+            # Clean segment name (remove whitespace)
+            segment_name_clean = str(segment_name).strip()
+            if not segment_name_clean:
+                continue
+
+            existing = self.db.query(Segment).filter(
+                Segment.segment_name == segment_name_clean
+            ).first()
+            
+            if not existing:
+                new_segment = Segment(segment_name=segment_name_clean)
+                self.db.add(new_segment)
+                self.stats.setdefault('new_segments', []).append(segment_name_clean)
+                logger.info(f"Added new segment: {segment_name_clean}")
+    
+    def _process_sub_segments_with_segment_mapping(
+        self, 
+        sub_segments: Set[str], 
+        segment_subsegment_mappings: Set[Tuple[str, str]]
+    ):
+        """
+        Process Sub-Segment master data with Segment linkage.
+        
+        If a sub_segment has a segment mapping, link it.
+        Otherwise, leave segment_id as NULL.
+        """
+        # Build segment mapping dict for quick lookup
+        subseg_to_segment = {}
+        for segment_name, subseg_name in segment_subsegment_mappings:
+            subseg_to_segment[subseg_name] = segment_name
         
         for sub_segment_name in sub_segments:
             if not sub_segment_name or pd.isna(sub_segment_name):
@@ -73,11 +116,52 @@ class OrgMasterDataProcessor:
                 SubSegment.sub_segment_name == sub_segment_name
             ).first()
             
+            # Determine which segment to link to (only if explicitly mapped in Excel)
+            segment = None
+            segment_name = subseg_to_segment.get(sub_segment_name)
+            if segment_name:
+                # Find the segment
+                segment_name_clean = str(segment_name).strip()
+                segment = self.db.query(Segment).filter(
+                    Segment.segment_name == segment_name_clean
+                ).first()
+                
+                if not segment:
+                    logger.warning(
+                        f"Segment '{segment_name_clean}' not found for sub-segment '{sub_segment_name}'. "
+                        f"Sub-segment will be created without segment link."
+                    )
+            
             if not existing:
-                new_sub_segment = SubSegment(sub_segment_name=sub_segment_name)
+                # Create new sub_segment with segment link (or NULL if no mapping)
+                new_sub_segment = SubSegment(
+                    sub_segment_name=sub_segment_name,
+                    segment_id=segment.segment_id if segment else None
+                )
                 self.db.add(new_sub_segment)
-                self.stats['new_sub_segments'].append(sub_segment_name)
-                logger.info(f"Added new sub-segment: {sub_segment_name}")
+                self.stats.setdefault('new_sub_segments', []).append(sub_segment_name)
+                if segment:
+                    logger.info(
+                        f"Added new sub-segment: {sub_segment_name} "
+                        f"(linked to segment: {segment.segment_name})"
+                    )
+                else:
+                    logger.info(f"Added new sub-segment: {sub_segment_name} (no segment link)")
+            else:
+                # Update existing sub_segment to link to segment if mapping exists
+                if segment and existing.segment_id is None:
+                    existing.segment_id = segment.segment_id
+                    logger.info(
+                        f"Updated existing sub-segment '{sub_segment_name}' "
+                        f"to link to segment: {segment.segment_name}"
+                    )
+                elif segment and existing.segment_id != segment.segment_id:
+                    # Sub-segment already linked to different segment
+                    # Keep existing link (don't override)
+                    logger.debug(
+                        f"Sub-segment '{sub_segment_name}' already linked to segment_id={existing.segment_id}, "
+                        f"skipping re-link to {segment.segment_name}"
+                    )
 
     def _process_roles(self, roles: Set[str]):
         """Process Role master data."""
@@ -93,7 +177,7 @@ class OrgMasterDataProcessor:
             if not existing:
                 new_role = Role(role_name=role_name)
                 self.db.add(new_role)
-                self.stats['new_roles'].append(role_name)
+                self.stats.setdefault('new_roles', []).append(role_name)
                 logger.info(f"Added new role: {role_name}")
 
     def _process_projects_with_validation(self, projects: Set[str], mappings: Set[Tuple[str, str]]):
@@ -120,7 +204,7 @@ class OrgMasterDataProcessor:
                     sub_segment_id=sub_segment.sub_segment_id
                 )
                 self.db.add(new_project)
-                self.stats['new_projects'].append(project_name)
+                self.stats.setdefault('new_projects', []).append(project_name)
                 logger.info(f"Added new project: {project_name} under sub-segment: {sub_segment_name}")
 
     def _process_teams_with_validation(self, teams: Set[str], mappings: Set[Tuple[str, str, str]]):
@@ -162,5 +246,5 @@ class OrgMasterDataProcessor:
                     project_id=project.project_id
                 )
                 self.db.add(new_team)
-                self.stats['new_teams'].append(team_name)
+                self.stats.setdefault('new_teams', []).append(team_name)
                 logger.info(f"Added new team: {team_name} under project: {project_name} (sub-segment: {sub_segment_name}, project_id: {project.project_id})")

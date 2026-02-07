@@ -8,6 +8,7 @@ Import order is important for foreign key dependencies:
 """
 
 # Master/Dimension tables (no dependencies)
+from app.models.segment import Segment
 from app.models.sub_segment import SubSegment
 from app.models.category import SkillCategory
 from app.models.proficiency import ProficiencyLevel
@@ -35,6 +36,18 @@ from app.models.skill_embedding import SkillEmbedding
 
 # Import job tracking
 from app.models.import_job import ImportJob
+
+# RBAC (Role-Based Access Control) - Authentication and Authorization
+from app.models.auth import (
+    User,
+    UserEmployeeLink,
+    AuthRole,
+    AuthPermission,
+    AuthRolePermission,
+    AuthScopeType,
+    AuthUserScopeRole,
+    AuthAuditLog,
+)
 
 __all__ = [
     # Master/Dimension tables
@@ -68,4 +81,14 @@ __all__ = [
     
     # Import job tracking
     "ImportJob",
+    
+    # RBAC (Role-Based Access Control)
+    "User",
+    "UserEmployeeLink",
+    "AuthRole",
+    "AuthPermission",
+    "AuthRolePermission",
+    "AuthScopeType",
+    "AuthUserScopeRole",
+    "AuthAuditLog",
 ]

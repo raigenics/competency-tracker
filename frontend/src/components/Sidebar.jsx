@@ -1,4 +1,4 @@
-import { BarChart3, Search, Layers, User, Users, Upload, Database } from 'lucide-react';
+import { BarChart3, Search, Layers, User, Users, Upload, Database, Shield } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
 const Sidebar = () => {
@@ -25,7 +25,8 @@ const Sidebar = () => {
     {
       title: 'ADMINISTRATION',
       items: [
-        { id: 'master-data', path: '/master-data', icon: Database, label: 'Master Data' }
+        { id: 'master-data', path: '/master-data', icon: Database, label: 'Master Data' },
+        { id: 'rbac-admin', path: '/rbac-admin', icon: Shield, label: 'RBAC Admin Panel' }
       ]
     }
   ];

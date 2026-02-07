@@ -31,6 +31,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.models import Employee, EmployeeSkill
+from app.services.utils.org_query_helpers import apply_org_filters_to_employee_ids
 
 
 def get_skill_momentum(
@@ -101,6 +102,11 @@ def _get_employee_ids_in_scope(
     """
     Get list of employee IDs matching scope filters.
     
+    PHASE 1 NORMALIZATION:
+    - Uses centralized join-based filtering logic
+    - No longer filters directly on Employee.project_id or Employee.sub_segment_id
+    - Canonical: team_id (direct FK) > project_id (Team join) > sub_segment_id (Team->Project joins)
+    
     Applies hierarchical filtering: Team > Project > Sub-Segment > All.
     
     Args:
@@ -112,16 +118,13 @@ def _get_employee_ids_in_scope(
     Returns:
         List of employee IDs
     """
-    employee_filter = db.query(Employee.employee_id)
+    # PHASE 1 NORMALIZATION: Use centralized helper for join-based filtering
+    # OLD: Direct inline filters on Employee.sub_segment_id, Employee.project_id
+    # NEW: Canonical helper enforces team_id as source of truth with joins
+    query = db.query(Employee.employee_id)
+    query = apply_org_filters_to_employee_ids(query, sub_segment_id, project_id, team_id)
     
-    if team_id:
-        employee_filter = employee_filter.filter(Employee.team_id == team_id)
-    elif project_id:
-        employee_filter = employee_filter.filter(Employee.project_id == project_id)
-    elif sub_segment_id:
-        employee_filter = employee_filter.filter(Employee.sub_segment_id == sub_segment_id)
-    
-    employee_ids = [e[0] for e in employee_filter.all()]
+    employee_ids = [e[0] for e in query.all()]
     
     return employee_ids
 

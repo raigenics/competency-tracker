@@ -28,6 +28,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func, desc, case
 
 from app.models import Employee, EmployeeSkill, Skill
+from app.services.utils.org_query_helpers import apply_org_filters
 
 
 def get_top_skills(
@@ -95,6 +96,11 @@ def _apply_scope_filters(query, sub_segment_id, project_id, team_id):
     """
     Apply hierarchical scope filters to query.
     
+    PHASE 1 NORMALIZATION:
+    - Uses centralized join-based filtering logic
+    - No longer filters directly on Employee.project_id or Employee.sub_segment_id
+    - Canonical: team_id (direct) > project_id (via Team join) > sub_segment_id (via Team->Project joins)
+    
     Filter hierarchy: Team > Project > Sub-Segment > Organization
     Most specific filter wins.
     
@@ -107,14 +113,10 @@ def _apply_scope_filters(query, sub_segment_id, project_id, team_id):
     Returns:
         Filtered query object
     """
-    if team_id:
-        query = query.filter(Employee.team_id == team_id)
-    elif project_id:
-        query = query.filter(Employee.project_id == project_id)
-    elif sub_segment_id:
-        query = query.filter(Employee.sub_segment_id == sub_segment_id)
-    
-    return query
+    # PHASE 1 NORMALIZATION: Use centralized helper instead of inline filters
+    # OLD: Direct filters on Employee.sub_segment_id, Employee.project_id
+    # NEW: Join-based derivation through canonical helper
+    return apply_org_filters(query, sub_segment_id, project_id, team_id)
 
 
 def _execute_and_format(query, limit: int) -> List[Dict[str, Any]]:
