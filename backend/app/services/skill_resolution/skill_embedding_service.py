@@ -218,14 +218,17 @@ class SkillEmbeddingService:
         Raises:
             Exception if embedding generation or save fails
         """
-        # Normalize skill name (same normalization as matching)
-        normalized_name = self._normalize_text(skill.skill_name)
+        # Generate enhanced embedding text (includes aliases, category, subcategory)
+        embedding_text = self._generate_enhanced_embedding_text(skill)
         
-        # Generate embedding using ONLY the skill name
-        embedding_vector = self.embedding_provider.embed(normalized_name)
+        # Normalize for consistency
+        normalized_text = self._normalize_text(embedding_text)
         
-        # Compute hash for change detection
-        text_hash = self._compute_text_hash(normalized_name)
+        # Generate embedding using enhanced text
+        embedding_vector = self.embedding_provider.embed(normalized_text)
+        
+        # Compute hash for change detection (use skill name only for backwards compatibility)
+        text_hash = self._compute_text_hash(self._normalize_text(skill.skill_name))
         version_with_hash = f"{self.embedding_version}:{text_hash}"
         
         # Upsert to database
@@ -238,6 +241,47 @@ class SkillEmbeddingService:
         )
         
         return True
+    
+    def _generate_enhanced_embedding_text(self, skill: Skill) -> str:
+        """
+        Generate enhanced embedding text for a skill.
+        
+        Format: "skill_name | aliases: alias1, alias2 | category: cat_name | subcategory: subcat_name"
+        
+        This provides richer context for embedding generation, improving match quality.
+        
+        Args:
+            skill: Skill object with relationships loaded
+            
+        Returns:
+            Enhanced text string for embedding
+        """
+        parts = [skill.skill_name]
+        
+        # Add aliases if available
+        try:
+            if hasattr(skill, 'aliases') and skill.aliases:
+                alias_texts = [alias.alias_text for alias in skill.aliases if alias.alias_text]
+                if alias_texts:
+                    parts.append(f"aliases: {', '.join(alias_texts)}")
+        except Exception as e:
+            logger.debug(f"Could not load aliases for skill_id={skill.skill_id}: {e}")
+        
+        # Add category and subcategory if available
+        try:
+            if hasattr(skill, 'subcategory') and skill.subcategory:
+                subcategory = skill.subcategory
+                parts.append(f"subcategory: {subcategory.subcategory_name}")
+                
+                if hasattr(subcategory, 'category') and subcategory.category:
+                    category = subcategory.category
+                    parts.append(f"category: {category.category_name}")
+        except Exception as e:
+            logger.debug(f"Could not load category/subcategory for skill_id={skill.skill_id}: {e}")
+        
+        # Join parts with separator
+        enhanced_text = " | ".join(parts)
+        return enhanced_text
     
     @staticmethod
     def _normalize_text(text: str) -> str:

@@ -12,8 +12,7 @@ logger = logging.getLogger(__name__)
 
 class DateParser:
     """Handles date parsing with PostgreSQL compatibility."""
-    
-    # Common date formats to try
+      # Common date formats to try
     DATE_FORMATS = [
         '%Y-%m-%d',      # 2011-02-02 (ISO format - PostgreSQL preferred)
         '%d-%m-%Y',      # 02-02-2011
@@ -24,6 +23,8 @@ class DateParser:
         '%d-%B-%y',      # 1-September-25
         '%d-%b-%Y',      # 1-Sep-2025
         '%d-%B-%Y',      # 1-September-2025
+        '%b-%y',         # Sep-25 (MMM-yy format - converts to 01-Sep-2025)
+        '%B-%y',         # September-25 (Full month name)
     ]
     
     def parse_date_safely(self, date_str: str, field_name: str, record_id: str = "") -> Optional[date]:

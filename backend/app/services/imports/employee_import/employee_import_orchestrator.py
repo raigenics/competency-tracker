@@ -26,6 +26,9 @@ from .skill_persister import SkillPersister
 
 logger = logging.getLogger(__name__)
 
+# Import DB-backed job service (not in-memory tracker)
+from app.services.import_job_service import ImportJobService
+
 
 class ImportServiceError(Exception):
     """Custom exception for import service errors."""
@@ -35,8 +38,11 @@ class ImportServiceError(Exception):
 class EmployeeImportOrchestrator:
     """Orchestrates the employee import process."""
     
-    def __init__(self, db_session: Optional[Session] = None):
+    def __init__(self, db_session: Optional[Session] = None, job_id: Optional[str] = None):
         self.db: Optional[Session] = db_session
+        self.job_id = job_id  # Optional job_id for DB-backed progress tracking
+        # Use DB-backed job service for progress tracking (not in-memory tracker)
+        self.job_service = ImportJobService(db_session) if job_id and db_session else None
         self.import_stats = {
             'employees_imported': 0,
             'skills_imported': 0,
@@ -83,9 +89,7 @@ class EmployeeImportOrchestrator:
         Raises:
             ImportServiceError: If import fails
         """
-        logger.info(f"Starting Excel import (NEW FORMAT - no category/subcategory in skills) from: {file_path}")
-
-        # Use provided session or create new one
+        logger.info(f"Starting Excel import (NEW FORMAT - no category/subcategory in skills) from: {file_path}")        # Use provided session or create new one
         if self.db is None:
             self.db = SessionLocal()
             should_close_session = True
@@ -106,26 +110,53 @@ class EmployeeImportOrchestrator:
         try:
             # Step 1: Read Excel data
             logger.info("Reading Excel data")
+            if self.job_service and self.job_id:
+                self.job_service.update_job(
+                    self.job_id, status='processing', percent=5, message="Reading Excel file..."
+                )
+            
             employees_df, skills_df = read_excel(file_path)
             logger.info(f"Read {len(employees_df)} employees, {len(skills_df)} skills")
             logger.info(f"Employee columns: {list(employees_df.columns)}")
             logger.info(f"Skills columns: {list(skills_df.columns)}")
+            
+            # Calculate total rows for progress tracking
+            total_rows = len(employees_df) + len(skills_df)
+            if self.job_service and self.job_id:
+                self.job_service.update_job(
+                    self.job_id, percent=10,
+                    message=f"Processing {len(employees_df)} employees and {len(skills_df)} skills...",
+                    total_count=total_rows
+                )
 
             # Step 2: Generate import timestamp (UTC timezone-aware)
             import_timestamp = datetime.now(timezone.utc)
             logger.info(f"Import timestamp: {import_timestamp.isoformat()}")
 
             # Step 3: Scan org master data from Employee sheet ONLY
+            if self.job_service and self.job_id:
+                self.job_service.update_job(
+                    self.job_id, percent=15, message="Scanning organization master data..."
+                )
             master_data = get_master_data_for_scanning(employees_df, skills_df)
 
             # Step 4: Clear fact tables (employees and employee_skills)
-            self._clear_fact_tables()
+            # NOTE: Skipped for upsert logic - we now update existing records
+            # self._clear_fact_tables()
 
             # Step 5: Process org master data (SubSegment/Project/Team/Role only)
+            if self.job_service and self.job_id:
+                self.job_service.update_job(
+                    self.job_id, percent=20, message="Processing organization structure..."
+                )
             org_processor = OrgMasterDataProcessor(self.db, self.import_stats)
             org_processor.process_all(master_data)
 
             # Step 6: Import employees FIRST
+            if self.job_service and self.job_id:
+                self.job_service.update_job(
+                    self.job_id, percent=30, message="Importing employees (upsert mode)..."
+                )
             employee_persister = EmployeePersister(
                 self.db, self.import_stats, 
                 self.date_parser, self.field_sanitizer
@@ -133,12 +164,30 @@ class EmployeeImportOrchestrator:
             zid_to_employee_id_mapping = employee_persister.import_employees(
                 employees_df, import_timestamp
             )
+            
+            # Update progress after employees imported
+            if self.job_service and self.job_id:
+                employees_processed = self.import_stats.get('employees_imported', 0)
+                self.job_service.update_job(
+                    self.job_id, percent=50,
+                    message=f"Imported {employees_processed} employees",
+                    employees_processed=employees_processed
+                )
 
             # Step 7: Expand comma-separated skills
+            if self.job_service and self.job_id:
+                self.job_service.update_job(
+                    self.job_id, percent=55, message="Expanding comma-separated skills..."
+                )
             skill_expander = SkillExpander()
             skills_df = skill_expander.expand_skills(skills_df)
 
             # Step 8: Import employee skills with resolution
+            if self.job_service and self.job_id:
+                self.job_service.update_job(
+                    self.job_id, percent=60,
+                    message=f"Importing {len(skills_df)} skills with resolution..."
+                )
             skill_resolver = SkillResolver(self.db, self.import_stats)
             skill_resolver.set_name_normalizer(self.name_normalizer.normalize_name)
             
@@ -153,8 +202,21 @@ class EmployeeImportOrchestrator:
             expanded_skill_count = skill_persister.import_employee_skills(
                 skills_df, zid_to_employee_id_mapping, import_timestamp
             )
+            
+            # Update progress after skills imported
+            if self.job_service and self.job_id:
+                skills_processed = self.import_stats.get('skills_imported', 0)
+                self.job_service.update_job(
+                    self.job_id, percent=90,
+                    message=f"Imported {skills_processed} skills",
+                    skills_processed=skills_processed
+                )
 
             # Step 9: Ensure all changes are flushed and committed
+            if self.job_service and self.job_id:
+                self.job_service.update_job(
+                    self.job_id, percent=95, message="Committing changes to database..."
+                )
             self.db.flush()
             self.db.commit()
 
@@ -164,7 +226,13 @@ class EmployeeImportOrchestrator:
                         f"unresolved={self.import_stats['skills_unresolved']}")
 
             # Build response
-            return self._build_response(employees_df, expanded_skill_count)
+            response = self._build_response(employees_df, expanded_skill_count)
+            
+            # Mark job as completed in DB
+            if self.job_service and self.job_id:
+                self.job_service.complete_job(self.job_id, result=response)
+            
+            return response
 
         except Exception as e:
             if self.db:
@@ -174,12 +242,17 @@ class EmployeeImportOrchestrator:
             # Enhanced error reporting for PostgreSQL
             error_msg = self._format_error_message(str(e))
             logger.error(error_msg)
+            
+            # Mark job as failed in DB
+            if self.job_service and self.job_id:
+                self.job_service.fail_job(self.job_id, error_msg)
+            
             raise ImportServiceError(error_msg)
         
         finally:
             # Only close session if we created it
             if self.db and should_close_session:
-                self.db.close()
+                self.db.close
     
     def _clear_fact_tables(self):
         """Clear volatile fact tables (employees and employee_skills)."""

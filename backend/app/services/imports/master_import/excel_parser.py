@@ -171,15 +171,14 @@ class ExcelParser:
         if not skill_name:
             logger.debug(f"Row {row_number}: Skipping row with no skill name")
             return None
-        
-        # REQUIREMENT 2: Validate required fields when skill name is present
+          # REQUIREMENT 2: Validate required fields when skill name is present
+        # NOTE: Aliases are OPTIONAL - many skills don't need aliases
         validation_errors = []
         if not category:
             validation_errors.append("Missing category")
         if not subcategory:
             validation_errors.append("Missing subcategory")
-        if not alias_text:
-            validation_errors.append("Missing alias")
+        # Alias is optional - removed validation for missing alias
         
         # If validation errors exist, capture them but continue processing
         if validation_errors:

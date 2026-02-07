@@ -33,8 +33,8 @@ class ImportService:
     BACKWARD COMPATIBILITY WRAPPER - delegates to refactored implementation.
     """
     
-    def __init__(self, db_session: Optional[Session] = None):
-        self._orchestrator = EmployeeImportOrchestrator(db_session)
+    def __init__(self, db_session: Optional[Session] = None, job_id: Optional[str] = None):
+        self._orchestrator = EmployeeImportOrchestrator(db_session, job_id=job_id)
     
     @property
     def db(self):

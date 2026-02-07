@@ -24,17 +24,17 @@ export const bulkImportApi = {  /**
       throw error;
     }
   },
-
   /**
-   * Get import service status
-   * @returns {Promise} Service status information
+   * Get import job status by job ID
+   * @param {string} jobId - The job ID to check status for
+   * @returns {Promise} Job status with progress information
    */
-  async getStatus() {
+  async getJobStatus(jobId) {
     try {
-      const response = await httpClient.get('/import/status');
+      const response = await httpClient.get(`/import/status/${jobId}`);
       return response;
     } catch (error) {
-      console.error('Failed to get import status:', error);
+      console.error('Failed to get job status:', error);
       throw error;
     }
   },

@@ -21,13 +21,14 @@ class SkillPersister:
     """Handles employee skill database operations."""
     
     def __init__(self, db: Session, stats: Dict, date_parser, field_sanitizer, 
-                 skill_resolver, unresolved_logger):
+                 skill_resolver, unresolved_logger, progress_callback=None):
         self.db = db
         self.stats = stats
         self.date_parser = date_parser
         self.field_sanitizer = field_sanitizer
         self.skill_resolver = skill_resolver
         self.unresolved_logger = unresolved_logger
+        self.progress_callback = progress_callback  # Optional callback for progress reporting
     
     def import_employee_skills(self, skills_df: pd.DataFrame, 
                               zid_to_employee_id_mapping: Dict[str, int],
@@ -60,12 +61,19 @@ class SkillPersister:
         
         # Initialize history service
         history_service = SkillHistoryService(self.db)
-        successful_skill_imports = 0
-        
-        # Group skills by ZID for per-employee processing
+        successful_skill_imports = 0        # Group skills by ZID for per-employee processing
         skills_by_zid = self._group_skills_by_zid(skills_df)
         
+        # Threshold-based progress tracking (replaces buggy modulo logic)
+        # Progress range: 50% → 85% (35% total for skills phase)
+        total_skills = len(skills_df)
+        
+        # Define progress reporting interval and threshold
+        progress_interval = max(1, total_skills // 10)  # Update every ~10% of skills
+        next_report_at = progress_interval  # First threshold
+        
         # Process each employee's skills as a batch
+        processed_count = 0
         for zid, skill_rows in skills_by_zid.items():
             employee_skill_count = self._process_employee_skills(
                 zid, skill_rows, zid_to_employee_id_mapping,
@@ -73,6 +81,38 @@ class SkillPersister:
                 history_service, import_timestamp
             )
             successful_skill_imports += employee_skill_count
+            processed_count += len(skill_rows)
+            
+            # Report progress when crossing threshold (NOT modulo!)
+            # This guarantees updates even if processed_count jumps by batches
+            if self.progress_callback:
+                while processed_count >= next_report_at and next_report_at <= total_skills:
+                    # Calculate progress from 50% to 85% (35% range for skills)
+                    skill_progress_percent = (next_report_at / total_skills) * 35
+                    overall_progress = 50 + skill_progress_percent
+                    
+                    logger.debug(f"🔔 Progress threshold reached: {next_report_at}/{total_skills} skills → {int(overall_progress)}%")
+                    
+                    self.progress_callback(
+                        message=f"Importing skills... ({processed_count}/{total_skills})",
+                        percent=int(overall_progress),
+                        total_rows=100,
+                        skills_processed=successful_skill_imports
+                    )
+                    
+                    # Advance to next threshold
+                    next_report_at += progress_interval
+        
+        # CRITICAL: Always send final progress update at 85%
+        # This prevents the last visible update being stuck around ~81%
+        if self.progress_callback and processed_count > 0:
+            logger.debug(f"🏁 Final skill progress: {processed_count}/{total_skills} skills → 85%")
+            self.progress_callback(
+                message=f"Imported {successful_skill_imports}/{total_skills} skills",
+                percent=85,
+                total_rows=100,
+                skills_processed=successful_skill_imports
+            )
         
         self.stats['skills_imported'] = successful_skill_imports
         
@@ -153,25 +193,37 @@ class SkillPersister:
         if isinstance(skill_name_raw, pd.Series):
             skill_name = str(skill_name_raw.iloc[0]).strip() if len(skill_name_raw) > 0 else ''
         else:
-            skill_name = str(skill_name_raw).strip()
-        
+            skill_name = str(skill_name_raw).strip()        
         if not skill_name:
             logger.warning(f"Skipping empty skill name at Excel row {excel_row}")
             return None
         
         try:
-            # Resolve skill via exact match → alias match → None
-            skill_id = self.skill_resolver.resolve_skill(skill_name)
+            # Resolve skill via exact match → alias match → embedding match → None
+            skill_id, resolution_method, resolution_confidence = self.skill_resolver.resolve_skill(skill_name)
             
             if not skill_id:
-                # Unresolved skill - log to raw_skill_inputs
-                self.unresolved_logger.record_unresolved_skill(
-                    skill_name=skill_name,
-                    employee_id=db_employee_id,
-                    sub_segment_id=sub_segment_id,
-                    timestamp=import_timestamp
-                )
-                logger.warning(f"Skill '{skill_name}' unresolved for ZID {zid} - logged to raw_skill_inputs")
+                # Check if it's a "needs review" case
+                if resolution_method == "needs_review" and resolution_confidence:
+                    # Log to raw_skill_inputs with resolution info for manual review
+                    self.unresolved_logger.record_unresolved_skill(
+                        skill_name=skill_name,
+                        employee_id=db_employee_id,
+                        sub_segment_id=sub_segment_id,
+                        timestamp=import_timestamp,
+                        resolution_method=resolution_method,
+                        resolution_confidence=resolution_confidence
+                    )
+                    logger.warning(f"Skill '{skill_name}' needs review (similarity={resolution_confidence:.4f}) for ZID {zid} - logged to raw_skill_inputs")
+                else:
+                    # Truly unresolved skill - log to raw_skill_inputs
+                    self.unresolved_logger.record_unresolved_skill(
+                        skill_name=skill_name,
+                        employee_id=db_employee_id,
+                        sub_segment_id=sub_segment_id,
+                        timestamp=import_timestamp
+                    )
+                    logger.warning(f"Skill '{skill_name}' unresolved for ZID {zid} - logged to raw_skill_inputs")
                 
                 # Track as failed row for reporting
                 self.stats['failed_rows'].append({
@@ -181,8 +233,8 @@ class SkillPersister:
                     'zid': zid,
                     'employee_name': employee_name,
                     'skill_name': skill_name,
-                    'error_code': 'SKILL_NOT_RESOLVED',
-                    'message': f'Skill "{skill_name}" not found in master data (logged to raw_skill_inputs)'
+                    'error_code': 'SKILL_NEEDS_REVIEW' if resolution_method == "needs_review" else 'SKILL_NOT_RESOLVED',
+                    'message': f'Skill "{skill_name}" {"needs manual review" if resolution_method == "needs_review" else "not found in master data"} (logged to raw_skill_inputs)'
                 })
                 return None
             

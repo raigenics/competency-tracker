@@ -33,6 +33,9 @@ from app.models.skill_alias import SkillAlias
 # Skill embeddings for semantic search
 from app.models.skill_embedding import SkillEmbedding
 
+# Import job tracking
+from app.models.import_job import ImportJob
+
 __all__ = [
     # Master/Dimension tables
     "SubSegment",
@@ -62,4 +65,7 @@ __all__ = [
     
     # Skill embeddings
     "SkillEmbedding",
+    
+    # Import job tracking
+    "ImportJob",
 ]
