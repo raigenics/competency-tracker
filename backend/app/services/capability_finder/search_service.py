@@ -149,11 +149,9 @@ def _query_matching_employees(
             # Import locally to avoid these models being loaded too early
             from app.models.team import Team
             from app.models.project import Project
-            # We need to add joins to the query itself
-            if not any(Team in [mapper.class_ for mapper in query.column_descriptions]):
-                query = query.join(Team, Employee.team_id == Team.team_id)
-            if not any(Project in [mapper.class_ for mapper in query.column_descriptions]):
-                query = query.join(Project, Team.project_id == Project.project_id)
+            # Base query only joins Employee->EmployeeSkill->Skill, so safe to join Team/Project
+            query = query.join(Team, Employee.team_id == Team.team_id)
+            query = query.join(Project, Team.project_id == Project.project_id)
             filters.append(Project.sub_segment_id == sub_segment_id)
     
     if role:

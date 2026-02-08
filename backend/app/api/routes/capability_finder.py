@@ -12,7 +12,8 @@ import logging
 from app.db.session import get_db
 from app.services.capability_finder_service import CapabilityFinderService
 from app.schemas.capability_finder import (
-    SkillListResponse, 
+    SkillListResponse,
+    SkillSuggestionsResponse,
     RoleListResponse, 
     SearchRequest, 
     SearchResponse,
@@ -38,6 +39,34 @@ def get_all_skills(db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=500, 
             detail=f"Failed to fetch skills: {str(e)}"
+        )
+
+
+@router.get("/skills/suggestions", response_model=SkillSuggestionsResponse)
+def get_skill_suggestions(query: str = None, db: Session = Depends(get_db)):
+    """
+    Get enhanced skill suggestions with employee availability metadata.
+    
+    Returns master skills with flags indicating whether employees have each skill.
+    Skills with employees appear first (selectable), master-only skills appear after (disabled).
+    
+    Query parameters:
+        query (str, optional): Filter skills by name (case-insensitive partial match)
+    
+    Returns:
+        List of skill suggestions with metadata:
+        - skill_id: Unique skill identifier
+        - skill_name: Skill name
+        - is_employee_available: Whether any employees have this skill
+        - is_selectable: Whether this skill can be selected for search
+    """
+    try:
+        suggestions = CapabilityFinderService.get_skill_suggestions(db, query)
+        return SkillSuggestionsResponse(suggestions=suggestions)
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to fetch skill suggestions: {str(e)}"
         )
 
 
@@ -93,7 +122,14 @@ def search_matching_talent(
             results=results,
             count=len(results)
         )
+    except ValueError as e:
+        # Client validation errors (e.g., invalid IDs, bad parameters)
+        raise HTTPException(
+            status_code=400,
+            detail=str(e)
+        )
     except Exception as e:
+        logger.error(f"Search error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Failed to search matching talent: {str(e)}"

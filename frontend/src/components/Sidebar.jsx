@@ -1,5 +1,6 @@
 import { BarChart3, Search, Layers, User, Users, Upload, Database, Shield } from 'lucide-react';
 import { useNavigate, useLocation } from 'react-router-dom';
+import { FEATURE_FLAGS } from '../config/featureFlags';
 
 const Sidebar = () => {
   const navigate = useNavigate();
@@ -26,7 +27,11 @@ const Sidebar = () => {
       title: 'ADMINISTRATION',
       items: [
         { id: 'master-data', path: '/master-data', icon: Database, label: 'Master Data' },
-        { id: 'rbac-admin', path: '/rbac-admin', icon: Shield, label: 'RBAC Admin Panel' }
+        // RBAC Admin Panel - controlled by FEATURE_FLAGS.SHOW_RBAC_ADMIN
+        ...(FEATURE_FLAGS.SHOW_RBAC_ADMIN 
+          ? [{ id: 'rbac-admin', path: '/rbac-admin', icon: Shield, label: 'RBAC Admin Panel' }] 
+          : []
+        )
       ]
     }
   ];

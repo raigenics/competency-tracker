@@ -9,6 +9,7 @@ import ComparisonPage from '../pages/Comparison/ComparisonPage.jsx';
 import EmployeesPage from '../pages/Employees/EmployeesPage.jsx';
 import BulkImportPage from '../pages/BulkImport/BulkImportPage.jsx';
 import RbacAdminPage from '../pages/RbacAdmin/RbacAdminPage.jsx';
+import { FEATURE_FLAGS } from '../config/featureFlags';
 
 export const router = createBrowserRouter([
   {
@@ -45,10 +46,13 @@ export const router = createBrowserRouter([
         path: "bulk-import",
         element: <BulkImportPage />,
       },
-      {
-        path: "rbac-admin",
-        element: <RbacAdminPage />,
-      },
+      // RBAC Admin - controlled by feature flag
+      ...(FEATURE_FLAGS.SHOW_RBAC_ADMIN ? [
+        {
+          path: "rbac-admin",
+          element: <RbacAdminPage />,
+        }
+      ] : []),
     ],
   },
 ]);

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Search } from 'lucide-react';
 import ComboBox from '../../../components/ComboBox';
+import EnhancedSkillSelector from './EnhancedSkillSelector';
 import { capabilityFinderApi } from '../../../services/api/capabilityFinderApi';
 import { dropdownApi } from '../../../services/api/dropdownApi';
 
-const QueryBuilderPanel = ({ query, onQueryChange, onSearch, isLoading }) => {
-  const [availableSkills, setAvailableSkills] = useState([]);
+const QueryBuilderPanel = ({ query, onQueryChange, onSearch, onClearFilters, isLoading, hasSearched }) => {
   const [availableRoles, setAvailableRoles] = useState([]);
   const [subSegments, setSubSegments] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -18,14 +18,12 @@ const QueryBuilderPanel = ({ query, onQueryChange, onSearch, isLoading }) => {
       setLoading(true);
       setError(null);
       try {
-        // Fetch all dropdown data in parallel
-        const [skills, roles, subSegs] = await Promise.all([
-          capabilityFinderApi.getAllSkills(),
+        // Fetch roles and sub-segments (skills handled by EnhancedSkillSelector)
+        const [roles, subSegs] = await Promise.all([
           capabilityFinderApi.getAllRoles(),
           dropdownApi.getSubSegments()
         ]);
         
-        setAvailableSkills(skills);
         setAvailableRoles(roles);
         setSubSegments([{ id: 'all', name: 'All Sub-Segments' }, ...subSegs]);
       } catch (err) {
@@ -151,18 +149,19 @@ const QueryBuilderPanel = ({ query, onQueryChange, onSearch, isLoading }) => {
 
   return (
     <div className="space-y-6">
-      {/* Required Skills */}
+      {/* Skills to Match */}
       <div>
         <label className="block text-sm font-medium text-gray-700 mb-2">
-          Required Skills
+          Skills to Match
         </label>
-        <ComboBox
-          options={availableSkills}
+        <EnhancedSkillSelector
           value={query.skills || []}
           onChange={handleAddSkill}
           placeholder="Type to search skills..."
-          multi={true}
         />
+        <p className="mt-1.5 text-xs text-gray-500">
+          Multi-select skills. Matches employees with <span className="font-medium">all</span> skills. <span className="font-medium">any</span> selected skill. 
+        </p>
       </div>
 
       {/* Sub-Segment */}
@@ -186,10 +185,16 @@ const QueryBuilderPanel = ({ query, onQueryChange, onSearch, isLoading }) => {
           options={teams}
           value={query.team || ''}
           onChange={handleTeamChange}
-          placeholder={teams.length === 0 ? "No teams available" : "Select team..."}
+          placeholder={
+            query.subSegment === 'all' 
+              ? "Select sub-segment first" 
+              : teams.length === 0 
+                ? "No teams available" 
+                : "Select team..."
+          }
           multi={false}
           clearable={true}
-          disabled={teams.length === 0}
+          disabled={query.subSegment === 'all' || teams.length === 0}
         />
       </div>      {/* Roles */}
       <div>
@@ -247,26 +252,27 @@ const QueryBuilderPanel = ({ query, onQueryChange, onSearch, isLoading }) => {
       </div>
 
       {/* Search Button */}
-      <button
-        onClick={onSearch}
-        disabled={isLoading}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        <Search className="h-5 w-5" />
-        {isLoading ? 'Searching...' : 'Find Matching Talent'}
-      </button>
+      <div>
+        <button
+          onClick={onSearch}
+          disabled={isLoading || !query.skills || query.skills.length === 0}
+          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <Search className="h-5 w-5" />
+          {isLoading ? 'Searching...' : 'Find Matching Talent'}
+        </button>
+        {!query.skills || query.skills.length === 0 ? (
+          <p className="mt-2 text-xs text-gray-500 text-center">
+            Please select at least one skill to search.
+          </p>
+        ) : null}
+      </div>
 
       {/* Clear All */}
       <button
-        onClick={() => onQueryChange({
-          skills: [],
-          subSegment: 'all',
-          team: '',
-          role: '',
-          proficiency: { min: 0, max: 5 },
-          experience: { min: 0, max: 20 }
-        })}
-        className="w-full px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50"
+        onClick={onClearFilters}
+        disabled={!query.skills || query.skills.length === 0}
+        className="w-full px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
       >
         Clear All Filters
       </button>

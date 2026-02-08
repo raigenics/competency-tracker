@@ -134,8 +134,11 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
         <div className="text-center py-8">
           <Info className="h-12 w-12 mx-auto mb-4 text-gray-400" />
           <h3 className="text-lg font-medium text-gray-600 mb-2">Select a skill</h3>
-          <p className="text-sm text-gray-500">
-            Click on any skill from the capability structure to view insights
+          <p className="text-sm text-gray-500 mb-3">
+            Select a skill from the capability structure to view employee count, certification coverage, and open the employee list filtered to that skill.
+          </p>
+          <p className="text-xs text-gray-400 italic">
+            Tip: Try searching "react", "java", or "azure".
           </p>
         </div>
       </div>
@@ -207,10 +210,17 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
         <div className="flex items-start justify-between">
           <div>
             <h2 className="text-xl font-semibold text-gray-900 mb-1">{skill.name}</h2>
-            <p className="text-sm text-gray-600">
-              {typeof skill.category === 'object' && skill.category?.category_name 
-                ? skill.category.category_name 
-                : skill.category || 'General'}
+            {/* Breadcrumb path */}
+            <p className="text-sm text-gray-500">
+              {(typeof skill.category === 'object' ? skill.category?.category_name : skill.category) || 'General'}
+              {skill.subcategory && (
+                <>
+                  {' → '}
+                  {skill.subcategory}
+                </>
+              )}
+              {' → '}
+              <span className="text-gray-700 font-medium">{skill.name}</span>
             </p>
           </div>
           {skill.isCore && (
@@ -262,7 +272,10 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
                 : 'bg-blue-600 hover:bg-blue-700 text-white'
             }`}
           >
-            View All with {skill.name}
+            View employees with {skill.name}
+            {!isLoading && summaryData?.employee_count > 0 && (
+              <span>({summaryData.employee_count})</span>
+            )}
             <ArrowRight className="h-4 w-4" />
           </button>
         </div>

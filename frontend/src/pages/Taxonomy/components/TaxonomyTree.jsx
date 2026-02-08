@@ -161,7 +161,8 @@ const TaxonomyTree = ({
       <div className="mb-2">
         <button
           onClick={() => toggleCategory(category.id, category)}
-          className="flex items-center gap-2 w-full text-left p-2 rounded-lg hover:bg-gray-100 group"
+          tabIndex={0}
+          className="flex items-center gap-2 w-full text-left p-2 rounded-lg hover:bg-gray-100 group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           disabled={isLoading}
         >
           {isLoading ? (
@@ -204,7 +205,8 @@ const TaxonomyTree = ({
       <div>
         <button
           onClick={() => toggleSubcategory(categoryId, subcategory.id, subcategory)}
-          className="flex items-center gap-2 w-full text-left p-2 rounded-lg hover:bg-gray-50 group"
+          tabIndex={0}
+          className="flex items-center gap-2 w-full text-left p-2 rounded-lg hover:bg-gray-50 group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           disabled={isLoading}
         >
           {isLoading ? (
@@ -244,14 +246,19 @@ const TaxonomyTree = ({
     return (
       <button
         onClick={onClick}
-        className={`flex items-center gap-2 w-full text-left p-2 rounded-lg transition-colors ${
-          isSelected 
-            ? 'bg-blue-100 text-blue-900 border border-blue-300' 
-            : 'hover:bg-gray-50 text-gray-700 hover:text-gray-900'
-        }`}
+        tabIndex={0}
+        className={`flex items-center gap-2 w-full text-left p-2 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 relative
+          ${isSelected
+            ? 'bg-blue-50 text-gray-900'
+            : 'hover:bg-gray-50 text-gray-900 hover:text-gray-900'}
+        `}
+        aria-current={isSelected ? 'true' : undefined}
       >
-        <div className={`w-2 h-2 rounded-full ${isSelected ? 'bg-blue-600' : 'bg-gray-400'}`} />
-        <span className="text-sm">{highlightText(skill.name, searchTerm)}</span>
+        {/* Left accent for selected */}
+        {isSelected && (
+          <span className="absolute left-0 top-1 bottom-1 w-1 rounded bg-blue-500" aria-hidden="true"></span>
+        )}
+        <span className="text-sm ml-2">{highlightText(skill.name, searchTerm)}</span>
         {skill.isCore && (
           <span className="text-xs px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded">
             Core

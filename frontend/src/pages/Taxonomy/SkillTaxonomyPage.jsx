@@ -1,5 +1,49 @@
+// Helper: filter out empty categories/subcategories (SRP, pure)
+// Option 1: filter using skill_count for lazy-loading support
+function filterCapabilityTree(tree) {
+  if (!Array.isArray(tree)) return [];
+  return tree
+    .filter(category => {
+      // If skill_count is a number, use it for filtering
+      if (typeof category.skill_count === 'number') {
+        return category.skill_count > 0;
+      }
+      // Fallback: compute from loaded subcategories
+      if (Array.isArray(category.subcategories)) {
+        return category.subcategories.some(sub => {
+          if (typeof sub.skill_count === 'number') {
+            return sub.skill_count > 0;
+          }
+          if (Array.isArray(sub.skills)) {
+            return sub.skills.length > 0;
+          }
+          return false;
+        });
+      }
+      return false;
+    })
+    .map(category => {
+      // Filter subcategories using skill_count or skills array
+      const subcategories = Array.isArray(category.subcategories)
+        ? category.subcategories.filter(sub => {
+            if (typeof sub.skill_count === 'number') {
+              return sub.skill_count > 0;
+            }
+            if (Array.isArray(sub.skills)) {
+              return sub.skills.length > 0;
+            }
+            return false;
+          })
+        : [];
+      // Preserve original object, update subcategories
+      return {
+        ...category,
+        subcategories
+      };
+    });
+}
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, TreePine } from 'lucide-react';
+import { Search, TreePine, X } from 'lucide-react';
 import TaxonomyTree from './components/TaxonomyTree';
 import SkillDetailsPanel from './components/SkillDetailsPanel';
 import LoadingState from '../../components/LoadingState';
@@ -35,6 +79,37 @@ const SkillTaxonomyPage = () => {
   const [isLoading, setIsLoading] = useState(!hasCachedData);
   const [searchTerm, setSearchTerm] = useState(searchTermCached || '');
   const [filteredTree, setFilteredTree] = useState(filteredTreeCached || []);
+  // Derived: filtered for non-empty nodes
+  const visibleTree = React.useMemo(() => filterCapabilityTree(filteredTree), [filteredTree]);
+
+  // If selected skill is not present in visible tree, clear selection
+  React.useEffect(() => {
+    if (!selectedSkill) return;
+    // Flatten all visible skills
+    const allSkills = visibleTree.flatMap(cat =>
+      (cat.subcategories || []).flatMap(sub => Array.isArray(sub.skills) ? sub.skills : [])
+    );
+    const found = allSkills.some(s => s.id === selectedSkill.id || s.skill_id === selectedSkill.skill_id);
+    if (!found) {
+      setSelectedSkill(null);
+      setSelectedSkillStore(null);
+    }
+  }, [visibleTree, selectedSkill, setSelectedSkillStore]);
+
+  // If selected skill is not present in visible tree, clear selection
+  React.useEffect(() => {
+    if (!selectedSkill) return;
+    // Flatten all visible skills
+    const allSkills = visibleTree.flatMap(cat =>
+      (cat.subcategories || []).flatMap(sub => sub.skills || [])
+    );
+    const found = allSkills.some(s => s.id === selectedSkill.id || s.skill_id === selectedSkill.skill_id);
+    if (!found) {
+      setSelectedSkill(null);
+      setSelectedSkillStore(null);
+    }
+  }, [visibleTree, selectedSkill, setSelectedSkillStore]);
+  
   const [showViewAll, setShowViewAll] = useState(showViewAllCached || false);
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState([]);
@@ -335,22 +410,60 @@ const SkillTaxonomyPage = () => {
     setSearchTermStore(newSearchTerm);
   };
 
-  // Compute taxonomy counts from filtered tree
+  // Clear search and restore default tree
+  const handleClearSearch = () => {
+    setSearchTerm('');
+    setSearchTermStore('');
+  };
+
+  // Compute taxonomy counts from visible tree (support lazy-loading)
   const taxonomyCounts = React.useMemo(() => {
-    const categories = filteredTree.length;
-    const subCategories = filteredTree.reduce((sum, category) => 
-      sum + (category.subcategories?.length || 0), 0
-    );
-    const skills = filteredTree.reduce((sum, category) => 
-      sum + (category.subcategories?.reduce((subSum, sub) => 
-        subSum + (sub.skills?.length || 0), 0) || 0), 0
-    );
+    const categories = visibleTree.length;
+    // Sub-Categories: use loaded subcategories if present, else fallback to category.subcategory_count
+    let subCategories = 0;
+    let skills = 0;
+    visibleTree.forEach(category => {
+      if (Array.isArray(category.subcategories) && category.subcategories.length > 0) {
+        subCategories += category.subcategories.length;
+        category.subcategories.forEach(sub => {
+          if (typeof sub.skill_count === 'number') {
+            skills += sub.skill_count;
+          } else if (Array.isArray(sub.skills)) {
+            skills += sub.skills.length;
+          }
+        });
+      } else if (typeof category.subcategory_count === 'number') {
+        subCategories += category.subcategory_count;
+        // If subcategories not loaded, use category.skill_count for skills
+        if (typeof category.skill_count === 'number') {
+          skills += category.skill_count;
+        }
+      }
+    });
     return { categories, subCategories, skills };
-  }, [filteredTree]);
+  }, [visibleTree]);
+
+
+  // If selected skill is not present in visible tree, clear selection
+  React.useEffect(() => {
+    if (!selectedSkill) return;
+    // Flatten all visible skills
+    const allSkills = visibleTree.flatMap(cat =>
+      (cat.subcategories || []).flatMap(sub => sub.skills || [])
+    );
+    const found = allSkills.some(s => s.id === selectedSkill.id || s.skill_id === selectedSkill.skill_id);
+    if (!found) {
+      setSelectedSkill(null);
+      setSelectedSkillStore(null);
+    }
+  }, [visibleTree, selectedSkill, setSelectedSkillStore]);
 
   if (isLoading) {
     return <LoadingState message="Loading skill taxonomy..." />;
   }
+
+  // Show empty state ONLY if not loading and visibleTree is truly empty
+  const showEmptyState = !isLoading && visibleTree.length === 0;
 
   return (
     <div className="min-h-screen bg-[#f8fafc]">
@@ -358,7 +471,6 @@ const SkillTaxonomyPage = () => {
         title="Capability Overview"
         subtitle="Browse and explore organizational capabilities and skill structure"
       />
-      
       <div className="p-8">
         <div className="max-w-screen-2xl mx-auto">
           {/* Search Bar */}
@@ -370,49 +482,69 @@ const SkillTaxonomyPage = () => {
                 placeholder="Search categories, subcategories, or skills..."
                 value={searchTerm}
                 onChange={handleSearchChange}
-                className="w-full pl-10 pr-4 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                className="w-full pl-10 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
+              {searchTerm && (
+                <button
+                  onClick={handleClearSearch}
+                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                  aria-label="Clear search"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              )}
             </div>
+            {searchTerm && (
+              <p className="text-xs text-slate-500 mt-2">
+                Showing results for "{searchTerm}"
+              </p>
+            )}
           </div>
-          
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[calc(100vh-280px)] lg:overflow-hidden lg:min-h-0">
             {/* Skill Tree - Adjusted width */}
             <div className="lg:col-span-5 h-full min-h-0">
               <div className="bg-white rounded-lg border border-slate-200 h-full flex flex-col min-h-0">
-                <div className="border-b border-slate-200 p-6">
-                  <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                    <TreePine className="h-5 w-5" />
-                    Capability Structure
-                  </h2>
-                  <p className="text-sm text-slate-600 mt-1">
-                    {searchTerm ? `Showing results for "${searchTerm}"` : 'Category → Sub-Category → Skills'}
-                  </p>
-                  
-                  {/* Summary Counts */}
-                  <div className="flex items-center gap-3 mt-3">
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-md">
-                      <span className="text-xs font-medium text-slate-700">{taxonomyCounts.categories}</span>
-                      <span className="text-xs text-slate-500">Categories</span>
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-md">
-                      <span className="text-xs font-medium text-slate-700">{taxonomyCounts.subCategories}</span>
-                      <span className="text-xs text-slate-500">Sub-Categories</span>
-                    </div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 rounded-md">
-                      <span className="text-xs font-medium text-slate-700">{taxonomyCounts.skills}</span>
-                      <span className="text-xs text-slate-500">Skills</span>
+                <div className="border-b border-slate-200 p-6 pb-4">
+                  {/* Layer 1: Icon + Title */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <TreePine className="h-5 w-5 text-blue-600" />
+                    <h2 className="text-xl font-semibold text-slate-900">Capability Structure</h2>
+                  </div>
+                  {/* Layer 2: Hierarchy hint and counts */}
+                  <div className="flex flex-col gap-2">
+                    <span className="text-xs text-slate-500">Category → Sub-Category → Skills</span>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 rounded">
+                        <span className="text-xs font-medium text-slate-700">{taxonomyCounts.categories}</span>
+                        <span className="text-xs text-slate-500">Categories</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 rounded">
+                        <span className="text-xs font-medium text-slate-700">{taxonomyCounts.subCategories}</span>
+                        <span className="text-xs text-slate-500">Sub-Categories</span>
+                      </div>
+                      <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 rounded">
+                        <span className="text-xs font-medium text-slate-700">{taxonomyCounts.skills}</span>
+                        <span className="text-xs text-slate-500">Skills</span>
+                      </div>
                     </div>
                   </div>
                 </div>
                 <div ref={leftPanelRef} className="p-6 pb-12 flex-1 overflow-y-auto min-h-0">
-                  <TaxonomyTree 
-                    skillTree={filteredTree} 
-                    onSkillSelect={handleSkillSelect}
-                    selectedSkill={selectedSkill}
-                    searchTerm={searchTerm}
-                    onLoadSubcategories={loadSubcategories}
-                    onLoadSkills={loadSkills}
-                  />
+                  {/* Show friendly message if no skills available */}
+                  {showEmptyState ? (
+                    <div className="text-center py-8 text-gray-500">
+                      <p className="text-lg font-medium text-gray-600">No skills available to display.</p>
+                    </div>
+                  ) : (
+                    <TaxonomyTree 
+                      skillTree={visibleTree}
+                      onSkillSelect={handleSkillSelect}
+                      selectedSkill={selectedSkill}
+                      searchTerm={searchTerm}
+                      onLoadSubcategories={loadSubcategories}
+                      onLoadSkills={loadSkills}
+                    />
+                  )}
                 </div>
               </div>
             </div>

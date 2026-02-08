@@ -8,10 +8,10 @@ This facade exists to preserve existing imports and router code.
 All business logic has been extracted to isolated service modules under
 app/services/capability_finder/ to ensure changes in one use case cannot break others.
 """
-from typing import List, Optional
+from typing import List, Optional, Dict
 from sqlalchemy.orm import Session
 
-from app.services.capability_finder.skills_service import get_all_skills as _get_all_skills
+from app.services.capability_finder.skills_service import get_all_skills as _get_all_skills, get_skill_suggestions as _get_skill_suggestions
 from app.services.capability_finder.roles_service import get_all_roles as _get_all_roles
 from app.services.capability_finder.search_service import search_matching_talent as _search_matching_talent
 from app.services.capability_finder.export_service import export_matching_talent_to_excel as _export_matching_talent_to_excel
@@ -40,6 +40,22 @@ class CapabilityFinderService:
             List of skill names sorted A-Z
         """
         return _get_all_skills(db)
+    
+    @staticmethod
+    def get_skill_suggestions(db: Session, query: str = None) -> List[Dict]:
+        """
+        Get skill suggestions with employee availability metadata.
+        
+        Delegates to: skills_service.get_skill_suggestions()
+        
+        Args:
+            db: Database session
+            query: Optional search query to filter skills
+            
+        Returns:
+            List of skill suggestion dicts with metadata
+        """
+        return _get_skill_suggestions(db, query)
     
     @staticmethod
     def get_all_roles(db: Session) -> List[str]:

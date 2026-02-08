@@ -550,3 +550,79 @@ class TestBuildEmployeeResult:
         assert result.top_skills[0].name == "First"
         assert result.top_skills[1].name == "Second"
         assert result.top_skills[2].name == "Third"
+
+# ============================================================================
+# REGRESSION TEST: Sub-Segment Join Bug Fix
+# ============================================================================
+
+class TestSubSegmentJoinBugFix:
+    """
+    Regression test for bug: HTTP 500 when sub_segment filter is selected.
+    
+    Bug: AttributeError: 'dict' object has no attribute 'class_'
+    Cause: Incorrect check for existing joins using query.column_descriptions
+    Fix: Removed faulty join check, always join Team/Project for sub_segment filter
+    """
+    
+    def test_sub_segment_filter_does_not_crash(self, mock_db):
+        """
+        Should successfully build query with sub_segment_id without AttributeError.
+        
+        This test verifies that the Team/Project joins are added correctly
+        when filtering by sub_segment_id, without accessing non-existent
+        'class_' attribute on column_descriptions dictionaries.
+        """
+        # Arrange
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.distinct.return_value = mock_query
+        mock_query.all.return_value = []
+        
+        with patch.object(service, '_query_skill_ids', return_value=[1, 2]):
+            # Act - Should not raise AttributeError
+            try:
+                service._query_matching_employees(
+                    mock_db,
+                    skills=['Python', 'AWS'],
+                    sub_segment_id=1,  # Trigger sub_segment join logic
+                    team_id=None,
+                    role=None,
+                    min_proficiency=0,
+                    min_experience_years=0
+                )
+                # Assert
+                assert True, "Query executed without AttributeError"
+            except AttributeError as e:
+                pytest.fail(f"AttributeError should not occur: {e}")
+    
+    def test_sub_segment_filter_joins_team_and_project(self, mock_db):
+        """
+        Should join Team and Project tables when sub_segment_id is provided.
+        
+        Verifies that both joins are added to derive sub_segment membership
+        through the canonical path: Employee -> Team -> Project -> SubSegment
+        """
+        # Arrange
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.join.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.distinct.return_value = mock_query
+        mock_query.all.return_value = []
+        
+        with patch.object(service, '_query_skill_ids', return_value=[]):
+            # Act
+            service._query_matching_employees(
+                mock_db,
+                skills=[],
+                sub_segment_id=1,
+                team_id=None,
+                role=None,
+                min_proficiency=0,
+                min_experience_years=0
+            )
+        
+        # Assert - verify join was called (Team and Project joins)
+        assert mock_query.join.call_count >= 4  # EmployeeSkill, Skill, Team, Project

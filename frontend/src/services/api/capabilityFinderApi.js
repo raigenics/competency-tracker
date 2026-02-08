@@ -21,6 +21,22 @@ export const capabilityFinderApi = {
   },
 
   /**
+   * Get enhanced skill suggestions with employee availability metadata.
+   * @param {string} query - Optional search query to filter skills
+   * @returns {Promise<Array>} Array of skill suggestions with metadata
+   */
+  async getSkillSuggestions(query = '') {
+    try {
+      const params = query ? `?query=${encodeURIComponent(query)}` : '';
+      const response = await httpClient.get(`/capability-finder/skills/suggestions${params}`);
+      return response.suggestions || [];
+    } catch (error) {
+      console.error('Failed to fetch skill suggestions:', error);
+      throw error;
+    }
+  },
+
+  /**
    * Get all distinct role names for typeahead.
    * @returns {Promise<string[]>} Array of role names sorted A-Z
    */

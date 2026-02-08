@@ -10,6 +10,19 @@ class SkillListResponse(BaseModel):
     skills: List[str]
 
 
+class SkillSuggestion(BaseModel):
+    """Skill suggestion with availability metadata."""
+    skill_id: int
+    skill_name: str
+    is_employee_available: bool = Field(..., description="Whether any employees have this skill")
+    is_selectable: bool = Field(..., description="Whether this skill can be selected for search")
+
+
+class SkillSuggestionsResponse(BaseModel):
+    """Response schema for enhanced skill suggestions."""
+    suggestions: List[SkillSuggestion]
+
+
 class RoleListResponse(BaseModel):
     """Response schema for roles list."""
     roles: List[str]

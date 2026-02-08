@@ -15,7 +15,8 @@ const AdvancedQueryPage = () => {
   const [queryResults, setQueryResults] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState(null);  const [currentQuery, setCurrentQuery] = useState({
+  const [exportError, setExportError] = useState(null);
+  const [hasSearched, setHasSearched] = useState(false);  const [currentQuery, setCurrentQuery] = useState({
     skills: [],
     subSegment: 'all',
     team: '',
@@ -32,8 +33,14 @@ const AdvancedQueryPage = () => {
   }, [queryResults]);
 
   const handleSearch = async () => {
+    // Prevent search if no skills selected
+    if (!currentQuery.skills || currentQuery.skills.length === 0) {
+      return;
+    }
+
     setIsLoading(true);
     setError(null);
+    setHasSearched(true);
     
     try {
       // Build API payload
@@ -81,6 +88,20 @@ const AdvancedQueryPage = () => {
     setSelectedIds(newSelection);
   };
 
+  const handleClearFilters = () => {
+    setCurrentQuery({
+      skills: [],
+      subSegment: 'all',
+      team: '',
+      role: '',
+      proficiency: { min: 0, max: 5 },
+      experience: { min: 0, max: 20 }
+    });
+    setHasSearched(false);
+    setQueryResults([]);
+    setError(null);
+  };
+
   const handleExportAll = async () => {
     setIsExporting(true);
     setExportError(null);
@@ -113,7 +134,7 @@ const AdvancedQueryPage = () => {
     <div className="min-h-screen bg-[#f8fafc]">
       <PageHeader 
         title="Capability Finder"
-        subtitle="Build complex queries to find employees with specific skill combinations"
+        subtitle="Start by selecting one or more skills. You can optionally refine by sub-segment, team, role, proficiency, or experience."
       />
       
       <div className="p-8">
@@ -140,7 +161,9 @@ const AdvancedQueryPage = () => {
                   query={currentQuery}
                   onQueryChange={setCurrentQuery}
                   onSearch={handleSearch}
+                  onClearFilters={handleClearFilters}
                   isLoading={isLoading}
+                  hasSearched={hasSearched}
                 />
               )}
             </div>
@@ -173,16 +196,32 @@ const AdvancedQueryPage = () => {
                     description={error}
                   />
                 ) : queryResults.length === 0 ? (
-                  <EmptyState
-                    icon={Search}
-                    title="No results yet"
-                    description="Build a query and click search to find matching employees"
-                  />                ) : (
+                  hasSearched ? (
+                    <EmptyState
+                      icon={Search}
+                      title="❌ No matching talent found"
+                      description="Try adjusting skills, proficiency, or experience filters."
+                    />
+                  ) : currentQuery.skills.length > 0 ? (
+                    <EmptyState
+                      icon={Search}
+                      title="🔍 Ready to search"
+                      description='Click "Find Matching Talent" to see matching employees.'
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={Search}
+                      title="🔍 No results yet"
+                      description='Select skills and click "Find Matching Talent" to discover employees.'
+                    />
+                  )
+                ) : (
                   <QueryResultsTable
                     results={queryResults}
                     selectedIds={selectedIds}
                     onSelectionChange={handleSelectionChange}
-                  />                )}
+                  />
+                )}
               </div>
             </div>
           </div>        </div>
