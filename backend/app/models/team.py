@@ -1,5 +1,9 @@
 """
 Team model - master/dimension table.
+
+Teams are the canonical organizational unit for employees.
+- employees.team_id points here (current team)
+
 """
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
@@ -18,6 +22,16 @@ class Team(Base):
     # Relationships
     project = relationship("Project", back_populates="teams")
     employees = relationship("Employee", back_populates="team")
+    
+    @property
+    def sub_segment(self):
+        """Get sub_segment via project relationship."""
+        return self.project.sub_segment if self.project else None
+    
+    @property
+    def sub_segment_id(self):
+        """Get sub_segment_id via project relationship."""
+        return self.project.sub_segment_id if self.project else None
     
     def __repr__(self):
         return f"<Team(id={self.team_id}, name='{self.team_name}', project_id={self.project_id})>"

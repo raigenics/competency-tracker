@@ -24,6 +24,9 @@ from app.models.skill import Skill
 from app.models.employee import Employee
 from app.models.employee_skill import EmployeeSkill
 
+# Allocation tables (future staffing and availability)
+from app.models.employee_project_allocation import EmployeeProjectAllocation
+
 # History/Audit tables (permanent - track changes over time)
 from app.models.skill_history import EmployeeSkillHistory, ProficiencyChangeHistory, ChangeAction, ChangeSource
 
@@ -51,6 +54,7 @@ from app.models.auth import (
 
 __all__ = [
     # Master/Dimension tables
+    "Segment",
     "SubSegment",
     "SkillCategory", 
     "ProficiencyLevel",

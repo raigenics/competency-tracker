@@ -1,5 +1,13 @@
 """
 Employee model - fact table (volatile, wiped and replaced on import).
+
+NORMALIZED SCHEMA:
+- team_id: FK to teams (current team)
+- project/sub_segment derived via: team -> project -> sub_segment -> segment
+
+REMOVED DENORMALIZED COLUMNS (see migration c3f8a2b7e9d1):
+- sub_segment_id: Now derived via team.project.sub_segment
+- project_id: Now derived via team.project
 """
 from sqlalchemy import Column, Integer, String, ForeignKey, Date, DateTime
 from sqlalchemy.sql import func
@@ -16,22 +24,46 @@ class Employee(Base):
     zid = Column(String(50), unique=True, nullable=False, index=True)  # Business ID from Excel
     full_name = Column(String(255), nullable=False, index=True)
     start_date_of_working = Column(Date, nullable=True)
-    sub_segment_id = Column(Integer, ForeignKey("sub_segments.sub_segment_id", ondelete="CASCADE"), nullable=False)
-    project_id = Column(Integer, ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False)
+    
+    # Current team (HYBRID pattern: kept for performance, must match active assignment)
     team_id = Column(Integer, ForeignKey("teams.team_id", ondelete="CASCADE"), nullable=False)
+    
+    # Job role (NOT auth role - see auth.py for RBAC roles)
     role_id = Column(Integer, ForeignKey("roles.role_id", ondelete="CASCADE"), nullable=True)
     
-    # New columns added for soft delete and audit tracking
+    # Contact & audit
     email = Column(String(255), nullable=True, index=True)
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), default=func.now())
+    updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=func.now())
     
     # Relationships
-    sub_segment = relationship("SubSegment", back_populates="employees")
-    project = relationship("Project", back_populates="employees")
     team = relationship("Team", back_populates="employees")
     role = relationship("Role", back_populates="employees")
     employee_skills = relationship("EmployeeSkill", back_populates="employee", cascade="all, delete-orphan")
+    
+    # Derived properties (navigate through relationships)
+    @property
+    def project(self):
+        """Get current project via team relationship."""
+        return self.team.project if self.team else None
+    
+    @property
+    def sub_segment(self):
+        """Get current sub_segment via team.project relationship."""
+        project = self.project
+        return project.sub_segment if project else None
+    
+    @property
+    def project_id(self):
+        """Get current project_id (for backward compatibility in queries)."""
+        return self.team.project_id if self.team else None
+    
+    @property
+    def sub_segment_id(self):
+        """Get current sub_segment_id (for backward compatibility in queries)."""
+        project = self.project
+        return project.sub_segment_id if project else None
     
     def __repr__(self):
         return f"<Employee(id={self.employee_id}, zid='{self.zid}', name='{self.full_name}', role='{self.role.role_name if self.role else None}')>"

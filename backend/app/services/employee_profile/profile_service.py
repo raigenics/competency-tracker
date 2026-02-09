@@ -48,11 +48,17 @@ def _query_employee_by_id(db: Session, employee_id: int) -> Optional[Employee]:
     """
     Query employee by ID with all relationships eager loaded.
     Returns None if not found.
+    
+    NORMALIZED SCHEMA: sub_segment/project derived via team relationship chain.
     """
+    from app.models.team import Team
+    from app.models.project import Project
+    
     return db.query(Employee).options(
-        joinedload(Employee.sub_segment),
-        joinedload(Employee.project),
-        joinedload(Employee.team),
+        # Canonical chain: team -> project -> sub_segment
+        joinedload(Employee.team)
+            .joinedload(Team.project)
+            .joinedload(Project.sub_segment),
         joinedload(Employee.role),
         joinedload(Employee.employee_skills).joinedload(EmployeeSkill.skill),
         joinedload(Employee.employee_skills).joinedload(EmployeeSkill.proficiency_level)
@@ -109,11 +115,18 @@ def _build_organization_dict(employee: Employee) -> Dict[str, str]:
     """
     Build organization dict from employee relationships.
     Pure function - no DB access.
+    
+    NORMALIZED SCHEMA: Derives sub_segment/project via team relationship.
+    Returns empty strings for missing relationships to preserve API contract.
     """
+    team = employee.team
+    project = team.project if team else None
+    sub_segment = project.sub_segment if project else None
+    
     return {
-        "sub_segment": employee.sub_segment.sub_segment_name,
-        "project": employee.project.project_name,
-        "team": employee.team.team_name
+        "sub_segment": sub_segment.sub_segment_name if sub_segment else "",
+        "project": project.project_name if project else "",
+        "team": team.team_name if team else ""
     }
 
 

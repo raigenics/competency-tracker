@@ -24,7 +24,8 @@ EMPLOYEE_COLUMN_MAPPING = {
     'Project': 'project',
     'Team': 'team',
     'Role/Designation': 'role',
-    'Start Date of Working': 'start_date_of_working'
+    'Start Date of Working': 'start_date_of_working',
+    'Project Allocation %': 'project_allocation_pct'  # For employee_project_allocations
 }
 
 EMPLOYEE_SKILLS_COLUMN_MAPPING = {

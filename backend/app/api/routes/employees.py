@@ -3,6 +3,11 @@ API routes for employee data management and queries.
 
 Thin controller pattern - all business logic delegated to services.
 Each endpoint maps to one service module with zero cross-dependencies.
+
+RBAC Integration:
+- RBAC context extracted from headers via get_rbac_context dependency
+- Scope filtering applied by list_service based on user's role/scope
+- Temporary: Uses X-RBAC-* headers until JWT auth is implemented
 """
 import logging
 from typing import List, Optional
@@ -17,6 +22,7 @@ from app.schemas.employee import (
     EmployeeSuggestion
 )
 from app.schemas.common import PaginationParams
+from app.security.rbac_policy import get_rbac_context, RbacContext
 
 # Service layer imports - isolated business logic
 from app.services.employee_profile import suggest_service
@@ -65,10 +71,18 @@ async def get_employees(
     team_id: Optional[int] = Query(None, description="Filter by team ID"),
     role_id: Optional[int] = Query(None, description="Filter by role ID"),
     search: Optional[str] = Query(None, description="Search by name or ZID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    rbac_context: RbacContext = Depends(get_rbac_context)
 ):
     """
     Get a paginated list of employees with optional filters.
+    
+    RBAC: Results are filtered based on user's role and organizational scope.
+    - SUPER_ADMIN: Sees all employees
+    - SEGMENT_HEAD: Sees employees in their segment
+    - SUBSEGMENT_HEAD: Sees employees in their sub-segment
+    - PROJECT_MANAGER: Sees employees in their project
+    - TEAM_LEAD/TEAM_MEMBER: Sees employees in their team
     
     - **page**: Page number (default: 1)
     - **size**: Items per page (default: 10)
@@ -78,7 +92,7 @@ async def get_employees(
     - **role_id**: Filter by role ID
     - **search**: Search by employee name or ZID
     """
-    logger.info(f"Fetching employees with filters: sub_segment_id={sub_segment_id}, project_id={project_id}, team_id={team_id}, role_id={role_id}, search={search}, page={pagination.page}, size={pagination.size}")
+    logger.info(f"Fetching employees with filters: sub_segment_id={sub_segment_id}, project_id={project_id}, team_id={team_id}, role_id={role_id}, search={search}, page={pagination.page}, size={pagination.size}, role={rbac_context.role}")
     
     try:
         return list_service.get_employees_paginated(
@@ -88,7 +102,8 @@ async def get_employees(
             project_id=project_id,
             team_id=team_id,
             role_id=role_id,
-            search=search
+            search=search,
+            rbac_context=rbac_context
         )
         
     except Exception as e:

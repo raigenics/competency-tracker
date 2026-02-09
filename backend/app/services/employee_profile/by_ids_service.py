@@ -63,17 +63,17 @@ def _query_employees_by_ids(
     Returns:
         List of Employee objects with eager-loaded relationships
         
-    Eager loads:
-        - sub_segment
-        - project
-        - team
-        - role
+    NORMALIZED SCHEMA: sub_segment/project derived via team relationship chain.
     """
+    from app.models.team import Team
+    from app.models.project import Project
+    
     return db.query(Employee)\
         .options(
-            joinedload(Employee.sub_segment),
-            joinedload(Employee.project),
-            joinedload(Employee.team),
+            # Canonical chain: team -> project -> sub_segment
+            joinedload(Employee.team)
+                .joinedload(Team.project)
+                .joinedload(Project.sub_segment),
             joinedload(Employee.role)
         )\
         .filter(Employee.employee_id.in_(employee_ids))\

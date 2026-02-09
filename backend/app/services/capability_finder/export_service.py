@@ -17,6 +17,9 @@ from openpyxl import Workbook
 from openpyxl.styles import Font, PatternFill, Alignment
 
 from app.models.employee import Employee
+from app.models.team import Team
+from app.models.project import Project
+from app.models.sub_segment import SubSegment
 from app.models.employee_skill import EmployeeSkill
 from app.models.skill import Skill
 from app.models.proficiency import ProficiencyLevel
@@ -236,9 +239,10 @@ def _query_employees_with_relationships(
     """
     employees = db.query(Employee)\
         .options(
-            joinedload(Employee.sub_segment),
-            joinedload(Employee.project),
-            joinedload(Employee.team),
+            # NORMALIZED: Load org chain via team -> project -> sub_segment
+            joinedload(Employee.team)
+                .joinedload(Team.project)
+                .joinedload(Project.sub_segment),
             joinedload(Employee.role)
         )\
         .filter(Employee.employee_id.in_(employee_ids))\

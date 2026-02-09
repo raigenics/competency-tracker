@@ -42,9 +42,10 @@ async def get_employee_competency_profile(
     
     try:
         employee = db.query(Employee).options(
-            joinedload(Employee.sub_segment),
-            joinedload(Employee.project),
-            joinedload(Employee.team),
+            # NORMALIZED: Load org chain via team -> project -> sub_segment
+            joinedload(Employee.team)
+                .joinedload(Team.project)
+                .joinedload(Project.sub_segment),
             joinedload(Employee.employee_skills).joinedload(EmployeeSkill.skill).joinedload(Skill.subcategory).joinedload(SkillSubcategory.category),
             joinedload(Employee.employee_skills).joinedload(EmployeeSkill.proficiency_level)
         ).filter(Employee.employee_id == employee_id).first()
@@ -142,9 +143,10 @@ async def get_competency_matrix(
     try:
         # Build employee query with filters
         query = db.query(Employee).options(
-            joinedload(Employee.sub_segment),
-            joinedload(Employee.project),
-            joinedload(Employee.team),
+            # NORMALIZED: Load org chain via team -> project -> sub_segment
+            joinedload(Employee.team)
+                .joinedload(Team.project)
+                .joinedload(Project.sub_segment),
             joinedload(Employee.employee_skills).joinedload(EmployeeSkill.skill),
             joinedload(Employee.employee_skills).joinedload(EmployeeSkill.proficiency_level)
         )
@@ -407,9 +409,11 @@ async def search_competencies(
     
     try:        # Build complex query
         query = db.query(EmployeeSkill).options(
-            joinedload(EmployeeSkill.employee).joinedload(Employee.sub_segment),
-            joinedload(EmployeeSkill.employee).joinedload(Employee.project),
-            joinedload(EmployeeSkill.employee).joinedload(Employee.team),
+            # NORMALIZED: Load org chain via employee -> team -> project -> sub_segment
+            joinedload(EmployeeSkill.employee)
+                .joinedload(Employee.team)
+                .joinedload(Team.project)
+                .joinedload(Project.sub_segment),
             joinedload(EmployeeSkill.skill).joinedload(Skill.subcategory).joinedload(SkillSubcategory.category),
             joinedload(EmployeeSkill.proficiency_level)
         )

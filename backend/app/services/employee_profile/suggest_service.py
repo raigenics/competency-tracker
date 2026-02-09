@@ -52,13 +52,19 @@ def _query_employees_by_search(
     """
     Search for employees by full name OR ZID (case-insensitive partial match).
     Eager loads organization relationships.
+    
+    NORMALIZED SCHEMA: sub_segment/project derived via team relationship chain.
     """
+    from app.models.team import Team
+    from app.models.project import Project
+    
     search_term = f"%{query}%"
     
     return db.query(Employee).options(
-        joinedload(Employee.sub_segment),
-        joinedload(Employee.project),
+        # Canonical chain: team -> project -> sub_segment
         joinedload(Employee.team)
+            .joinedload(Team.project)
+            .joinedload(Project.sub_segment)
     ).filter(
         (Employee.full_name.ilike(search_term)) | 
         (Employee.zid.ilike(search_term))

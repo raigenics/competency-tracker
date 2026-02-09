@@ -1,5 +1,9 @@
 """
 Project model - master/dimension table.
+
+NORMALIZED: employees no longer have direct project_id FK.
+Access employees via teams: project.teams -> team.employees
+
 """
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
@@ -17,8 +21,18 @@ class Project(Base):
     
     # Relationships
     sub_segment = relationship("SubSegment", back_populates="projects")
-    employees = relationship("Employee", back_populates="project")
     teams = relationship("Team", back_populates="project")
+    
+    @property
+    def employees(self):
+        """
+        Get all employees in this project via teams.
+        For backward compatibility - prefer explicit team queries.
+        """
+        all_employees = []
+        for team in self.teams:
+            all_employees.extend(team.employees)
+        return all_employees
     
     def __repr__(self):
         return f"<Project(id={self.project_id}, name='{self.project_name}', sub_segment_id={self.sub_segment_id})>"

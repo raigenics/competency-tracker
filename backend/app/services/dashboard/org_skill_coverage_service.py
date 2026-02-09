@@ -37,6 +37,8 @@ from sqlalchemy import func, case
 
 from app.models.employee import Employee
 from app.models.sub_segment import SubSegment
+from app.models.project import Project
+from app.models.team import Team
 from app.models.role import Role
 from app.models.employee_skill import EmployeeSkill
 
@@ -99,6 +101,8 @@ def _query_sub_segment_aggregates(db: Session):
     """
     Query sub-segment level employee aggregates grouped by role.
     
+    NORMALIZED: Joins through Team -> Project -> SubSegment
+    
     Returns query result with columns:
     - sub_segment_name
     - total_employees
@@ -116,7 +120,9 @@ def _query_sub_segment_aggregates(db: Session):
         func.sum(case((Role.role_name == 'Developer', 1), else_=0)).label('full_stack'),
         func.sum(case((Role.role_name == 'PM', 1), else_=0)).label('cloud_eng'),
         func.sum(case((Role.role_name == 'PM', 1), else_=0)).label('devops')
-    ).outerjoin(Employee, SubSegment.sub_segment_id == Employee.sub_segment_id
+    ).outerjoin(Project, SubSegment.sub_segment_id == Project.sub_segment_id
+    ).outerjoin(Team, Project.project_id == Team.project_id
+    ).outerjoin(Employee, Team.team_id == Employee.team_id
     ).outerjoin(Role, Employee.role_id == Role.role_id
     ).group_by(SubSegment.sub_segment_id, SubSegment.sub_segment_name
     ).order_by(SubSegment.sub_segment_name)
@@ -130,8 +136,7 @@ def _query_certified_count_for_sub_segment(
     """
     Query count of distinct employees with certifications in a sub-segment.
     
-    CRITICAL: This query structure must NOT be changed even if inefficient.
-    It uses a subquery to look up sub_segment_id and filters for non-empty certifications.
+    NORMALIZED: Uses join chain Employee -> Team -> Project -> SubSegment
     
     Args:
         db: Database session
@@ -140,10 +145,14 @@ def _query_certified_count_for_sub_segment(
     Returns:
         Count of certified employees
     """
-    certified_count = db.query(func.count(func.distinct(Employee.employee_id))).filter(
-        Employee.sub_segment_id == db.query(SubSegment.sub_segment_id).filter(
-            SubSegment.sub_segment_name == sub_segment_name
-        ).scalar(),
+    certified_count = db.query(func.count(func.distinct(Employee.employee_id))).join(
+        Team, Employee.team_id == Team.team_id
+    ).join(
+        Project, Team.project_id == Project.project_id
+    ).join(
+        SubSegment, Project.sub_segment_id == SubSegment.sub_segment_id
+    ).filter(
+        SubSegment.sub_segment_name == sub_segment_name,
         Employee.employee_id.in_(
             db.query(EmployeeSkill.employee_id).filter(
                 EmployeeSkill.certification.isnot(None),

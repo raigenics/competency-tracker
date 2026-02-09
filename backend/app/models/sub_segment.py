@@ -2,6 +2,9 @@
 Sub-segment model - master/dimension table.
 
 Sub-segments are organizational units within a parent segment.
+
+NORMALIZED: employees no longer have direct sub_segment_id FK.
+Access employees via: sub_segment.projects -> project.teams -> team.employees
 """
 from sqlalchemy import Column, Integer, String, ForeignKey
 from sqlalchemy.orm import relationship
@@ -28,8 +31,19 @@ class SubSegment(Base):
     
     # Relationships
     segment = relationship("Segment", back_populates="sub_segments")
-    employees = relationship("Employee", back_populates="sub_segment")
     projects = relationship("Project", back_populates="sub_segment")
+    
+    @property
+    def employees(self):
+        """
+        Get all employees in this sub_segment via projects -> teams.
+        For backward compatibility - prefer explicit project/team queries.
+        """
+        all_employees = []
+        for project in self.projects:
+            for team in project.teams:
+                all_employees.extend(team.employees)
+        return all_employees
     
     def __repr__(self):
         return f"<SubSegment(id={self.sub_segment_id}, name='{self.sub_segment_name}', segment_id={self.segment_id})>"

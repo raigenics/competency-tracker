@@ -1,19 +1,22 @@
 """
-Organizational Query Helpers - Phase 1 Behavioral Normalization
+Organizational Query Helpers - Normalized Schema
 
 PURPOSE:
 Centralized helper functions for applying organizational filters to Employee queries.
 This module enforces the canonical rule: employee.team_id is the ONLY source of truth.
 
-PHASE 1 BEHAVIORAL NORMALIZATION:
-- Database schema remains unchanged (sub_segment_id, project_id columns still exist)
-- Query logic now derives these values through joins instead of direct column access
-- Canonical hierarchy: Employee -> Team -> Project -> SubSegment
+NORMALIZED SCHEMA (HYBRID pattern):
+- Database schema normalized: sub_segment_id, project_id columns REMOVED from employees
+- Only team_id FK exists on Employee table
+- Query logic derives project/sub_segment through joins
+
+CANONICAL HIERARCHY:
+- Employee -> Team -> Project -> SubSegment -> Segment
 
 CANONICAL RULE:
-- employee.team_id = source of truth (direct FK)
-- employee.project_id = DERIVED via employee.team.project_id
-- employee.sub_segment_id = DERIVED via employee.team.project.sub_segment_id
+- employee.team_id = source of truth (direct FK to teams)
+- employee.project_id = PROPERTY derived via employee.team.project_id
+- employee.sub_segment_id = PROPERTY derived via employee.team.project.sub_segment_id
 
 USAGE:
 Apply organizational filters using joins instead of direct Employee column filters:
@@ -21,17 +24,10 @@ Apply organizational filters using joins instead of direct Employee column filte
     query = db.query(Employee)
     query = apply_org_filters(query, sub_segment_id=5, project_id=None, team_id=None)
 
-WHY THIS MATTERS:
-- Prepares codebase for future schema normalization (Phase 2)
-- Enforces single source of truth (team_id)
-- Prevents data inconsistency from using redundant columns
-- Centralizes org filtering logic (DRY principle)
-
 CONSTRAINTS:
 - These helpers are READ-ONLY (no write operations)
 - API contracts remain unchanged
 - Frontend receives identical data
-- All existing tests must pass
 """
 from typing import Optional
 from sqlalchemy.orm import Query
@@ -51,8 +47,8 @@ def apply_org_filters(
     """
     Apply organizational scope filters to an Employee query using canonical joins.
     
-    NORMALIZATION PRINCIPLE:
-    - Filters by team_id directly (canonical FK)
+    NORMALIZATION:
+    - Filters by team_id directly (only FK on Employee)
     - Filters by project_id via Team join (derived)
     - Filters by sub_segment_id via Team->Project join (derived)
     
@@ -71,11 +67,6 @@ def apply_org_filters(
         >>> query = db.query(Employee)
         >>> query = apply_org_filters(query, project_id=5)
         >>> # Result: Employees whose team.project_id == 5
-    
-    Phase 1 Notes:
-        - employee.project_id and employee.sub_segment_id columns still exist
-        - We deliberately DO NOT filter on them directly
-        - This enforces team_id as canonical source of truth
     """
     # Most specific filter wins (team > project > sub_segment)
     if team_id:
@@ -83,15 +74,11 @@ def apply_org_filters(
         query = query.filter(Employee.team_id == team_id)
     
     elif project_id:
-        # PHASE 1 NORMALIZATION: Derive project membership via Team join
-        # OLD (deprecated): query.filter(Employee.project_id == project_id)
-        # NEW (canonical): Join through team relationship
+        # Derive project membership via Team join
         query = query.join(Team).filter(Team.project_id == project_id)
     
     elif sub_segment_id:
-        # PHASE 1 NORMALIZATION: Derive sub-segment membership via Team->Project joins
-        # OLD (deprecated): query.filter(Employee.sub_segment_id == sub_segment_id)
-        # NEW (canonical): Join through team->project relationship
+        # Derive sub-segment membership via Team->Project joins
         query = (query
                  .join(Team)
                  .join(Project)
@@ -135,10 +122,10 @@ def get_employee_org_context(employee: Employee) -> dict:
     """
     Get organizational context for an employee via canonical traversal.
     
-    PHASE 1 NORMALIZATION:
-    - Derives all org IDs through team relationship
-    - Returns dict with both IDs and names
-    - Used for response serialization
+    NORMALIZED: Derives all org IDs through team relationship.
+    - employee.team_id is the only FK on Employee
+    - project_id derived via: employee.team.project_id
+    - sub_segment_id derived via: employee.team.project.sub_segment_id
     
     Args:
         employee: Employee model instance with relationships loaded

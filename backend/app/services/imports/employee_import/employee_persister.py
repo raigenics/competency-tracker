@@ -4,12 +4,13 @@ Employee database persistence for employee import.
 Single Responsibility: Insert employee records to database.
 """
 import logging
-from typing import Dict
+from typing import Dict, Optional
 from datetime import datetime
 import pandas as pd
 from sqlalchemy.orm import Session
 
 from app.models import Employee, SubSegment, Project, Team, Role
+from .allocation_writer import parse_allocation_pct, upsert_active_project_allocation
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +94,9 @@ class EmployeePersister:
                     employee_id = self._import_single_employee(row, zid, full_name, import_timestamp)
                     employees_created += 1
                     logger.debug(f"Created employee {zid} (ID: {employee_id})")
+                
+                # Handle project allocation if provided
+                self._handle_project_allocation(row, employee_id, zid)
                 
                 # Commit this employee immediately (per-employee transaction)
                 self.db.commit()
@@ -180,28 +184,8 @@ class EmployeePersister:
         if not self._is_empty(row.get('full_name')):
             existing_employee.full_name = row['full_name']
         
-        # Update foreign keys (org structure) if provided
-        if not self._is_empty(row.get('sub_segment')):
-            sub_segment = self.db.query(SubSegment).filter(
-                SubSegment.sub_segment_name == row['sub_segment']
-            ).first()
-            if sub_segment:
-                existing_employee.sub_segment_id = sub_segment.sub_segment_id
-        
-        if not self._is_empty(row.get('project')):
-            # Need sub_segment context for project lookup
-            if not self._is_empty(row.get('sub_segment')):
-                sub_segment = self.db.query(SubSegment).filter(
-                    SubSegment.sub_segment_name == row['sub_segment']
-                ).first()
-                if sub_segment:
-                    project = self.db.query(Project).filter(
-                        Project.project_name == row['project'],
-                        Project.sub_segment_id == sub_segment.sub_segment_id
-                    ).first()
-                    if project:
-                        existing_employee.project_id = project.project_id
-        
+        # Update team (NORMALIZED: team_id is the only org FK)
+        # If team changes, project/sub_segment are derived via team relationships
         if not self._is_empty(row.get('team')):
             # Need project context for team lookup
             if not self._is_empty(row.get('project')) and not self._is_empty(row.get('sub_segment')):
@@ -251,7 +235,12 @@ class EmployeePersister:
         return existing_employee.employee_id
     
     def _import_single_employee(self, row, zid: str, full_name: str, import_timestamp: datetime) -> int:
-        """Import a single employee record."""
+        """
+        Import a single employee record.
+        
+        NORMALIZED: Only team_id is stored on Employee.
+        project/sub_segment are derived via team -> project -> sub_segment.
+        """
         # Get foreign key IDs - master data should exist from hierarchical processing
         sub_segment = self.db.query(SubSegment).filter(
             SubSegment.sub_segment_name == row['sub_segment']
@@ -299,12 +288,10 @@ class EmployeePersister:
             if email == '':
                 email = None
 
-        # Create employee with explicit created_at timestamp
+        # Create employee (NORMALIZED: only team_id, not project_id/sub_segment_id)
         employee = Employee(
             zid=zid,
             full_name=full_name,
-            sub_segment_id=sub_segment.sub_segment_id,
-            project_id=project.project_id,
             team_id=team.team_id,
             role_id=role.role_id if role else None,
             start_date_of_working=start_date,
@@ -329,3 +316,62 @@ class EmployeePersister:
             return "CONSTRAINT_VIOLATION"
         else:
             return "IMPORT_ERROR"
+
+    def _handle_project_allocation(self, row, employee_id: int, zid: str) -> Optional[int]:
+        """
+        Handle project allocation for an employee during import.
+        
+        If "Project Allocation %" column is present and valid:
+        - Resolve project_id from employee's team
+        - Upsert allocation into employee_project_allocations
+        
+        Args:
+            row: DataFrame row with employee data
+            employee_id: ID of the employee just created/updated
+            zid: Employee ZID for logging
+            
+        Returns:
+            allocation_id if created/updated, None otherwise
+        """
+        # Check if allocation column exists and has value
+        raw_allocation = row.get('project_allocation_pct')
+        allocation_pct = parse_allocation_pct(raw_allocation)
+        
+        if allocation_pct is None:
+            return None  # No allocation to process
+        
+        # Resolve project_id via employee's team
+        employee = self.db.query(Employee).filter(Employee.employee_id == employee_id).first()
+        if not employee or not employee.team:
+            logger.warning(
+                f"Allocation% provided for employee {zid} but team not resolved; "
+                f"skipping allocation row"
+            )
+            return None
+        
+        project_id = employee.team.project_id
+        if not project_id:
+            logger.warning(
+                f"Allocation% provided for employee {zid} but project not resolved; "
+                f"skipping allocation row"
+            )
+            return None
+        
+        # Determine start_date: prefer employee's start_date_of_working, fallback to today
+        start_date = employee.start_date_of_working
+        
+        try:
+            allocation_id = upsert_active_project_allocation(
+                db=self.db,
+                employee_id=employee_id,
+                project_id=project_id,
+                allocation_pct=allocation_pct,
+                start_date=start_date,
+                allocation_type='BILLABLE'
+            )
+            logger.debug(f"Upserted allocation for employee {zid}: {allocation_pct}% on project {project_id}")
+            return allocation_id
+        except Exception as e:
+            logger.warning(f"Failed to upsert allocation for employee {zid}: {e}")
+            # Don't fail the employee import for allocation errors
+            return None
