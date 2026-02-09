@@ -4,13 +4,17 @@ Taxonomy Categories Service - GET /skills/capability/categories
 Handles lightweight category list for lazy-loading taxonomy page.
 Returns categories with counts only (no subcategories/skills).
 Zero dependencies on other services.
+
+IN-USE FILTERING:
+Only returns categories that have at least one "in-use" subcategory (which has at least one "in-use" skill).
+Subcategory and skill counts reflect only those with at least one employee_skills row (where deleted_at IS NULL).
 """
 import logging
 from typing import List
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, exists
 
-from app.models import SkillCategory, SkillSubcategory, Skill
+from app.models import SkillCategory, SkillSubcategory, Skill, EmployeeSkill
 from app.schemas.skill import CategoriesResponse, CategorySummaryItem
 
 logger = logging.getLogger(__name__)
@@ -42,16 +46,53 @@ def get_categories_for_lazy_loading(db: Session) -> CategoriesResponse:
 # === DATABASE QUERIES ===
 
 def _query_all_categories(db: Session) -> List[SkillCategory]:
-    """Query all categories, ordered by name."""
-    return db.query(SkillCategory).order_by(
+    """
+    Query categories that have at least one "in-use" subcategory.
+    
+    A category is included only if it has at least one subcategory that has at least one skill with:
+    - EXISTS at least one row in employee_skills with matching skill_id
+    - The employee_skills row is not soft-deleted (deleted_at IS NULL)
+    
+    Ordered by category_name for deterministic results.
+    """
+    # Subquery: category has at least one in-use subcategory
+    has_in_use_subcategory = exists().where(
+        SkillSubcategory.category_id == SkillCategory.category_id,
+        exists().where(
+            Skill.subcategory_id == SkillSubcategory.subcategory_id,
+            exists().where(
+                EmployeeSkill.skill_id == Skill.skill_id,
+                EmployeeSkill.deleted_at.is_(None)
+            )
+        )
+    )
+    
+    return db.query(SkillCategory).filter(
+        has_in_use_subcategory
+    ).order_by(
         SkillCategory.category_name
     ).all()
 
 
 def _query_subcategory_count(db: Session, category_id: int) -> int:
-    """Count subcategories in a category."""
+    """
+    Count "in-use" subcategories in a category.
+    
+    Counts only subcategories that have at least one skill with at least one
+    employee_skills row (where deleted_at IS NULL).
+    """
+    # Subquery: subcategory has at least one in-use skill
+    has_in_use_skill = exists().where(
+        Skill.subcategory_id == SkillSubcategory.subcategory_id,
+        exists().where(
+            EmployeeSkill.skill_id == Skill.skill_id,
+            EmployeeSkill.deleted_at.is_(None)
+        )
+    )
+    
     count = db.query(func.count(SkillSubcategory.subcategory_id)).filter(
-        SkillSubcategory.category_id == category_id
+        SkillSubcategory.category_id == category_id,
+        has_in_use_skill
     ).scalar()
     
     return count or 0
@@ -59,13 +100,22 @@ def _query_subcategory_count(db: Session, category_id: int) -> int:
 
 def _query_skill_count_for_category(db: Session, category_id: int) -> int:
     """
-    Count skills in a category (via subcategory join).
-    Returns 0 if no skills found.
+    Count "in-use" skills in a category (via subcategory join).
+    
+    Counts only skills that have at least one employee_skills row (where deleted_at IS NULL).
+    Returns 0 if no in-use skills found.
     """
+    # Subquery: skill is in use
+    in_use_subquery = exists().where(
+        EmployeeSkill.skill_id == Skill.skill_id,
+        EmployeeSkill.deleted_at.is_(None)
+    )
+    
     count = db.query(func.count(Skill.skill_id)).join(
         SkillSubcategory
     ).filter(
-        SkillSubcategory.category_id == category_id
+        SkillSubcategory.category_id == category_id,
+        in_use_subquery
     ).scalar()
     
     return count or 0

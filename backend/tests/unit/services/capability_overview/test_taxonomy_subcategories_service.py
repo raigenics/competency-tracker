@@ -24,8 +24,8 @@ class TestGetSubcategoriesForCategory:
         # Arrange
         category = mock_category(1, "Programming")
         subcategories = [
-            mock_subcategory(1, "Backend", category),
-            mock_subcategory(2, "Frontend", category)
+            mock_subcategory(1, "Backend"),
+            mock_subcategory(2, "Frontend")
         ]
         
         with patch.object(service, '_query_category_by_id', return_value=category):
@@ -55,7 +55,7 @@ class TestGetSubcategoriesForCategory:
         """Should include skill count for each subcategory."""
         # Arrange
         category = mock_category(1, "Data Science")
-        subcategories = [mock_subcategory(1, "ML", category)]
+        subcategories = [mock_subcategory(1, "ML")]
         
         with patch.object(service, '_query_category_by_id', return_value=category):
             with patch.object(service, '_query_subcategories_for_category', return_value=subcategories):
@@ -165,13 +165,13 @@ class TestQuerySubcategoriesForCategory:
     def test_returns_all_subcategories_for_category(
         self, mock_db, mock_category, mock_subcategory
     ):
-        """Should return all subcategories for the specified category."""
+        """Should return all subcategories that pass the in-use filter."""
         # Arrange
         category = mock_category(1, "Programming")
         subcategories = [
-            mock_subcategory(1, "Backend", category),
-            mock_subcategory(2, "Frontend", category),
-            mock_subcategory(3, "Mobile", category)
+            mock_subcategory(1, "Backend"),
+            mock_subcategory(2, "Frontend"),
+            mock_subcategory(3, "Mobile")
         ]
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
@@ -253,8 +253,8 @@ class TestBuildSubcategorySummaryItems:
         # Arrange
         category = mock_category(1, "Programming")
         subcategories = [
-            mock_subcategory(1, "Backend", category),
-            mock_subcategory(2, "Frontend", category)
+            mock_subcategory(1, "Backend"),
+            mock_subcategory(2, "Frontend")
         ]
         
         with patch.object(service, '_query_skill_count_for_subcategory', side_effect=[20, 15]):
@@ -276,9 +276,9 @@ class TestBuildSubcategorySummaryItems:
         # Arrange
         category = mock_category(1, "Data Science")
         subcategories = [
-            mock_subcategory(1, "ML", category),
-            mock_subcategory(2, "AI", category),
-            mock_subcategory(3, "Analytics", category)
+            mock_subcategory(1, "ML"),
+            mock_subcategory(2, "AI"),
+            mock_subcategory(3, "Analytics")
         ]
         
         with patch.object(service, '_query_skill_count_for_subcategory', side_effect=[10, 12, 8]) as mock_count:
@@ -302,10 +302,13 @@ class TestBuildSubcategorySummaryItems:
     def test_handles_subcategories_with_zero_skills(
         self, mock_db, mock_category, mock_subcategory
     ):
-        """Should handle subcategories with no skills."""
+        """Should handle subcategories with no skills (now excluded due to in-use filter)."""
+        # Note: With in-use filtering, subcategories with 0 skills are typically
+        # excluded at the query level. This test verifies the builder handles 
+        # edge cases correctly if such data somehow arrives.
         # Arrange
         category = mock_category(1, "New Category")
-        subcategories = [mock_subcategory(1, "Empty Subcat", category)]
+        subcategories = [mock_subcategory(1, "Empty Subcat")]
         
         with patch.object(service, '_query_skill_count_for_subcategory', return_value=0):
             # Act

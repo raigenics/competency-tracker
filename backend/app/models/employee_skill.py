@@ -14,7 +14,7 @@ class EmployeeSkill(Base):
     
     emp_skill_id = Column(Integer, primary_key=True, index=True)
     employee_id = Column(Integer, ForeignKey("employees.employee_id", ondelete="CASCADE"), nullable=False)
-    skill_id = Column(Integer, ForeignKey("skills.skill_id", ondelete="CASCADE"), nullable=False)
+    skill_id = Column(Integer, ForeignKey("skills.skill_id", ondelete="CASCADE"), nullable=False, index=True)
     proficiency_level_id = Column(Integer, ForeignKey("proficiency_levels.proficiency_level_id", ondelete="CASCADE"), nullable=False)
     years_experience = Column(Integer, nullable=True)
     last_used = Column(Date, nullable=True)

@@ -4,12 +4,17 @@ Taxonomy Skills Service - GET /skills/capability/subcategories/{subcategory_id}/
 Handles skill list for a specific subcategory in lazy-loading taxonomy.
 Returns skills when user expands a subcategory node.
 Zero dependencies on other services.
+
+IN-USE FILTERING:
+Only returns skills that have at least one row in employee_skills (where deleted_at IS NULL).
+This ensures the taxonomy tree shows only skills that are actually used by employees.
 """
 import logging
 from typing import List, Optional
 from sqlalchemy.orm import Session
+from sqlalchemy import exists
 
-from app.models import Skill, SkillSubcategory, SkillCategory
+from app.models import Skill, SkillSubcategory, SkillCategory, EmployeeSkill
 from app.schemas.skill import SkillsResponse, TaxonomySkillItem
 
 logger = logging.getLogger(__name__)
@@ -90,10 +95,23 @@ def _query_skills_for_subcategory(
     subcategory_id: int
 ) -> List[Skill]:
     """
-    Query all skills for a subcategory, ordered by name.
+    Query skills for a subcategory that are "in use" (have at least one employee_skills row).
+    
+    A skill is considered "in use" if:
+    - EXISTS at least one row in employee_skills with matching skill_id
+    - The employee_skills row is not soft-deleted (deleted_at IS NULL)
+    
+    Ordered by skill_name for deterministic results.
     """
+    # Subquery: skill is in use if it has at least one non-deleted employee_skills row
+    in_use_subquery = exists().where(
+        EmployeeSkill.skill_id == Skill.skill_id,
+        EmployeeSkill.deleted_at.is_(None)
+    )
+    
     return db.query(Skill).filter(
-        Skill.subcategory_id == subcategory_id
+        Skill.subcategory_id == subcategory_id,
+        in_use_subquery
     ).order_by(Skill.skill_name).all()
 
 

@@ -96,13 +96,14 @@ class TestGetCategoriesForLazyLoading:
 # ============================================================================
 
 class TestQueryAllCategories:
-    """Test category query."""
+    """Test category query with in-use filtering."""
     
     def test_queries_all_categories(self, mock_db):
-        """Should query all categories."""
+        """Should query categories that have in-use skills."""
         # Arrange
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
         mock_query.order_by.return_value = mock_query
         mock_query.all.return_value = []
         
@@ -111,6 +112,7 @@ class TestQueryAllCategories:
         
         # Assert
         mock_db.query.assert_called_once_with(SkillCategory)
+        mock_query.filter.assert_called_once()  # EXISTS filter applied
         mock_query.order_by.assert_called_once()
         mock_query.all.assert_called_once()
     
@@ -119,6 +121,7 @@ class TestQueryAllCategories:
         # Arrange
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
         mock_query.order_by.return_value = mock_query
         mock_query.all.return_value = []
         
@@ -129,7 +132,7 @@ class TestQueryAllCategories:
         mock_query.order_by.assert_called_once()
     
     def test_returns_all_categories(self, mock_db, mock_category):
-        """Should return all categories from database."""
+        """Should return all categories that pass the in-use filter."""
         # Arrange
         categories = [
             mock_category(1, "Category A"),
@@ -138,6 +141,7 @@ class TestQueryAllCategories:
         ]
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
         mock_query.order_by.return_value = mock_query
         mock_query.all.return_value = categories
         
