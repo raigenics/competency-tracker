@@ -172,3 +172,575 @@
   background-color: #fee2e2;
   color: #991b1b;
 }
+
+/* ==========================================================================
+   ADD EMPLOYEE DRAWER STYLES
+   Designer: HTML mockup - AddEmployeeDrawDown.html
+   ========================================================================== */
+
+/* Drawer overlay - uses opacity for smooth fade in/out */
+.add-employee-drawer-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.add-employee-drawer-overlay.open {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Drawer - uses transform for smooth slide animation */
+.add-employee-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 80%;
+    max-width: 1200px;
+    height: 100vh;
+    background: white;
+    box-shadow: -4px 0 24px rgba(0,0,0,0.15);
+    z-index: 1001;
+    display: flex;
+    flex-direction: column;
+    transform: translateX(100%);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.add-employee-drawer.open {
+    transform: translateX(0);
+}
+
+.add-employee-drawer .drawer-header {
+    padding: 24px 32px;
+    border-bottom: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.add-employee-drawer .drawer-title h3 {
+    font-size: 20px;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+.add-employee-drawer .drawer-subtitle {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.add-employee-drawer .close-btn {
+    background: none;
+    border: none;
+    font-size: 24px;
+    color: #64748b;
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.2s;
+}
+
+.add-employee-drawer .close-btn:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+/* Tab navigation */
+.add-employee-drawer .tab-nav {
+    display: flex;
+    gap: 0;
+    padding: 0 32px;
+    border-bottom: 1px solid #e2e8f0;
+    flex-shrink: 0;
+}
+
+.add-employee-drawer .tab-btn {
+    padding: 16px 24px;
+    background: none;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: #64748b;
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.add-employee-drawer .tab-btn:hover {
+    color: #1e293b;
+    background: #f8fafc;
+}
+
+.add-employee-drawer .tab-btn.active {
+    color: #3b82f6;
+    border-bottom-color: #3b82f6;
+}
+
+.add-employee-drawer .tab-btn .error-indicator {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    width: 6px;
+    height: 6px;
+    background: #ef4444;
+    border-radius: 50%;
+}
+
+/* Drawer body */
+.add-employee-drawer .drawer-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 32px;
+}
+
+.add-employee-drawer .tab-content {
+    display: none;
+}
+
+.add-employee-drawer .tab-content.active {
+    display: block;
+}
+
+/* Form sections */
+.add-employee-drawer .form-section {
+    margin-bottom: 32px;
+}
+
+.add-employee-drawer .section-header {
+    margin-bottom: 20px;
+}
+
+.add-employee-drawer .section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+.add-employee-drawer .section-description {
+    font-size: 13px;
+    color: #64748b;
+}
+
+.add-employee-drawer .form-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+}
+
+.add-employee-drawer .form-grid.single-col {
+    grid-template-columns: 1fr;
+}
+
+.add-employee-drawer .form-field {
+    display: flex;
+    flex-direction: column;
+}
+
+.add-employee-drawer .form-field.full-width {
+    grid-column: 1 / -1;
+}
+
+.add-employee-drawer label {
+    font-size: 13px;
+    font-weight: 500;
+    color: #334155;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.add-employee-drawer .required {
+    color: #ef4444;
+}
+
+.add-employee-drawer .badge {
+    display: inline-block;
+    padding: 2px 8px;
+    font-size: 11px;
+    border-radius: 12px;
+    font-weight: 500;
+}
+
+.add-employee-drawer .badge.imported {
+    background: #dbeafe;
+    color: #1e40af;
+}
+
+.add-employee-drawer .badge.manual {
+    background: #fef3c7;
+    color: #92400e;
+}
+
+.add-employee-drawer input[type="text"],
+.add-employee-drawer input[type="email"],
+.add-employee-drawer input[type="number"],
+.add-employee-drawer input[type="date"],
+.add-employee-drawer select,
+.add-employee-drawer textarea {
+    padding: 10px 12px;
+    border: 1px solid #cbd5e1;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all 0.2s;
+    background: white;
+}
+
+.add-employee-drawer input:focus,
+.add-employee-drawer select:focus,
+.add-employee-drawer textarea:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.add-employee-drawer input:disabled,
+.add-employee-drawer select:disabled {
+    background: #f1f5f9;
+    color: #94a3b8;
+    cursor: not-allowed;
+}
+
+.add-employee-drawer .input-hint {
+    font-size: 12px;
+    color: #64748b;
+    margin-top: 4px;
+}
+
+.add-employee-drawer .error-message {
+    font-size: 12px;
+    color: #ef4444;
+    margin-top: 4px;
+    display: none;
+}
+
+.add-employee-drawer .form-field.error input,
+.add-employee-drawer .form-field.error select {
+    border-color: #ef4444;
+}
+
+.add-employee-drawer .form-field.error .error-message {
+    display: block;
+}
+
+/* Skills table */
+/* FIX: Changed overflow from hidden to visible so autocomplete dropdown
+   is not clipped. The border-radius visual is maintained via border. */
+.add-employee-drawer .skills-table-container {
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+    overflow: visible;
+}
+
+.add-employee-drawer .skills-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.add-employee-drawer .skills-table thead {
+    background: #f8fafc;
+}
+
+.add-employee-drawer .skills-table th {
+    padding: 12px 16px;
+    text-align: left;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+    border-bottom: 1px solid #e2e8f0;
+}
+
+.add-employee-drawer .skills-table td {
+    padding: 12px 16px;
+    border-bottom: 1px solid #f1f5f9;
+}
+
+.add-employee-drawer .skills-table tbody tr:hover {
+    background: #fafbfc;
+}
+
+.add-employee-drawer .skills-table input,
+.add-employee-drawer .skills-table select {
+    width: 100%;
+    padding: 8px 10px;
+    font-size: 13px;
+}
+
+.add-employee-drawer .skill-row-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.add-employee-drawer .icon-btn {
+    background: none;
+    border: none;
+    padding: 6px;
+    cursor: pointer;
+    border-radius: 4px;
+    color: #64748b;
+    transition: all 0.2s;
+}
+
+.add-employee-drawer .icon-btn:hover {
+    background: #f1f5f9;
+    color: #1e293b;
+}
+
+.add-employee-drawer .icon-btn.danger:hover {
+    background: #fee2e2;
+    color: #dc2626;
+}
+
+.add-employee-drawer .add-skill-btn {
+    margin-top: 12px;
+    padding: 10px 16px;
+    background: white;
+    border: 1px dashed #cbd5e1;
+    border-radius: 6px;
+    color: #3b82f6;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    width: 100%;
+}
+
+.add-employee-drawer .add-skill-btn:hover {
+    border-color: #3b82f6;
+    background: #f0f9ff;
+}
+
+/* Drawer footer */
+.add-employee-drawer .drawer-footer {
+    padding: 20px 32px;
+    border-top: 1px solid #e2e8f0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.add-employee-drawer .footer-info {
+    font-size: 12px;
+    color: #64748b;
+}
+
+.add-employee-drawer .footer-actions {
+    display: flex;
+    gap: 12px;
+}
+
+.add-employee-drawer .btn {
+    padding: 10px 20px;
+    border: none;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.add-employee-drawer .btn-secondary {
+    background: white;
+    color: #475569;
+    border: 1px solid #cbd5e1;
+}
+
+.add-employee-drawer .btn-secondary:hover {
+    background: #f8fafc;
+    border-color: #94a3b8;
+}
+
+.add-employee-drawer .btn-draft {
+    background: #f1f5f9;
+    color: #475569;
+}
+
+.add-employee-drawer .btn-draft:hover {
+    background: #e2e8f0;
+}
+
+.add-employee-drawer .btn-primary {
+    background: #3b82f6;
+    color: white;
+}
+
+.add-employee-drawer .btn-primary:hover {
+    background: #2563eb;
+}
+
+.add-employee-drawer .btn-primary:disabled {
+    background: #94a3b8;
+    cursor: not-allowed;
+}
+
+/* Info callout */
+.add-employee-drawer .info-callout {
+    padding: 12px 16px;
+    background: #eff6ff;
+    border-left: 3px solid #3b82f6;
+    border-radius: 4px;
+    margin-bottom: 24px;
+}
+
+.add-employee-drawer .info-callout-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: #1e40af;
+    margin-bottom: 4px;
+}
+
+.add-employee-drawer .info-callout-text {
+    font-size: 12px;
+    color: #1e40af;
+}
+
+/* Month/Year picker simulation */
+.add-employee-drawer .month-year-input {
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 6px;
+}
+
+/* Year input styling - ensure text is visible without spinner (YY format) */
+.add-employee-drawer .month-year-input input[type="text"] {
+    min-width: 48px;
+    max-width: 56px;
+    text-align: center;
+}
+
+/* Autocomplete - Pixel-perfect styles from reference HTML */
+.add-employee-drawer .skills-input-container {
+    position: relative;
+    width: 100%;
+}
+
+.add-employee-drawer .skills-input {
+    width: 100%;
+    padding: 12px 16px;
+    border: 2px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    box-sizing: border-box;
+}
+
+.add-employee-drawer .skills-input::placeholder {
+    color: #94a3b8;
+}
+
+.add-employee-drawer .skills-input:focus {
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.add-employee-drawer .skills-input.input-error {
+    border-color: #ef4444;
+}
+
+/* FIX: Increased z-index to 100 to ensure dropdown appears above table rows */
+.add-employee-drawer .autocomplete-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    background: white;
+    border: 2px solid #e2e8f0;
+    border-top: none;
+    border-radius: 0 0 12px 12px;
+    max-height: 320px;
+    overflow-y: auto;
+    box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1), 0 2px 4px -1px rgba(0,0,0,0.06);
+    z-index: 100;
+    display: none;
+}
+
+.add-employee-drawer .autocomplete-dropdown.show {
+    display: block;
+}
+
+.add-employee-drawer .autocomplete-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-bottom: 1px solid #f1f5f9;
+    transition: background-color 0.15s;
+}
+
+.add-employee-drawer .autocomplete-item:last-child {
+    border-bottom: none;
+}
+
+.add-employee-drawer .autocomplete-item:hover {
+    background-color: #f8fafc;
+}
+
+.add-employee-drawer .autocomplete-item.selected {
+    background-color: #eff6ff;
+}
+
+/* Skill name - main text line */
+.add-employee-drawer .skill-name {
+    font-size: 14px;
+    font-weight: 500;
+    color: #1e293b;
+    margin-bottom: 4px;
+}
+
+/* Skill path - category hierarchy line */
+.add-employee-drawer .skill-path {
+    font-size: 11px;
+    color: #94a3b8;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.add-employee-drawer .path-separator {
+    color: #cbd5e1;
+}
+
+/* Highlight for matching text */
+.add-employee-drawer .highlight {
+    color: #3b82f6;
+    background-color: rgba(59, 130, 246, 0.1);
+    padding: 0 2px;
+    border-radius: 2px;
+}
+
+/* No results styling */
+.add-employee-drawer .autocomplete-no-results {
+    padding: 16px;
+    text-align: center;
+    color: #94a3b8;
+    font-size: 14px;
+}
+
+/* Loading state */
+.add-employee-drawer .autocomplete-loading {
+    padding: 16px;
+    text-align: center;
+    color: #64748b;
+    font-size: 14px;
+}
+
+/* Legacy: Keep old class names as aliases for backwards compatibility */
+.add-employee-drawer .autocomplete-container {
+    position: relative;
+    width: 100%;
+}

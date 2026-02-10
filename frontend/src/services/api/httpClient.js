@@ -3,6 +3,92 @@ import { API_BASE_URL } from '../../config/apiConfig.js';
 import { getRbacContext } from '../../config/featureFlags.js';
 
 /**
+ * ============================================================================
+ * DIAGNOSTIC LOGGING - HTTP Request Timing
+ * ============================================================================
+ * 
+ * To enable HTTP timing logs, run in browser console:
+ *   localStorage.setItem("DEBUG_HTTP", "1");
+ *   location.reload();
+ * 
+ * To disable:
+ *   localStorage.removeItem("DEBUG_HTTP");
+ *   location.reload();
+ * 
+ * To view recent request timings:
+ *   window.__httpTimings.list()     // Show all recent requests
+ *   window.__httpTimings.clear()    // Clear history
+ *   window.__httpTimings.summary()  // Show stats summary
+ * 
+ * Log format:
+ *   [HTTP START] id=12 method=GET url=http://...?page=1 t=1234.56
+ *   [HTTP END]   id=12 status=200 ms=483 bytes=12345
+ *   [HTTP FAIL]  id=12 ms=802 error="..." aborted=false
+ *   [HTTP ABORT] id=12 ms=120
+ * ============================================================================
+ */
+
+// Only enable in dev mode AND when localStorage flag is set
+const DEBUG_HTTP = typeof window !== 'undefined' 
+  && import.meta.env.DEV 
+  && localStorage.getItem("DEBUG_HTTP") === "1";
+
+// Global request counter for unique IDs
+let _httpRequestId = 0;
+
+// In-memory storage for recent request timings (keep last 100)
+const _httpTimings = [];
+const MAX_TIMINGS = 100;
+
+function recordTiming(record) {
+  _httpTimings.push(record);
+  if (_httpTimings.length > MAX_TIMINGS) {
+    _httpTimings.shift();
+  }
+}
+
+// Expose timing utilities on window for console access
+if (typeof window !== 'undefined') {
+  window.__httpTimings = {
+    list: () => {
+      console.table(_httpTimings.map(r => ({
+        id: r.id,
+        method: r.method,
+        url: r.url.replace(API_BASE_URL, ''),
+        status: r.status || '-',
+        ms: r.durationMs?.toFixed(1) || '-',
+        bytes: r.bytes || '-',
+        aborted: r.aborted ? 'YES' : '',
+        error: r.error || ''
+      })));
+      return _httpTimings;
+    },
+    clear: () => {
+      _httpTimings.length = 0;
+      console.log('[HTTP] Timings cleared');
+    },
+    summary: () => {
+      if (_httpTimings.length === 0) {
+        console.log('[HTTP] No timings recorded');
+        return;
+      }
+      const completed = _httpTimings.filter(r => r.durationMs && !r.aborted && !r.error);
+      const durations = completed.map(r => r.durationMs);
+      const avg = durations.reduce((a, b) => a + b, 0) / durations.length;
+      const max = Math.max(...durations);
+      const min = Math.min(...durations);
+      console.log(`[HTTP] Summary: ${_httpTimings.length} requests, ${completed.length} completed`);
+      console.log(`[HTTP] Duration: avg=${avg.toFixed(1)}ms, min=${min.toFixed(1)}ms, max=${max.toFixed(1)}ms`);
+      const aborted = _httpTimings.filter(r => r.aborted).length;
+      const failed = _httpTimings.filter(r => r.error && !r.aborted).length;
+      if (aborted) console.log(`[HTTP] Aborted: ${aborted}`);
+      if (failed) console.log(`[HTTP] Failed: ${failed}`);
+    },
+    raw: () => _httpTimings
+  };
+}
+
+/**
  * Build RBAC headers from current context.
  * 
  * Headers sent:
@@ -45,29 +131,80 @@ function buildRbacHeaders() {
 }
 
 class HttpClient {
-  async get(endpoint, params = {}) {
+  async get(endpoint, params = {}, options = {}) {
+    const reqId = ++_httpRequestId;
+    const startTime = performance.now();
+    const url = new URL(`${API_BASE_URL}${endpoint}`);
+    Object.keys(params).forEach(key => {
+      if (params[key] !== undefined && params[key] !== null) {
+        url.searchParams.append(key, params[key]);
+      }
+    });
+    const fullUrl = url.toString();
+    
+    // Timing record
+    const record = { id: reqId, method: 'GET', url: fullUrl, startTime: Date.now() };
+    
+    if (DEBUG_HTTP) {
+      console.log(`[HTTP START] id=${reqId} method=GET url=${fullUrl} t=${startTime.toFixed(2)}`);
+    }
+    
     try {
-      const url = new URL(`${API_BASE_URL}${endpoint}`);
-      Object.keys(params).forEach(key => {
-        if (params[key] !== undefined && params[key] !== null) {
-          url.searchParams.append(key, params[key]);
-        }
+      const response = await fetch(url, {
+        headers: buildRbacHeaders(),
+        signal: options.signal
       });
       
-      const response = await fetch(url, {
-        headers: buildRbacHeaders()
-      });
+      const durationMs = performance.now() - startTime;
+      const text = await response.text();
+      const bytes = text.length;
+      
+      record.status = response.status;
+      record.durationMs = durationMs;
+      record.bytes = bytes;
+      recordTiming(record);
+      
+      if (DEBUG_HTTP) {
+        console.log(`[HTTP END]   id=${reqId} status=${response.status} ms=${durationMs.toFixed(1)} bytes=${bytes}`);
+      }
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.json();
+      return JSON.parse(text);
     } catch (error) {
+      const durationMs = performance.now() - startTime;
+      record.durationMs = durationMs;
+      
+      if (error.name === 'AbortError') {
+        record.aborted = true;
+        recordTiming(record);
+        if (DEBUG_HTTP) {
+          console.log(`[HTTP ABORT] id=${reqId} ms=${durationMs.toFixed(1)}`);
+        }
+        throw error;
+      }
+      
+      record.error = error.message;
+      recordTiming(record);
+      if (DEBUG_HTTP) {
+        console.log(`[HTTP FAIL]  id=${reqId} ms=${durationMs.toFixed(1)} error="${error.message}" aborted=false`);
+      }
       console.error('GET request failed:', error);
       throw error;
     }
   }
   
   async post(endpoint, data = {}, options = {}) {
+    const reqId = ++_httpRequestId;
+    const startTime = performance.now();
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    const record = { id: reqId, method: 'POST', url: fullUrl, startTime: Date.now() };
+    
+    if (DEBUG_HTTP) {
+      console.log(`[HTTP START] id=${reqId} method=POST url=${fullUrl} t=${startTime.toFixed(2)}`);
+    }
+    
     try {
       // Detect if data is FormData
       const isFormData = data instanceof FormData;
@@ -97,21 +234,51 @@ class HttpClient {
         fetchOptions.body = JSON.stringify(data);
       }
       
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, fetchOptions);
+      const response = await fetch(fullUrl, fetchOptions);
+      const durationMs = performance.now() - startTime;
+      const text = await response.text();
+      const bytes = text.length;
+      
+      record.status = response.status;
+      record.durationMs = durationMs;
+      record.bytes = bytes;
+      recordTiming(record);
+      
+      if (DEBUG_HTTP) {
+        console.log(`[HTTP END]   id=${reqId} status=${response.status} ms=${durationMs.toFixed(1)} bytes=${bytes}`);
+      }
       
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.json();
+      return JSON.parse(text);
     } catch (error) {
+      const durationMs = performance.now() - startTime;
+      if (!record.durationMs) {
+        record.durationMs = durationMs;
+        record.error = error.message;
+        recordTiming(record);
+      }
+      if (DEBUG_HTTP && !record.status) {
+        console.log(`[HTTP FAIL]  id=${reqId} ms=${durationMs.toFixed(1)} error="${error.message}" aborted=false`);
+      }
       console.error('POST request failed:', error);
       throw error;
     }
   }
   
   async put(endpoint, data = {}) {
+    const reqId = ++_httpRequestId;
+    const startTime = performance.now();
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    const record = { id: reqId, method: 'PUT', url: fullUrl, startTime: Date.now() };
+    
+    if (DEBUG_HTTP) {
+      console.log(`[HTTP START] id=${reqId} method=PUT url=${fullUrl} t=${startTime.toFixed(2)}`);
+    }
+    
     try {
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+      const response = await fetch(fullUrl, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -120,17 +287,48 @@ class HttpClient {
         body: JSON.stringify(data),
       });
       
+      const durationMs = performance.now() - startTime;
+      const text = await response.text();
+      const bytes = text.length;
+      
+      record.status = response.status;
+      record.durationMs = durationMs;
+      record.bytes = bytes;
+      recordTiming(record);
+      
+      if (DEBUG_HTTP) {
+        console.log(`[HTTP END]   id=${reqId} status=${response.status} ms=${durationMs.toFixed(1)} bytes=${bytes}`);
+      }
+      
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return await response.json();
+      return JSON.parse(text);
     } catch (error) {
+      const durationMs = performance.now() - startTime;
+      if (!record.durationMs) {
+        record.durationMs = durationMs;
+        record.error = error.message;
+        recordTiming(record);
+      }
+      if (DEBUG_HTTP && !record.status) {
+        console.log(`[HTTP FAIL]  id=${reqId} ms=${durationMs.toFixed(1)} error="${error.message}" aborted=false`);
+      }
       console.error('PUT request failed:', error);
       throw error;
     }
   }
   
   async delete(endpoint, data = null) {
+    const reqId = ++_httpRequestId;
+    const startTime = performance.now();
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    const record = { id: reqId, method: 'DELETE', url: fullUrl, startTime: Date.now() };
+    
+    if (DEBUG_HTTP) {
+      console.log(`[HTTP START] id=${reqId} method=DELETE url=${fullUrl} t=${startTime.toFixed(2)}`);
+    }
+    
     try {
       const options = {
         method: 'DELETE',
@@ -146,25 +344,59 @@ class HttpClient {
         options.body = JSON.stringify(data);
       }
       
-      const response = await fetch(`${API_BASE_URL}${endpoint}`, options);
+      const response = await fetch(fullUrl, options);
+      const durationMs = performance.now() - startTime;
+      
+      record.status = response.status;
+      record.durationMs = durationMs;
       
       if (!response.ok) {
+        record.error = `HTTP ${response.status}`;
+        recordTiming(record);
+        if (DEBUG_HTTP) {
+          console.log(`[HTTP FAIL]  id=${reqId} status=${response.status} ms=${durationMs.toFixed(1)}`);
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       // 204 No Content - return null immediately
       if (response.status === 204) {
+        record.bytes = 0;
+        recordTiming(record);
+        if (DEBUG_HTTP) {
+          console.log(`[HTTP END]   id=${reqId} status=${response.status} ms=${durationMs.toFixed(1)} bytes=0`);
+        }
         return null;
       }
       
       // Check if response has content (for other 2xx responses)
       const contentType = response.headers.get('content-type');
       if (contentType && contentType.includes('application/json')) {
-        return await response.json();
+        const text = await response.text();
+        record.bytes = text.length;
+        recordTiming(record);
+        if (DEBUG_HTTP) {
+          console.log(`[HTTP END]   id=${reqId} status=${response.status} ms=${durationMs.toFixed(1)} bytes=${text.length}`);
+        }
+        return JSON.parse(text);
       }
       
+      record.bytes = 0;
+      recordTiming(record);
+      if (DEBUG_HTTP) {
+        console.log(`[HTTP END]   id=${reqId} status=${response.status} ms=${durationMs.toFixed(1)} bytes=0`);
+      }
       return null;
     } catch (error) {
+      const durationMs = performance.now() - startTime;
+      if (!record.durationMs) {
+        record.durationMs = durationMs;
+        record.error = error.message;
+        recordTiming(record);
+      }
+      if (DEBUG_HTTP && !record.status) {
+        console.log(`[HTTP FAIL]  id=${reqId} ms=${durationMs.toFixed(1)} error="${error.message}" aborted=false`);
+      }
       console.error('DELETE request failed:', error);
       throw error;
     }

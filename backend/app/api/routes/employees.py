@@ -19,7 +19,10 @@ from app.schemas.employee import (
     EmployeeListResponse, 
     EmployeeStatsResponse,
     EmployeesByIdsRequest, EmployeesByIdsResponse,
-    EmployeeSuggestion
+    EmployeeSuggestion,
+    EmployeeCreateRequest, EmployeeCreateResponse,
+    EmployeeSkillsBulkSaveRequest, EmployeeSkillsBulkSaveResponse,
+    EmployeeValidateUniqueResponse
 )
 from app.schemas.common import PaginationParams
 from app.security.rbac_policy import get_rbac_context, RbacContext
@@ -30,6 +33,9 @@ from app.services.employee_profile import list_service
 from app.services.employee_profile import profile_service
 from app.services.employee_profile import stats_service
 from app.services.employee_profile import by_ids_service
+from app.services.employee_profile import create_service
+from app.services.employee_profile import employee_skills_service
+from app.services.employee_profile import validation_service
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +67,37 @@ async def suggest_employees(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching employee suggestions"
         )
+
+
+@router.get("/validate-unique", response_model=EmployeeValidateUniqueResponse)
+async def validate_unique(
+    zid: Optional[str] = Query(None, description="ZID to check for uniqueness"),
+    email: Optional[str] = Query(None, description="Email to check for uniqueness"),
+    exclude_employee_id: Optional[int] = Query(None, description="Employee ID to exclude from check (for edit mode)"),
+    db: Session = Depends(get_db)
+):
+    """
+    Validate ZID and email uniqueness for employee creation/editing.
+    
+    - **zid**: ZID to check - returns zid_exists=true if already in use
+    - **email**: Email to check - returns email_exists=true if already in use
+    - **exclude_employee_id**: When editing, pass the current employee's ID to exclude 
+                               their own ZID/email from triggering the uniqueness error
+    
+    Returns:
+        - zid_exists: true if ZID is already used by another employee
+        - email_exists: true if email is already used by another employee
+    """
+    logger.info(f"Validating uniqueness: zid={zid}, email={email}, exclude_id={exclude_employee_id}")
+    
+    result = validation_service.validate_unique(
+        db=db,
+        zid=zid,
+        email=email,
+        exclude_employee_id=exclude_employee_id
+    )
+    
+    return EmployeeValidateUniqueResponse(**result)
 
 
 @router.get("/", response_model=EmployeeListResponse)
@@ -183,3 +220,89 @@ async def get_employees_by_ids(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Error fetching employees: {str(e)}"
         )
+
+
+@router.post("/", response_model=EmployeeCreateResponse, status_code=status.HTTP_201_CREATED)
+async def create_employee(
+    request: EmployeeCreateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Create a new employee record.
+    
+    This endpoint creates an employee with basic details only.
+    Skills should be added separately via the competencies endpoints.
+    
+    Args:
+        request: Employee creation data including:
+            - zid: Unique employee identifier (required)
+            - full_name: Employee's full name (required)
+            - team_id: ID of the team (required)
+            - email: Employee email (required)
+            - role_id: Role ID from roles table (required)
+            - start_date_of_working: Employment start date (optional)
+    
+    Returns:
+        Created employee details with organization info
+        
+    Raises:
+        404: If team_id is invalid
+        409: If ZID already exists
+        422: If required fields are missing/invalid or role_id is invalid
+    """
+    logger.info(f"Creating employee with ZID: {request.zid}")
+    
+    # Service handles validation and creation
+    employee = create_service.create_employee(
+        db=db,
+        zid=request.zid,
+        full_name=request.full_name,
+        team_id=request.team_id,
+        role_id=request.role_id,
+        email=request.email,
+        start_date_of_working=request.start_date_of_working
+    )
+    
+    # Build response with organization info
+    return EmployeeCreateResponse(
+        employee_id=employee.employee_id,
+        zid=employee.zid,
+        full_name=employee.full_name,
+        email=employee.email,
+        team_id=employee.team_id,
+        team_name=employee.team.team_name if employee.team else "",
+        project_name=employee.project.project_name if employee.project else "",
+        sub_segment_name=employee.sub_segment.sub_segment_name if employee.sub_segment else "",
+        role_name=employee.role.role_name if employee.role else None,
+        start_date_of_working=employee.start_date_of_working,
+        message="Employee created successfully"
+    )
+
+
+@router.post(
+    "/{employee_id}/skills",
+    response_model=EmployeeSkillsBulkSaveResponse,
+    summary="Save employee skills (replace all)",
+    description="Atomically replaces all skills for an employee. Existing skills are soft-deleted and new ones are created."
+)
+def save_employee_skills(
+    employee_id: int,
+    request: EmployeeSkillsBulkSaveRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Save employee skills using replace-all strategy.
+    
+    - Validates employee exists
+    - Validates all skill_ids exist
+    - Soft-deletes existing skills
+    - Creates new skill records
+    - All operations are atomic (transaction)
+    """
+    skills_saved, skills_deleted = employee_skills_service.save_employee_skills(db, employee_id, request.skills)
+    return EmployeeSkillsBulkSaveResponse(
+        message="Skills saved successfully",
+        employee_id=employee_id,
+        skills_saved=skills_saved,
+        skills_deleted=skills_deleted
+    )

@@ -7,15 +7,63 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.services.dropdown_service import DropdownService
 from app.schemas.dropdown import (
+    SegmentListResponse,
     SubSegmentListResponse,
     ProjectListResponse, 
     TeamListResponse,
+    SegmentDropdown,
     SubSegmentDropdown,
     ProjectDropdown,
     TeamDropdown
 )
 
 router = APIRouter(prefix="/dropdown", tags=["dropdown"])
+
+
+@router.get("/segments", response_model=SegmentListResponse)
+def get_segments(db: Session = Depends(get_db)):
+    """
+    Get all segments for dropdown.
+    
+    Returns:
+        List of segments ordered alphabetically by name
+    """
+    try:
+        segments = DropdownService.get_segments(db)
+        dropdown_items = [
+            SegmentDropdown(id=s.segment_id, name=s.segment_name)
+            for s in segments
+        ]
+        return SegmentListResponse(segments=dropdown_items)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch segments: {str(e)}")
+
+
+@router.get("/segments/{segment_id}/sub-segments", response_model=SubSegmentListResponse)
+def get_sub_segments_by_segment(segment_id: int, db: Session = Depends(get_db)):
+    """
+    Get all sub-segments for a specific segment.
+    
+    Args:
+        segment_id: ID of the segment
+        
+    Returns:
+        List of sub-segments for the segment ordered alphabetically by name
+        
+    Raises:
+        HTTPException: If segment_id is invalid
+    """
+    try:
+        sub_segments = DropdownService.get_sub_segments_by_segment(db, segment_id)
+        dropdown_items = [
+            SubSegmentDropdown(id=ss.sub_segment_id, name=ss.sub_segment_name)
+            for ss in sub_segments
+        ]
+        return SubSegmentListResponse(sub_segments=dropdown_items)
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sub-segments: {str(e)}")
 
 
 @router.get("/sub-segments", response_model=SubSegmentListResponse)

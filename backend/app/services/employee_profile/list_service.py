@@ -14,9 +14,15 @@ RBAC Integration:
 - Accepts RbacContext for scope-based filtering
 - Applies role-appropriate filters before user-defined filters
 - All organizational filters use join-based derivation
+
+PERFORMANCE FIX (2026-02-10):
+- Root cause: N+1 queries fetching skills_count per employee individually
+- Each query had Azure network latency (~100-200ms), multiplied by N employees
+- Fix: Batch fetch all skills counts in single query using GROUP BY
 """
 import logging
-from typing import List, Optional
+import time
+from typing import List, Dict, Optional
 from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
 
@@ -58,27 +64,44 @@ def get_employees_paginated(
     Returns:
         EmployeeListResponse with paginated employee data
     """
+    start_time = time.time()
+    
     logger.info(f"Fetching employees: page={pagination.page}, size={pagination.size}, "
                 f"sub_segment_id={sub_segment_id}, project_id={project_id}, "
                 f"team_id={team_id}, role_id={role_id}, search={search}, "
                 f"rbac_role={rbac_context.role if rbac_context else 'None'}")
     
     # Build filtered query
+    query_build_start = time.time()
     query = _build_employee_query(db, sub_segment_id, project_id, team_id, role_id, search, rbac_context)
+    logger.debug(f"Query build took {(time.time() - query_build_start)*1000:.1f}ms")
     
     # Get total count
+    count_start = time.time()
     total = query.count()
+    logger.debug(f"Count query took {(time.time() - count_start)*1000:.1f}ms")
     
-    # Apply pagination and fetch
+    # Apply pagination and fetch employees
+    fetch_start = time.time()
     employees = query.offset(pagination.offset).limit(pagination.size).all()
+    logger.debug(f"Fetch employees took {(time.time() - fetch_start)*1000:.1f}ms, rows={len(employees)}")
+    
+    # PERFORMANCE FIX: Batch fetch skills counts in single query instead of N+1
+    skills_start = time.time()
+    employee_ids = [emp.employee_id for emp in employees]
+    skills_counts = _get_skills_counts_batch(db, employee_ids)
+    logger.debug(f"Batch skills count took {(time.time() - skills_start)*1000:.1f}ms")
     
     # Build response with skills count
-    response_items = _build_employee_responses(db, employees)
+    response_start = time.time()
+    response_items = _build_employee_responses(employees, skills_counts)
+    logger.debug(f"Response build took {(time.time() - response_start)*1000:.1f}ms")
     
     # Calculate total pages
     pages = (total + pagination.size - 1) // pagination.size if total > 0 else 0
     
-    logger.info(f"Returning {len(response_items)} employees (total: {total})")
+    total_time = (time.time() - start_time) * 1000
+    logger.info(f"Returning {len(response_items)} employees (total: {total}) in {total_time:.1f}ms")
     
     return EmployeeListResponse(
         items=response_items,
@@ -219,32 +242,58 @@ def _apply_rbac_scope_filter(query, rbac_context: RbacContext):
     return query.filter(False)
 
 
-def _get_skills_count(db: Session, employee_id: int) -> int:
+def _get_skills_counts_batch(db: Session, employee_ids: List[int]) -> Dict[int, int]:
     """
-    Count skills for a specific employee.
-    Returns 0 if no skills found.
-    """
-    count = db.query(func.count(EmployeeSkill.emp_skill_id)).filter(
-        EmployeeSkill.employee_id == employee_id
-    ).scalar()
+    Batch fetch skills counts for multiple employees in a SINGLE query.
     
-    return count or 0
+    PERFORMANCE FIX: Replaces N+1 individual queries with one GROUP BY query.
+    With Azure DB latency, this reduces ~N*100ms to ~100ms.
+    
+    Args:
+        db: Database session
+        employee_ids: List of employee IDs to get counts for
+    
+    Returns:
+        Dict mapping employee_id -> skills_count (missing IDs default to 0)
+    """
+    if not employee_ids:
+        return {}
+    
+    # Single query with GROUP BY instead of N individual queries
+    results = (
+        db.query(
+            EmployeeSkill.employee_id,
+            func.count(EmployeeSkill.emp_skill_id).label('count')
+        )
+        .filter(EmployeeSkill.employee_id.in_(employee_ids))
+        .group_by(EmployeeSkill.employee_id)
+        .all()
+    )
+    
+    # Convert to dict, defaulting missing employees to 0
+    return {row.employee_id: row.count for row in results}
 
 
 # === RESPONSE BUILDING ===
 
 def _build_employee_responses(
-    db: Session,
-    employees: List[Employee]
+    employees: List[Employee],
+    skills_counts: Dict[int, int]
 ) -> List[EmployeeResponse]:
     """
     Build EmployeeResponse list from employee models.
-    Queries skills count for each employee.
+    
+    PERFORMANCE FIX: No longer makes DB queries - uses pre-fetched skills_counts dict.
+    
+    Args:
+        employees: List of Employee models (with eager-loaded relationships)
+        skills_counts: Dict mapping employee_id -> skills count (from batch query)
     """
     response_items = []
     
     for employee in employees:
-        skills_count = _get_skills_count(db, employee.employee_id)
+        # Use pre-fetched count, default to 0 if not found
+        skills_count = skills_counts.get(employee.employee_id, 0)
         
         employee_data = EmployeeResponse(
             employee_id=employee.employee_id,

@@ -2,7 +2,7 @@
 Employee-related Pydantic schemas.
 """
 from typing import List, Optional, TYPE_CHECKING
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, validator
 from datetime import date
 from app.schemas.common import PaginatedResponse
 from app.schemas.role import RoleResponse
@@ -28,6 +28,34 @@ class EmployeeCreate(BaseModel):
     sub_segment_name: str = Field(description="Name of the sub-segment")
     project_name: str = Field(description="Name of the project")
     team_name: str = Field(description="Name of the team")
+
+
+class EmployeeCreateRequest(BaseModel):
+    """Request schema for creating a new employee via API."""
+    zid: str = Field(..., min_length=1, max_length=50, description="Employee ZID (business identifier)")
+    full_name: str = Field(..., min_length=1, max_length=255, description="Full name of the employee")
+    email: str = Field(..., max_length=255, description="Employee email address (required)")
+    team_id: int = Field(..., description="ID of the team the employee belongs to")
+    role_id: int = Field(..., description="Role ID from roles table (required)")
+    start_date_of_working: Optional[date] = Field(None, description="Start date of employment")
+
+
+class EmployeeCreateResponse(BaseModel):
+    """Response schema for created employee."""
+    employee_id: int = Field(description="Created employee ID")
+    zid: str = Field(description="Employee ZID")
+    full_name: str = Field(description="Full name of the employee")
+    email: Optional[str] = Field(None, description="Employee email")
+    team_id: int = Field(description="Team ID")
+    team_name: str = Field(description="Team name")
+    project_name: str = Field(description="Project name")
+    sub_segment_name: str = Field(description="Sub-segment name")
+    role_name: Optional[str] = Field(None, description="Role name")
+    start_date_of_working: Optional[date] = Field(None, description="Start date")
+    message: str = Field(default="Employee created successfully")
+    
+    class Config:
+        from_attributes = True
 
 
 class OrganizationInfo(BaseModel):
@@ -104,3 +132,65 @@ class EmployeeSuggestion(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+# ==========================================
+# Employee Skills Bulk Save Schemas
+# ==========================================
+
+class EmployeeSkillItem(BaseModel):
+    """Single skill item for bulk save."""
+    skill_id: int = Field(description="Skill ID from approved skills list")
+    proficiency: str = Field(
+        description="Proficiency level name (NOVICE, ADVANCED_BEGINNER, COMPETENT, PROFICIENT, EXPERT)"
+    )
+    years_experience: Optional[float] = Field(
+        default=None, ge=0, le=50,
+        description="Years of experience with this skill"
+    )
+    last_used_month: Optional[str] = Field(
+        default=None, pattern=r"^(0[1-9]|1[0-2])$",
+        description="Last used month (01-12)"
+    )
+    last_used_year: Optional[str] = Field(
+        default=None, pattern=r"^\d{2,4}$",
+        description="Last used year (YY or YYYY)"
+    )
+    started_from: Optional[date] = Field(
+        default=None, description="Date started learning this skill (YYYY-MM-DD)"
+    )
+    certification: Optional[str] = Field(
+        default=None, max_length=500,
+        description="Certification details (optional)"
+    )
+    
+    class Config:
+        from_attributes = True
+
+
+class EmployeeSkillsBulkSaveRequest(BaseModel):
+    """Request schema for bulk saving employee skills."""
+    skills: List[EmployeeSkillItem] = Field(
+        description="List of skills to save for the employee"
+    )
+    
+    @validator('skills')
+    def check_no_duplicate_skills(cls, v):
+        skill_ids = [s.skill_id for s in v]
+        if len(skill_ids) != len(set(skill_ids)):
+            raise ValueError("Duplicate skill_id found in the skills list")
+        return v
+
+
+class EmployeeSkillsBulkSaveResponse(BaseModel):
+    """Response schema for bulk saving employee skills."""
+    message: str = Field(description="Success message")
+    employee_id: int = Field(description="Employee ID")
+    skills_saved: int = Field(description="Number of skills saved")
+    skills_deleted: int = Field(description="Number of previous skills deleted")
+
+
+class EmployeeValidateUniqueResponse(BaseModel):
+    """Response schema for ZID/email uniqueness validation."""
+    zid_exists: bool = Field(description="True if ZID already exists in database")
+    email_exists: bool = Field(description="True if email already exists in database")

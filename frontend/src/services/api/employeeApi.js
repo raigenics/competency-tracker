@@ -10,16 +10,20 @@ export const employeeApi = {// Get employee suggestions for autocomplete
       throw error;
     }
   },  // Get paginated list of employees
-  async getEmployees(params = {}) {
+  async getEmployees(params = {}, options = {}) {
     try {
       // Call real backend API with ID-based filters
       console.log('Fetching employees from API with params:', params);
       
-      const response = await httpClient.get('/employees', params);
+      const response = await httpClient.get('/employees', params, options);
       
       // Backend returns: { items, total, page, size, has_next, has_previous }
       return response;
     } catch (error) {
+      // Don't log abort errors as failures (expected during cleanup)
+      if (error.name === 'AbortError') {
+        throw error;
+      }
       console.error('Failed to fetch employees:', error);
       throw error;
     }
@@ -153,6 +157,30 @@ export const employeeApi = {// Get employee suggestions for autocomplete
       };
     } catch (error) {
       console.error('Failed to fetch skill history:', error);
+      throw error;
+    }
+  },
+
+  // Create new employee (basic details only, no skills)
+  async createEmployee(employeeData) {
+    try {
+      const response = await httpClient.post('/employees/', employeeData);
+      return response;
+    } catch (error) {
+      console.error('Failed to create employee:', error);
+      throw error;
+    }
+  },
+
+  // Save employee skills (bulk replace-all)
+  async saveEmployeeSkills(employeeId, skills) {
+    try {
+      const response = await httpClient.post(`/employees/${employeeId}/skills`, {
+        skills: skills
+      });
+      return response;
+    } catch (error) {
+      console.error('Failed to save employee skills:', error);
       throw error;
     }
   }

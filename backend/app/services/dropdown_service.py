@@ -3,6 +3,7 @@ Service layer for dropdown data operations.
 """
 from typing import List
 from sqlalchemy.orm import Session
+from app.models.segment import Segment
 from app.models.sub_segment import SubSegment
 from app.models.project import Project
 from app.models.team import Team
@@ -10,6 +11,45 @@ from app.models.team import Team
 
 class DropdownService:
     """Service for managing dropdown data operations."""
+
+    @staticmethod
+    def get_segments(db: Session) -> List[Segment]:
+        """
+        Get all segments ordered alphabetically.
+        
+        Args:
+            db: Database session
+            
+        Returns:
+            List of Segment objects ordered by name
+        """
+        return db.query(Segment).order_by(Segment.segment_name).all()
+
+    @staticmethod
+    def get_sub_segments_by_segment(db: Session, segment_id: int) -> List[SubSegment]:
+        """
+        Get all sub-segments for a specific segment ordered alphabetically.
+        
+        Args:
+            db: Database session
+            segment_id: ID of the segment
+            
+        Returns:
+            List of SubSegment objects for the segment ordered by name
+            
+        Raises:
+            ValueError: If segment_id is invalid
+        """
+        segment = db.query(Segment).filter(Segment.segment_id == segment_id).first()
+        if not segment:
+            raise ValueError(f"Segment with ID {segment_id} not found")
+        
+        return (
+            db.query(SubSegment)
+            .filter(SubSegment.segment_id == segment_id)
+            .order_by(SubSegment.sub_segment_name)
+            .all()
+        )
 
     @staticmethod
     def get_sub_segments(db: Session) -> List[SubSegment]:

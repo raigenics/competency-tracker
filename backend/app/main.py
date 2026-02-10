@@ -2,6 +2,7 @@
 FastAPI application for the Competency Tracking System.
 """
 import logging
+import os
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,6 +10,10 @@ from dotenv import load_dotenv
 
 # Load environment variables from .env file
 load_dotenv()
+
+# Determine environment (default to development for local runs)
+FASTAPI_ENV = os.getenv("FASTAPI_ENV", "development").lower()
+IS_DEV = FASTAPI_ENV in ("development", "dev", "local")
 
 from app.api.routes.import_excel import router as import_router
 from app.api.routes.employees import router as employees_router
@@ -19,6 +24,7 @@ from app.api.routes.dashboard import router as dashboard_router
 from app.api.routes.capability_finder import router as capability_finder_router
 from app.api.routes.admin_master_import import router as admin_master_import_router
 from app.api.routes.rbac_admin import router as rbac_admin_router
+from app.api.routes.roles import router as roles_router
 
 # Configure logging
 logging.basicConfig(
@@ -37,17 +43,36 @@ app = FastAPI(
 )
 
 # Add CORS middleware
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",  # local Vite dev
-        "http://localhost:3000",
-        "https://thankful-sand-04d55ff00.6.azurestaticapps.net",  # your SWA
-    ],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# FIX: Use regex in development to allow ANY localhost port (3000, 3001, 3002, etc.)
+# This prevents recurring CORS issues when frontend dev server port changes.
+# In production, use exact origins only.
+if IS_DEV:
+    # Development: allow any localhost/127.0.0.1 port via regex
+    # Matches: http://localhost:3000, http://127.0.0.1:5173, etc.
+    cors_config = {
+        "allow_origin_regex": r"^https?://(localhost|127\.0\.0\.1)(:\d+)?$",
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
+    logger.info(f"CORS configured for DEVELOPMENT with regex: {cors_config['allow_origin_regex']}")
+else:
+    # Production: strict origins only (from env or defaults)
+    prod_origins = os.getenv("CORS_ORIGINS", "").split(",")
+    prod_origins = [o.strip() for o in prod_origins if o.strip()]
+    if not prod_origins:
+        prod_origins = [
+            "https://thankful-sand-04d55ff00.6.azurestaticapps.net",  # Azure SWA
+        ]
+    cors_config = {
+        "allow_origins": prod_origins,
+        "allow_credentials": True,
+        "allow_methods": ["*"],
+        "allow_headers": ["*"],
+    }
+    logger.info(f"CORS configured for PRODUCTION with origins: {prod_origins}")
+
+app.add_middleware(CORSMiddleware, **cors_config)
 
 # Include routers under /api prefix
 app.include_router(import_router, prefix="/api")
@@ -59,6 +84,7 @@ app.include_router(dashboard_router, prefix="/api")
 app.include_router(capability_finder_router, prefix="/api")
 app.include_router(admin_master_import_router, prefix="/api")
 app.include_router(rbac_admin_router, prefix="/api")
+app.include_router(roles_router, prefix="/api")
 
 @app.on_event("startup")
 async def startup_event():

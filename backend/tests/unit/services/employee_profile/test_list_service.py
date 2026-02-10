@@ -2,24 +2,28 @@
 Unit tests for employee_profile/list_service.py
 
 Tests paginated employee listing with filters.
+
+PERFORMANCE FIX TESTS (2026-02-10):
+- Verifies batch skills count query is called once (not N times)
+- Updated tests for new _build_employee_responses signature (takes dict not db)
 """
 import pytest
 from unittest.mock import Mock, MagicMock, patch
 from app.services.employee_profile import list_service
-from app.schemas.employee import EmployeeResponse, OrganizationInfo
+from app.schemas.employee import EmployeeResponse, EmployeeListResponse, OrganizationInfo
 
 
 class TestGetEmployeesPaginated:
     """Test the main public function get_employees_paginated()."""
     
-    def test_returns_employees_and_total_count(self, mock_db, mock_pagination, mock_employee):
-        """Should return list of employees and total count."""
+    def test_returns_employees_list_response(self, mock_db, mock_pagination, mock_employee):
+        """Should return EmployeeListResponse with employees and pagination info."""
         # Arrange
         pagination = mock_pagination(page=1, size=10)
         employees = [mock_employee(1, "Z1001", "Alice"), mock_employee(2, "Z1002", "Bob")]
         
         with patch.object(list_service, '_build_employee_query') as mock_build_query, \
-             patch.object(list_service, '_get_skills_count', return_value=5):
+             patch.object(list_service, '_get_skills_counts_batch', return_value={1: 5, 2: 3}):
             mock_query = MagicMock()
             mock_build_query.return_value = mock_query
             mock_query.count.return_value = 2
@@ -28,19 +32,48 @@ class TestGetEmployeesPaginated:
             mock_query.all.return_value = employees
             
             # Act
-            result, total = list_service.get_employees_paginated(mock_db, pagination)
+            result = list_service.get_employees_paginated(mock_db, pagination)
             
             # Assert
-            assert len(result) == 2
-            assert total == 2
-            assert all(isinstance(emp, EmployeeResponse) for emp in result)
+            assert isinstance(result, EmployeeListResponse)
+            assert len(result.items) == 2
+            assert result.total == 2
+            assert all(isinstance(emp, EmployeeResponse) for emp in result.items)
+    
+    def test_calls_batch_skills_count_once_not_per_employee(self, mock_db, mock_pagination, mock_employee):
+        """
+        PERFORMANCE FIX: Should call _get_skills_counts_batch once, not N times.
+        This prevents N+1 query problem that caused slow page loads.
+        """
+        # Arrange
+        pagination = mock_pagination(page=1, size=10)
+        employees = [mock_employee(i, f"Z100{i}", f"User{i}") for i in range(1, 10)]
+        
+        with patch.object(list_service, '_build_employee_query') as mock_build_query, \
+             patch.object(list_service, '_get_skills_counts_batch') as mock_batch_count:
+            mock_query = MagicMock()
+            mock_build_query.return_value = mock_query
+            mock_query.count.return_value = 9
+            mock_query.offset.return_value = mock_query
+            mock_query.limit.return_value = mock_query
+            mock_query.all.return_value = employees
+            mock_batch_count.return_value = {i: i for i in range(1, 10)}
+            
+            # Act
+            list_service.get_employees_paginated(mock_db, pagination)
+            
+            # Assert - CRITICAL: batch count called ONCE, not 9 times
+            assert mock_batch_count.call_count == 1
+            # Verify it was called with all employee IDs
+            mock_batch_count.assert_called_once_with(mock_db, [1, 2, 3, 4, 5, 6, 7, 8, 9])
     
     def test_applies_all_filters(self, mock_db, mock_pagination):
         """Should pass all filter parameters to query builder."""
         # Arrange
         pagination = mock_pagination(page=1, size=10)
         
-        with patch.object(list_service, '_build_employee_query') as mock_build_query:
+        with patch.object(list_service, '_build_employee_query') as mock_build_query, \
+             patch.object(list_service, '_get_skills_counts_batch', return_value={}):
             mock_query = MagicMock()
             mock_build_query.return_value = mock_query
             mock_query.count.return_value = 0
@@ -56,7 +89,7 @@ class TestGetEmployeesPaginated:
             
             # Assert
             mock_build_query.assert_called_once_with(
-                mock_db, 1, 2, 3, 4, "test"
+                mock_db, 1, 2, 3, 4, "test", None
             )
     
     def test_applies_pagination_correctly(self, mock_db, mock_pagination):
@@ -64,7 +97,8 @@ class TestGetEmployeesPaginated:
         # Arrange
         pagination = mock_pagination(page=3, size=20)
         
-        with patch.object(list_service, '_build_employee_query') as mock_build_query:
+        with patch.object(list_service, '_build_employee_query') as mock_build_query, \
+             patch.object(list_service, '_get_skills_counts_batch', return_value={}):
             mock_query = MagicMock()
             mock_build_query.return_value = mock_query
             mock_query.count.return_value = 100
@@ -84,7 +118,8 @@ class TestGetEmployeesPaginated:
         # Arrange
         pagination = mock_pagination(page=1, size=10)
         
-        with patch.object(list_service, '_build_employee_query') as mock_build_query:
+        with patch.object(list_service, '_build_employee_query') as mock_build_query, \
+             patch.object(list_service, '_get_skills_counts_batch', return_value={}):
             mock_query = MagicMock()
             mock_build_query.return_value = mock_query
             mock_query.count.return_value = 0
@@ -93,11 +128,11 @@ class TestGetEmployeesPaginated:
             mock_query.all.return_value = []
             
             # Act
-            result, total = list_service.get_employees_paginated(mock_db, pagination)
+            result = list_service.get_employees_paginated(mock_db, pagination)
             
             # Assert
-            assert result == []
-            assert total == 0
+            assert result.items == []
+            assert result.total == 0
 
 
 class TestBuildEmployeeQuery:
@@ -209,47 +244,62 @@ class TestBuildEmployeeQuery:
         assert mock_query.filter.call_count == 5  # All 5 filters applied
 
 
-class TestGetSkillsCount:
-    """Test the _get_skills_count() function."""
+class TestGetSkillsCountsBatch:
+    """Test the _get_skills_counts_batch() function - PERFORMANCE FIX."""
     
-    def test_returns_skills_count_for_employee(self, mock_db):
-        """Should return count of skills for given employee."""
-        # Arrange
-        mock_db.query.return_value.filter.return_value.scalar.return_value = 12
+    def test_returns_skills_counts_for_multiple_employees(self, mock_db):
+        """Should return dict mapping employee_id -> count for all employees."""
+        # Arrange - mock GROUP BY result
+        mock_results = [
+            Mock(employee_id=1, count=5),
+            Mock(employee_id=2, count=3),
+            Mock(employee_id=3, count=0)
+        ]
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.group_by.return_value = mock_query
+        mock_query.all.return_value = mock_results
         
         # Act
-        result = list_service._get_skills_count(mock_db, employee_id=1)
+        result = list_service._get_skills_counts_batch(mock_db, [1, 2, 3])
         
         # Assert
-        assert result == 12
+        assert result == {1: 5, 2: 3, 3: 0}
     
-    def test_returns_zero_when_no_skills(self, mock_db):
-        """Should return 0 when employee has no skills."""
-        # Arrange
-        mock_db.query.return_value.filter.return_value.scalar.return_value = 0
+    def test_returns_empty_dict_for_empty_input(self, mock_db):
+        """Should return empty dict when given empty employee list."""
+        # Act
+        result = list_service._get_skills_counts_batch(mock_db, [])
+        
+        # Assert
+        assert result == {}
+        # DB should not be queried
+        mock_db.query.assert_not_called()
+    
+    def test_missing_employees_default_to_zero(self, mock_db):
+        """Employees not in result should default to 0 when accessed via .get()."""
+        # Arrange - mock result with only some employees
+        mock_results = [Mock(employee_id=1, count=5)]
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.group_by.return_value = mock_query
+        mock_query.all.return_value = mock_results
         
         # Act
-        result = list_service._get_skills_count(mock_db, employee_id=1)
+        result = list_service._get_skills_counts_batch(mock_db, [1, 2, 3])
         
-        # Assert
-        assert result == 0
-    
-    def test_returns_zero_when_scalar_returns_none(self, mock_db):
-        """Should return 0 when scalar() returns None."""
-        # Arrange
-        mock_db.query.return_value.filter.return_value.scalar.return_value = None
-        
-        # Act
-        result = list_service._get_skills_count(mock_db, employee_id=1)
-        
-        # Assert
-        assert result == 0
+        # Assert - employee 2 and 3 not in result, so .get() should return default
+        assert result.get(1, 0) == 5
+        assert result.get(2, 0) == 0
+        assert result.get(3, 0) == 0
 
 
 class TestBuildEmployeeResponses:
     """Test the _build_employee_responses() function."""
     
-    def test_builds_response_list_from_employees(self, mock_db, mock_employee, mock_organization):
+    def test_builds_response_list_from_employees(self, mock_employee, mock_organization):
         """Should transform Employee objects to EmployeeResponse list."""
         # Arrange
         role = mock_organization("role", 1, "Developer")
@@ -257,40 +307,56 @@ class TestBuildEmployeeResponses:
             mock_employee(1, "Z1001", "Alice", role=role),
             mock_employee(2, "Z1002", "Bob", role=role)
         ]
+        skills_counts = {1: 5, 2: 3}
         
-        with patch.object(list_service, '_get_skills_count', return_value=5):
-            # Act
-            result = list_service._build_employee_responses(mock_db, employees)
-            
-            # Assert
-            assert len(result) == 2
-            assert all(isinstance(r, EmployeeResponse) for r in result)
-            assert result[0].employee_id == 1
-            assert result[0].zid == "Z1001"
-            assert result[0].full_name == "Alice"
-            assert result[0].skills_count == 5
+        # Act - now takes skills_counts dict instead of db
+        result = list_service._build_employee_responses(employees, skills_counts)
+        
+        # Assert
+        assert len(result) == 2
+        assert all(isinstance(r, EmployeeResponse) for r in result)
+        assert result[0].employee_id == 1
+        assert result[0].zid == "Z1001"
+        assert result[0].full_name == "Alice"
+        assert result[0].skills_count == 5
+        assert result[1].skills_count == 3
     
-    def test_queries_skills_count_for_each_employee(self, mock_db, mock_employee):
-        """Should call _get_skills_count for each employee."""
+    def test_uses_prefetched_skills_counts(self, mock_employee):
+        """Should use skills_counts dict instead of making DB queries."""
         # Arrange
         employees = [mock_employee(1), mock_employee(2), mock_employee(3)]
+        skills_counts = {1: 10, 2: 20, 3: 30}
         
-        with patch.object(list_service, '_get_skills_count', return_value=0) as mock_count:
-            # Act
-            list_service._build_employee_responses(mock_db, employees)
-            
-            # Assert
-            assert mock_count.call_count == 3
+        # Act - no db passed, should use dict
+        result = list_service._build_employee_responses(employees, skills_counts)
+        
+        # Assert
+        assert result[0].skills_count == 10
+        assert result[1].skills_count == 20
+        assert result[2].skills_count == 30
     
-    def test_returns_empty_list_for_empty_input(self, mock_db):
+    def test_defaults_to_zero_for_missing_skills_count(self, mock_employee):
+        """Should default to 0 skills for employees not in counts dict."""
+        # Arrange
+        employees = [mock_employee(1), mock_employee(2)]
+        skills_counts = {1: 5}  # employee 2 missing
+        
+        # Act
+        result = list_service._build_employee_responses(employees, skills_counts)
+        
+        # Assert
+        assert result[0].skills_count == 5
+        assert result[1].skills_count == 0  # Default to 0
+    
+    def test_returns_empty_list_for_empty_input(self):
         """Should return empty list when given empty employee list."""
         # Act
-        result = list_service._build_employee_responses(mock_db, [])
+        result = list_service._build_employee_responses([], {})
         
         # Assert
         assert result == []
     
-    def test_includes_organization_info(self, mock_db, mock_employee, mock_organization):
+    def test_includes_organization_info(self, mock_employee, mock_organization):
         """Should include organization information in response."""
         # Arrange
         sub_seg = mock_organization("sub_segment", 1, "Engineering")
@@ -300,14 +366,14 @@ class TestBuildEmployeeResponses:
         
         employees = [mock_employee(1, "Z1001", "Alice", sub_segment=sub_seg, 
                                    project=proj, team=team, role=role)]
+        skills_counts = {1: 0}
         
-        with patch.object(list_service, '_get_skills_count', return_value=0):
-            # Act
-            result = list_service._build_employee_responses(mock_db, employees)
-            
-            # Assert
-            assert result[0].organization is not None
-            assert isinstance(result[0].organization, OrganizationInfo)
+        # Act
+        result = list_service._build_employee_responses(employees, skills_counts)
+        
+        # Assert
+        assert result[0].organization is not None
+        assert isinstance(result[0].organization, OrganizationInfo)
 
 
 class TestBuildOrganizationInfo:

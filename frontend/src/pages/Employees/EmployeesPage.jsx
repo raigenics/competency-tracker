@@ -1,11 +1,56 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader.jsx';
+import AddEmployeeDrawer from '../../components/AddEmployeeDrawer.jsx';
 import { employeeApi } from '../../services/api/employeeApi.js';
 import { dropdownApi } from '../../services/api/dropdownApi.js';
 
+/**
+ * ============================================================================
+ * DIAGNOSTIC LOGGING - Employees Page Timing
+ * ============================================================================
+ * 
+ * To enable timing logs, run in browser console:
+ *   localStorage.setItem("DEBUG_EMPLOYEES", "1");
+ *   location.reload();
+ * 
+ * To disable:
+ *   localStorage.removeItem("DEBUG_EMPLOYEES");
+ *   location.reload();
+ * 
+ * Log format:
+ *   [EMP] page-mount
+ *   [EMP] fetch-start page=1 size=10
+ *   [EMP] fetch-end ms=483 rows=10 total=150
+ *   [EMP] render-data rows=10 msSinceMount=520
+ *   [EMP] cache-hit page=1
+ * ============================================================================
+ */
+const DEBUG_EMPLOYEES = typeof window !== 'undefined' 
+  && import.meta.env.DEV 
+  && localStorage.getItem("DEBUG_EMPLOYEES") === "1";
+
 const EmployeesPage = () => {
   const navigate = useNavigate();
+  
+  // Diagnostic timing refs
+  const mountStartRef = useRef(null);
+  const firstRenderDoneRef = useRef(false);
+  const fetchStartRef = useRef(null);
+  
+  /**
+   * PERFORMANCE FIX (2026-02-10):
+   * Root cause: React StrictMode runs effects twice in dev mode.
+   * This caused duplicate API calls to /employees (2x fetch = 2x network latency).
+   * 
+   * Fix: Use AbortController to cancel inflight request when effect re-runs.
+   * - First effect run starts fetch with controller A
+   * - StrictMode re-runs effect, aborting controller A and starting controller B
+   * - Only controller B's response is used
+   * - Also prevents state updates after unmount (no memory leak warnings)
+   */
+  const abortControllerRef = useRef(null);
+  
     // State for search
   const [searchTerm, setSearchTerm] = useState('');
   const [searchQuery, setSearchQuery] = useState(''); // Actual search query to send to API
@@ -45,20 +90,60 @@ const EmployeesPage = () => {
   const pageCacheRef = useRef({});
   const filterKeyRef = useRef('');
   
+  // Refresh trigger - increment to force re-fetch after add/edit
+  const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // Add Employee Drawer state
+  const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
+  
   // Refs
   const searchDebounceRef = useRef(null);
   const searchInputRef = useRef(null);
   const suggestionsRef = useRef(null);
   
-  // Load sub-segments on mount
+  // Load sub-segments on mount only (employees loaded by dependency effect)
+  // FIX: Removed duplicate loadEmployees() call here to prevent double-fetch on mount.
+  // The second useEffect with [currentPage, filters, searchQuery] handles initial + subsequent loads.
   useEffect(() => {
+    // Diagnostic: record mount time
+    mountStartRef.current = performance.now();
+    if (DEBUG_EMPLOYEES) {
+      console.groupCollapsed('[EMP] page-mount');
+      console.log('timestamp:', new Date().toISOString());
+      console.log('currentPage:', currentPage, 'filters:', filters, 'searchQuery:', searchQuery);
+      console.groupEnd();
+    }
     loadSubSegments();
-    loadEmployees(); // Initial load
   }, []);
-    // Load employees when page, filters, or search query change
+  
+  // Diagnostic: track time-to-first-row-render
   useEffect(() => {
-    loadEmployees();
-  }, [currentPage, filters, searchQuery]);
+    if (employees.length > 0 && !firstRenderDoneRef.current && mountStartRef.current) {
+      firstRenderDoneRef.current = true;
+      const msSinceMount = performance.now() - mountStartRef.current;
+      if (DEBUG_EMPLOYEES) {
+        console.log(`[EMP] render-data rows=${employees.length} msSinceMount=${msSinceMount.toFixed(1)}`);
+      }
+    }
+  }, [employees]);
+  
+  // Load employees when page, filters, or search query change
+  useEffect(() => {
+    // Abort any inflight request from previous render (StrictMode fix)
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    
+    loadEmployees(abortControllerRef.current.signal);
+    
+    // Cleanup: abort on unmount or dependency change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [currentPage, filters, searchQuery, refreshTrigger]);
   
   // Debounced autocomplete search
   useEffect(() => {
@@ -156,8 +241,10 @@ const EmployeesPage = () => {
     }
   };
   // Load employees with current filters and pagination (with page caching)
-  const loadEmployees = async () => {
+  const loadEmployees = async (signal) => {
     setLoading(true);
+    const fetchStart = performance.now();
+    
     try {
       const params = {
         page: currentPage,
@@ -167,6 +254,10 @@ const EmployeesPage = () => {
         ...(filters.team && { team_id: filters.team }),
         ...(searchQuery && { search: searchQuery })
       };
+      
+      if (DEBUG_EMPLOYEES) {
+        console.log(`[EMP] fetch-start page=${currentPage} size=${pageSize} filters=${JSON.stringify(filters)} search="${searchQuery || ''}"`);
+      }
       
       // Create a unique cache key based on filters AND search query
       const newFilterKey = `${filters.subSegment || 'all'}_${filters.project || 'all'}_${filters.team || 'all'}_${searchQuery || 'all'}`;
@@ -180,6 +271,9 @@ const EmployeesPage = () => {
         if (currentPage !== 1) {
           setCurrentPage(1);
           setLoading(false);
+          if (DEBUG_EMPLOYEES) {
+            console.log(`[EMP] fetch-redirect resetting to page 1 due to filter change`);
+          }
           return;
         }
       }
@@ -192,12 +286,20 @@ const EmployeesPage = () => {
         setTotalEmployees(cachedData.total);
         setTotalPages(Math.ceil(cachedData.total / pageSize));
         setLoading(false);
+        if (DEBUG_EMPLOYEES) {
+          console.log(`[EMP] cache-hit page=${currentPage} rows=${cachedData.items.length}`);
+        }
         return;
       }
         // Fetch from API (lazy load only current page)
-      const response = await employeeApi.getEmployees(params);
+      const response = await employeeApi.getEmployees(params, { signal });
+      const fetchEnd = performance.now();
       const rawItems = response.items || [];
       const total = response.total || 0;
+      
+      if (DEBUG_EMPLOYEES) {
+        console.log(`[EMP] fetch-end ms=${(fetchEnd - fetchStart).toFixed(1)} rows=${rawItems.length} total=${total}`);
+      }
       
       // Transform backend response to match table expectations
       const items = rawItems.map(emp => ({
@@ -224,15 +326,41 @@ const EmployeesPage = () => {
       setEmployees(items);
       setTotalEmployees(total);
       setTotalPages(Math.ceil(total / pageSize));
+      setLoading(false);
     } catch (error) {
+      // Silently ignore aborted requests (expected during StrictMode cleanup)
+      if (error.name === 'AbortError') {
+        if (DEBUG_EMPLOYEES) {
+          const fetchEnd = performance.now();
+          console.log(`[EMP] fetch-abort ms=${(fetchEnd - fetchStart).toFixed(1)}`);
+        }
+        return; // Don't update state or setLoading for aborted requests
+      }
+      if (DEBUG_EMPLOYEES) {
+        const fetchEnd = performance.now();
+        console.log(`[EMP] fetch-fail ms=${(fetchEnd - fetchStart).toFixed(1)} error="${error.message}"`);
+      }
       console.error('Failed to load employees:', error);
       setEmployees([]);
       setTotalEmployees(0);
       setTotalPages(0);
-    } finally {
       setLoading(false);
     }
   };
+  
+  /**
+   * Callback for when a new employee is saved from the Add Employee drawer.
+   * Clears the cache and triggers a refresh of the employees list.
+   * Keeps drawer open so user can add another employee.
+   */
+  const handleEmployeeSaved = (newEmployee) => {
+    // Clear cache to force fresh data fetch
+    pageCacheRef.current = {};
+    filterKeyRef.current = '';
+    // Trigger refresh by incrementing the counter
+    setRefreshTrigger(prev => prev + 1);
+  };
+  
     // Handle sub-segment change
   const handleSubSegmentChange = (subSegmentId) => {
     setFilters({
@@ -380,11 +508,24 @@ const EmployeesPage = () => {
       <PageHeader 
         title="Employees"
         actions={
-          <button className="px-5 py-2.5 bg-[#667eea] text-white rounded-md text-sm font-medium hover:bg-[#5568d3] transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#667eea]/30">
+          <button 
+            className="px-5 py-2.5 bg-[#667eea] text-white rounded-md text-sm font-medium hover:bg-[#5568d3] transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#667eea]/30"
+            onClick={() => setIsAddEmployeeOpen(true)}
+          >
             + Add Employee
           </button>
         }
       />
+      
+      {/* Add Employee Drawer - Only mount when open to avoid loading roles/skills on parent page */}
+      {isAddEmployeeOpen && (
+        <AddEmployeeDrawer 
+          isOpen={isAddEmployeeOpen}
+          onClose={() => setIsAddEmployeeOpen(false)}
+          onSave={handleEmployeeSaved}
+          mode="add"
+        />
+      )}
 
       <div className="px-8 py-8">
         <div className="max-w-screen-2xl mx-auto">
