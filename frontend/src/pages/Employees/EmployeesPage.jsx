@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader.jsx';
 import AddEmployeeDrawer from '../../components/AddEmployeeDrawer.jsx';
 import { employeeApi } from '../../services/api/employeeApi.js';
 import { dropdownApi } from '../../services/api/dropdownApi.js';
+import { canShowAddEmployee, getRowActions, getCurrentRole } from '../../rbac/permissions.js';
+import { cacheEmployees, getCachedEmployee } from '../../utils/cache.js';
 
 /**
  * ============================================================================
@@ -93,8 +95,11 @@ const EmployeesPage = () => {
   // Refresh trigger - increment to force re-fetch after add/edit
   const [refreshTrigger, setRefreshTrigger] = useState(0);
   
-  // Add Employee Drawer state
+  // Add/Edit Employee Drawer state
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
+  const [drawerMode, setDrawerMode] = useState('add'); // 'add' or 'edit'
+  const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [editLoading, setEditLoading] = useState(false);
   
   // Refs
   const searchDebounceRef = useRef(null);
@@ -313,8 +318,19 @@ const EmployeesPage = () => {
         project: emp.organization?.project || '—',
         team: emp.organization?.team || '—',
         role: emp.role?.role_name || '—',
-        skills_count: emp.skills_count || 0
+        role_id: emp.role?.role_id || null,
+        role_name: emp.role?.role_name || '',
+        skills_count: emp.skills_count || 0,
+        start_date_of_working: emp.start_date_of_working || null,
+        // Org IDs from backend (for instant Edit prefill)
+        segment_id: emp.organization?.segment_id || null,
+        sub_segment_id: emp.organization?.sub_segment_id || null,
+        project_id: emp.organization?.project_id || null,
+        team_id: emp.organization?.team_id || null
       }));
+      
+      // Cache employees for instant Edit prefill (stale-while-revalidate pattern)
+      cacheEmployees(items);
       
       // Cache the result
       pageCacheRef.current[cacheKey] = {
@@ -353,14 +369,245 @@ const EmployeesPage = () => {
    * Clears the cache and triggers a refresh of the employees list.
    * Keeps drawer open so user can add another employee.
    */
-  const handleEmployeeSaved = (newEmployee) => {
+  const handleEmployeeSaved = (savedEmployee) => {
     // Clear cache to force fresh data fetch
     pageCacheRef.current = {};
     filterKeyRef.current = '';
     // Trigger refresh by incrementing the counter
     setRefreshTrigger(prev => prev + 1);
+    
+    // Close drawer and reset mode after edit
+    if (drawerMode === 'edit') {
+      setIsAddEmployeeOpen(false);
+      setDrawerMode('add');
+      setSelectedEmployee(null);
+    }
   };
-  
+
+  /**
+   * Transform backend skill format to frontend format.
+   * Backend uses snake_case, frontend uses camelCase.
+   * Backend proficiency is object with level_name, frontend expects uppercase string.
+   */
+  const transformSkillForFrontend = (backendSkill) => {
+    // Parse last_used into month and year (format: "YYYY-MM-DD" or "YYYY-MM")
+    let lastUsedMonth = '';
+    let lastUsedYear = '';
+    if (backendSkill.last_used) {
+      const dateParts = backendSkill.last_used.split('-');
+      if (dateParts.length >= 2) {
+        lastUsedYear = dateParts[0];
+        lastUsedMonth = dateParts[1];
+      }
+    }
+
+    // Convert proficiency level_name to uppercase (e.g., "Expert" → "EXPERT")
+    let proficiency = '';
+    if (backendSkill.proficiency?.level_name) {
+      proficiency = backendSkill.proficiency.level_name
+        .toUpperCase()
+        .replace(/\s+/g, '_'); // "Advanced Beginner" → "ADVANCED_BEGINNER"
+    }
+
+    return {
+      id: backendSkill.emp_skill_id || Date.now() + Math.random(),
+      skill_id: backendSkill.skill_id,
+      skillName: backendSkill.skill_name || '',
+      proficiency: proficiency,
+      yearsExperience: backendSkill.years_experience ?? '',
+      lastUsedMonth: lastUsedMonth,
+      lastUsedYear: lastUsedYear,
+      startedFrom: backendSkill.started_learning_from || '',
+      certification: backendSkill.certification || ''
+    };
+  };
+
+  /**
+   * Handle Edit button click - opens drawer in edit mode with employee data.
+   * 
+   * OPTIMIZATION: Opens drawer IMMEDIATELY, then fetches bootstrap in background.
+   * Falls back to sequential calls if bootstrap fails.
+   */
+  const handleEditEmployee = (employeeId) => {
+    // STEP A: Open drawer immediately with prefill from cache (or minimal object)
+    const cachedRow = getCachedEmployee(employeeId);
+    const prefill = cachedRow ? {
+      employee_id: cachedRow.employee_id || employeeId,
+      zid: cachedRow.zid || '',
+      full_name: cachedRow.full_name || cachedRow.name || '',
+      email: cachedRow.email || '',
+      role_id: cachedRow.role_id || null,
+      role_name: cachedRow.role_name || cachedRow.role || '',
+      start_date_of_working: cachedRow.start_date_of_working || null,
+      organization: {
+        sub_segment: cachedRow.subSegment || cachedRow.sub_segment || '',
+        project: cachedRow.project || '',
+        team: cachedRow.team || ''
+      },
+      segment_id: cachedRow.segment_id ? Number(cachedRow.segment_id) : null,
+      sub_segment_id: cachedRow.sub_segment_id ? Number(cachedRow.sub_segment_id) : null,
+      project_id: cachedRow.project_id ? Number(cachedRow.project_id) : null,
+      team_id: cachedRow.team_id ? Number(cachedRow.team_id) : null,
+      skills: null,
+      allocation: cachedRow.allocation ?? '',
+      _bootstrapLoaded: false,
+      _awaitingBootstrap: true
+    } : {
+      employee_id: employeeId,
+      zid: '',
+      full_name: '',
+      email: '',
+      role_id: null,
+      role_name: '',
+      start_date_of_working: null,
+      organization: { sub_segment: '', project: '', team: '' },
+      segment_id: null,
+      sub_segment_id: null,
+      project_id: null,
+      team_id: null,
+      skills: null,
+      allocation: '',
+      _bootstrapLoaded: false,
+      _awaitingBootstrap: true
+    };
+    
+    setDrawerMode('edit');
+    setSelectedEmployee(prefill);
+    setIsAddEmployeeOpen(true);
+    
+    console.log('[EDIT] drawer opened (prefill)', {
+      employeeId,
+      segment_id: prefill.segment_id,
+      sub_segment_id: prefill.sub_segment_id,
+      project_id: prefill.project_id,
+      team_id: prefill.team_id
+    });
+    
+    // STEP B: Fetch bootstrap in background (non-blocking)
+    employeeApi.getEmployeeEditBootstrap(employeeId)
+      .then(bootstrap => {
+        try {
+          // Force numeric IDs (source of truth from bootstrap)
+          const segment_id = Number(bootstrap.employee.segment_id) || null;
+          const sub_segment_id = Number(bootstrap.employee.sub_segment_id) || null;
+          const project_id = Number(bootstrap.employee.project_id) || null;
+          const team_id = Number(bootstrap.employee.team_id) || null;
+          const role_id = Number(bootstrap.employee.role_id) || null;
+          
+          console.groupCollapsed('[EDIT][BOOTSTRAP]');
+          console.log('ids', { segment_id, sub_segment_id, project_id, team_id, role_id });
+          console.log('options lens', {
+            sub_segments: bootstrap.options?.sub_segments?.length,
+            projects: bootstrap.options?.projects?.length,
+            teams: bootstrap.options?.teams?.length
+          });
+          console.groupEnd();
+          
+          // Transform skills from bootstrap format to frontend format
+          const transformedSkills = (bootstrap.skills || []).map(skill => ({
+            emp_skill_id: skill.emp_skill_id,
+            skillId: skill.skill_id,
+            skillName: skill.skill_name,
+            proficiency: skill.proficiency_level_name || '',
+            proficiencyLevelId: skill.proficiency_level_id,
+            yearsOfExperience: '',
+            lastUsedMonth: '',
+            lastUsedYear: '',
+            startedFrom: '',
+            certification: ''
+          }));
+          
+          // Resolve role_name from options
+          let role_name = '';
+          if (role_id && bootstrap.options?.roles) {
+            const role = bootstrap.options.roles.find(r => r.role_id === role_id);
+            if (role) role_name = role.role_name;
+          }
+          
+          // Merge bootstrap data into selectedEmployee
+          const completeEmployee = {
+            ...prefill,
+            employee_id: bootstrap.employee.employee_id,
+            zid: bootstrap.employee.zid,
+            full_name: bootstrap.employee.full_name,
+            email: bootstrap.employee.email,
+            start_date_of_working: bootstrap.employee.start_date_of_working,
+            organization: { sub_segment: '', project: '', team: '' },
+            segment_id,
+            sub_segment_id,
+            project_id,
+            team_id,
+            role_id,
+            role_name,
+            skills: transformedSkills,
+            allocation: bootstrap.employee.allocation ?? prefill.allocation ?? '',
+            _bootstrapLoaded: true,
+            _awaitingBootstrap: false,
+            _bootstrapOptions: bootstrap.options,
+            _bootstrapSkills: bootstrap.skills,
+            _bootstrapMeta: bootstrap.meta
+          };
+          
+          console.log('[EDIT][BOOTSTRAP] Setting completeEmployee', { employee_id: completeEmployee.employee_id });
+          setSelectedEmployee(completeEmployee);
+        } catch (transformErr) {
+          console.error('[EDIT][BOOTSTRAP] Transform error:', transformErr);
+          throw transformErr; // Re-throw to trigger fallback
+        }
+      })
+      .catch(err => {
+        // STEP C: Fallback to old getEmployee (also non-blocking)
+        console.warn('[EDIT] bootstrap failed, fallback to old flow', err);
+        
+        employeeApi.getEmployee(employeeId)
+          .then(employeeData => {
+            const transformedSkills = (employeeData.skills || []).map(transformSkillForFrontend);
+            
+            const fallbackEmployee = {
+              employee_id: employeeData.employee_id,
+              zid: employeeData.zid,
+              full_name: employeeData.full_name,
+              email: employeeData.email,
+              role_id: employeeData.role?.role_id || null,
+              role_name: employeeData.role?.role_name || '',
+              start_date_of_working: employeeData.start_date_of_working,
+              organization: employeeData.organization,
+              segment_id: employeeData.segment_id ? Number(employeeData.segment_id) : null,
+              sub_segment_id: employeeData.sub_segment_id ? Number(employeeData.sub_segment_id) : null,
+              project_id: employeeData.project_id ? Number(employeeData.project_id) : null,
+              team_id: employeeData.team_id ? Number(employeeData.team_id) : null,
+              skills: transformedSkills,
+              allocation: employeeData.allocation ?? '',
+              _bootstrapLoaded: false,
+              _awaitingBootstrap: false
+            };
+            
+            setSelectedEmployee(fallbackEmployee);
+          })
+          .catch(fallbackErr => {
+            console.error('[EDIT] fallback getEmployee also failed:', fallbackErr);
+          });
+      });
+  };
+
+  /**
+   * Handle Add Employee button click - opens drawer in add mode.
+   */
+  const handleAddEmployee = () => {
+    setDrawerMode('add');
+    setSelectedEmployee(null);
+    setIsAddEmployeeOpen(true);
+  };
+
+  /**
+   * Handle drawer close - resets mode and selected employee.
+   */
+  const handleDrawerClose = () => {
+    setIsAddEmployeeOpen(false);
+    setDrawerMode('add');
+    setSelectedEmployee(null);
+  };
+
     // Handle sub-segment change
   const handleSubSegmentChange = (subSegmentId) => {
     setFilters({
@@ -503,27 +750,34 @@ const EmployeesPage = () => {
     }
     
     return pages;
-  };  return (
+  };  // RBAC: Determine if Add Employee button should be visible
+  const showAddEmployee = useMemo(() => canShowAddEmployee(), []);
+
+  return (
     <div className="min-h-screen bg-[#f8fafc]">
       <PageHeader 
         title="Employees"
         actions={
-          <button 
-            className="px-5 py-2.5 bg-[#667eea] text-white rounded-md text-sm font-medium hover:bg-[#5568d3] transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#667eea]/30"
-            onClick={() => setIsAddEmployeeOpen(true)}
-          >
-            + Add Employee
-          </button>
+          showAddEmployee && (
+            <button 
+              className="px-5 py-2.5 bg-[#667eea] text-white rounded-md text-sm font-medium hover:bg-[#5568d3] transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#667eea]/30"
+              onClick={handleAddEmployee}
+            >
+              + Add Employee
+            </button>
+          )
         }
       />
       
-      {/* Add Employee Drawer - Only mount when open to avoid loading roles/skills on parent page */}
+      {/* Add/Edit Employee Drawer - Only mount when open to avoid loading roles/skills on parent page */}
       {isAddEmployeeOpen && (
         <AddEmployeeDrawer 
+          key={`${drawerMode}-${selectedEmployee?.employee_id || 'new'}`}
           isOpen={isAddEmployeeOpen}
-          onClose={() => setIsAddEmployeeOpen(false)}
+          onClose={handleDrawerClose}
           onSave={handleEmployeeSaved}
-          mode="add"
+          mode={drawerMode}
+          employee={selectedEmployee}
         />
       )}
 
@@ -675,31 +929,65 @@ const EmployeesPage = () => {
               </div>
             ) : (
               /* Table Rows */
-              <>                {employees.map((employee) => (
-                  <div
-                    key={employee.id}
-                    className="grid grid-cols-[1fr_2fr_1.5fr_1.5fr_1.5fr_1.5fr_1fr] px-5 py-4 border-b border-[#e2e8f0] last:border-b-0 items-center text-sm cursor-pointer hover:bg-[#f8fafc] transition-colors"
-                    onClick={() => navigate(`/profile/employee/${employee.id}`)}
-                  >
-                    <div className="font-medium">{employee.zid || `Z${String(employee.id).padStart(4, '0')}`}</div>
-                    <div>{employee.name || 'N/A'}</div>
-                    <div>{employee.subSegment || employee.sub_segment || '—'}</div>
-                    <div>{employee.project || '—'}</div>
-                    <div>{employee.team || '—'}</div>
-                    <div>{employee.role || '—'}</div>
-                    <div className="flex gap-2 justify-end">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          // TODO: Open edit drawer
-                        }}
-                        className="px-3 py-1.5 border border-[#e2e8f0] rounded bg-white text-xs hover:bg-[#f8fafc] hover:border-[#cbd5e1] transition-all"
-                      >
-                        Edit
-                      </button>
+              <>                {employees.map((employee) => {
+                  // RBAC: Get allowed actions for this row
+                  const actions = getRowActions({ employee });
+                  
+                  return (
+                    <div
+                      key={employee.id}
+                      className="grid grid-cols-[1fr_2fr_1.5fr_1.5fr_1.5fr_1.5fr_1fr] px-5 py-4 border-b border-[#e2e8f0] last:border-b-0 items-center text-sm cursor-pointer hover:bg-[#f8fafc] transition-colors"
+                      onClick={() => navigate(`/profile/employee/${employee.id}`)}
+                    >
+                      <div className="font-medium">{employee.zid || `Z${String(employee.id).padStart(4, '0')}`}</div>
+                      <div>{employee.name || 'N/A'}</div>
+                      <div>{employee.subSegment || employee.sub_segment || '—'}</div>
+                      <div>{employee.project || '—'}</div>
+                      <div>{employee.team || '—'}</div>
+                      <div>{employee.role || '—'}</div>
+                      <div className="flex gap-1.5 justify-end">
+                        {actions.canView && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              navigate(`/profile/employee/${employee.id}`);
+                            }}
+                            className="px-2.5 py-1 border border-[#e2e8f0] rounded bg-white text-xs hover:bg-[#f8fafc] hover:border-[#cbd5e1] transition-all"
+                            title="View employee details"
+                          >
+                            View
+                          </button>
+                        )}
+                        {actions.canEdit && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleEditEmployee(employee.id);
+                            }}
+                            disabled={editLoading}
+                            className="px-2.5 py-1 border border-[#e2e8f0] rounded bg-white text-xs hover:bg-[#f8fafc] hover:border-[#cbd5e1] transition-all disabled:opacity-50 disabled:cursor-wait"
+                            title="Edit employee"
+                          >
+                            Edit
+                          </button>
+                        )}
+                        {actions.canDelete && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // TODO: Show delete confirmation
+                              console.log('Delete employee:', employee.id);
+                            }}
+                            className="px-2.5 py-1 border border-red-200 rounded bg-white text-xs text-red-600 hover:bg-red-50 hover:border-red-300 transition-all"
+                            title="Delete employee"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </>
             )}
           </div>

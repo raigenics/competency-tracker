@@ -14,7 +14,8 @@ import { useEmployeeForm } from '@/hooks/useEmployeeForm.js';
 // Mock the API
 vi.mock('@/services/api/employeeApi.js', () => ({
   employeeApi: {
-    createEmployee: vi.fn()
+    createEmployee: vi.fn(),
+    updateEmployee: vi.fn()
   }
 }));
 
@@ -32,6 +33,7 @@ describe('useEmployeeForm', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     employeeApi.createEmployee.mockResolvedValue({ employee_id: 1, zid: 'Z0123456' });
+    employeeApi.updateEmployee.mockResolvedValue({ employee_id: 1, zid: 'Z0123456', message: 'Employee updated successfully' });
   });
 
   describe('1. Form State Management', () => {
@@ -481,6 +483,130 @@ describe('useEmployeeForm', () => {
       
       expect(result.current.errors.zid).toBeNull();
       expect(result.current.errors.fullName).toBeDefined(); // Still present
+    });
+  });
+
+  describe('5. Update Employee (Edit Mode)', () => {
+    it('submit with employeeId calls updateEmployee API', async () => {
+      const { result } = renderHook(() => useEmployeeForm());
+      
+      act(() => {
+        result.current.setField('zid', 'Z0123456');
+        result.current.setField('fullName', 'Updated User');
+        result.current.setField('email', 'updated@example.com');
+        result.current.setRole(2, 'Senior Developer');
+      });
+      
+      await act(async () => {
+        await result.current.submit(validOrgAssignment, 123); // Pass employeeId for update
+      });
+      
+      expect(employeeApi.updateEmployee).toHaveBeenCalledTimes(1);
+      expect(employeeApi.createEmployee).not.toHaveBeenCalled();
+    });
+
+    it('submit with employeeId sends correct payload (without zid)', async () => {
+      const { result } = renderHook(() => useEmployeeForm());
+      
+      act(() => {
+        result.current.setField('zid', 'Z0123456');
+        result.current.setField('fullName', 'Updated User');
+        result.current.setField('email', 'updated@example.com');
+        result.current.setRole(2, 'Senior Developer');
+        result.current.setField('startDate', '2024-01-15');
+      });
+      
+      await act(async () => {
+        await result.current.submit(validOrgAssignment, 123);
+      });
+      
+      const callPayload = employeeApi.updateEmployee.mock.calls[0][1];
+      expect(callPayload).toEqual({
+        full_name: 'Updated User',
+        email: 'updated@example.com',
+        team_id: 5,
+        role_id: 2,
+        start_date_of_working: '2024-01-15'
+      });
+      // ZID should NOT be in update payload
+      expect(callPayload).not.toHaveProperty('zid');
+    });
+
+    it('submit with employeeId passes employeeId as first arg', async () => {
+      const { result } = renderHook(() => useEmployeeForm());
+      
+      act(() => {
+        result.current.setField('zid', 'Z0123456');
+        result.current.setField('fullName', 'Test User');
+        result.current.setField('email', 'test@example.com');
+        result.current.setRole(1, 'Developer');
+      });
+      
+      await act(async () => {
+        await result.current.submit(validOrgAssignment, 456);
+      });
+      
+      expect(employeeApi.updateEmployee).toHaveBeenCalledWith(456, expect.any(Object));
+    });
+
+    it('submit without employeeId calls createEmployee API', async () => {
+      const { result } = renderHook(() => useEmployeeForm());
+      
+      act(() => {
+        result.current.setField('zid', 'Z0123456');
+        result.current.setField('fullName', 'New User');
+        result.current.setField('email', 'new@example.com');
+        result.current.setRole(1, 'Developer');
+      });
+      
+      await act(async () => {
+        await result.current.submit(validOrgAssignment); // No employeeId = create
+      });
+      
+      expect(employeeApi.createEmployee).toHaveBeenCalledTimes(1);
+      expect(employeeApi.updateEmployee).not.toHaveBeenCalled();
+    });
+
+    it('submit handles update API errors', async () => {
+      employeeApi.updateEmployee.mockRejectedValue({ 
+        response: { data: { detail: 'Team not found' } }
+      });
+      
+      const { result } = renderHook(() => useEmployeeForm());
+      
+      act(() => {
+        result.current.setField('zid', 'Z0123456');
+        result.current.setField('fullName', 'Test User');
+        result.current.setField('email', 'test@example.com');
+        result.current.setRole(1, 'Developer');
+      });
+      
+      await act(async () => {
+        await result.current.submit(validOrgAssignment, 123);
+      });
+      
+      expect(result.current.submitError).toContain('Team not found');
+    });
+
+    it('submit returns updated employee on success', async () => {
+      const mockResponse = { employee_id: 123, zid: 'Z0123456', full_name: 'Updated User' };
+      employeeApi.updateEmployee.mockResolvedValue(mockResponse);
+      
+      const { result } = renderHook(() => useEmployeeForm());
+      
+      act(() => {
+        result.current.setField('zid', 'Z0123456');
+        result.current.setField('fullName', 'Updated User');
+        result.current.setField('email', 'test@example.com');
+        result.current.setRole(1, 'Developer');
+      });
+      
+      let response;
+      await act(async () => {
+        response = await result.current.submit(validOrgAssignment, 123);
+      });
+      
+      expect(response).toEqual(mockResponse);
     });
   });
 });

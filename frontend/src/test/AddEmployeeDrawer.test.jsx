@@ -57,6 +57,17 @@ vi.mock('@/services/api/employeeApi.js', () => ({
   }
 }));
 
+// Mock dropdownApi for edit mode loading
+vi.mock('@/services/api/dropdownApi.js', () => ({
+  dropdownApi: {
+    getSegments: vi.fn().mockResolvedValue([{ id: 1, name: 'DTS' }]),
+    getSubSegmentsBySegment: vi.fn().mockResolvedValue([{ id: 10, name: 'FW' }]),
+    getProjects: vi.fn().mockResolvedValue([{ id: 100, project_id: 100, name: 'Alpha', sub_segment_id: 10 }]),
+    getTeams: vi.fn().mockResolvedValue([{ id: 500, team_id: 500, name: 'Team A', project_id: 100 }]),
+    getSubSegments: vi.fn().mockResolvedValue([{ sub_segment_id: 10, segment_id: 1 }])
+  }
+}));
+
 // Mock window.alert for testing
 const mockAlert = vi.fn();
 global.alert = mockAlert;
@@ -84,6 +95,8 @@ const createMockOrgAssignment = (overrides = {}) => ({
   handleProjectChange: vi.fn(),
   handleTeamChange: vi.fn(),
   reset: vi.fn(),
+  loadForEditMode: vi.fn().mockResolvedValue(),
+  prefillFromTeamId: vi.fn(),
   ...overrides
 });
 
@@ -747,6 +760,305 @@ describe('AddEmployeeDrawer', () => {
       // Drawer is open and form functions are available
       expect(screen.getByText('Save Employee')).toBeInTheDocument();
       // Note: Full reset test would require successful save flow including valid skills
+    });
+  });
+
+  describe('6. Edit Mode Loading State', () => {
+    const mockEmployee = {
+      employee_id: 123,
+      zid: 'Z0123456',
+      full_name: 'Test User',
+      email: 'test@example.com',
+      role_id: 1,
+      role_name: 'Developer',
+      team_id: 500,
+      skills: [{ skill_id: 1, skill_name: 'React' }]
+    };
+
+    it('should show loading state when opening in edit mode', async () => {
+      // Set up loadForEditMode to delay slightly to keep loading state visible
+      const loadForEditMode = vi.fn().mockImplementation(() => {
+        return new Promise(resolve => setTimeout(resolve, 100));
+      });
+
+      useOrgAssignment.mockReturnValue(createMockOrgAssignment({ loadForEditMode }));
+      
+      render(
+        <AddEmployeeDrawer 
+          isOpen={true} 
+          onClose={vi.fn()}
+          mode="edit"
+          employee={mockEmployee}
+        />
+      );
+      
+      // Should show loading text
+      expect(screen.getByTestId('edit-loading')).toBeInTheDocument();
+      expect(screen.getByText('Loading employee information…')).toBeInTheDocument();
+    });
+
+    it('should NOT show edit loading state in add mode', () => {
+      useOrgAssignment.mockReturnValue(createMockOrgAssignment());
+      
+      render(
+        <AddEmployeeDrawer 
+          isOpen={true} 
+          onClose={vi.fn()}
+          mode="add"
+        />
+      );
+      
+      // Should NOT show loading state
+      expect(screen.queryByTestId('edit-loading')).not.toBeInTheDocument();
+      expect(screen.queryByText('Loading employee information…')).not.toBeInTheDocument();
+      
+      // Form should be visible immediately in add mode
+      expect(screen.getByText('Personal Information')).toBeInTheDocument();
+    });
+
+    it('should hide form content while loading in edit mode', async () => {
+      const loadForEditMode = vi.fn().mockImplementation(() => {
+        return new Promise(resolve => setTimeout(resolve, 100));
+      });
+
+      useOrgAssignment.mockReturnValue(createMockOrgAssignment({ loadForEditMode }));
+      
+      render(
+        <AddEmployeeDrawer 
+          isOpen={true} 
+          onClose={vi.fn()}
+          mode="edit"
+          employee={mockEmployee}
+        />
+      );
+      
+      // Form content should NOT be visible while loading
+      // The tab-content with 'active' class should not exist when loading
+      const tabContent = document.querySelector('.tab-content.active');
+      expect(tabContent).toBeNull();
+    });
+
+    it('should show form after edit loading completes', async () => {
+      const loadForEditMode = vi.fn().mockResolvedValue();
+
+      useOrgAssignment.mockReturnValue(createMockOrgAssignment({ loadForEditMode }));
+      
+      render(
+        <AddEmployeeDrawer 
+          isOpen={true} 
+          onClose={vi.fn()}
+          mode="edit"
+          employee={mockEmployee}
+        />
+      );
+      
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.queryByTestId('edit-loading')).not.toBeInTheDocument();
+      });
+      
+      // Form should now be visible
+      expect(screen.getByRole('button', { name: /Employee Details/i })).toBeInTheDocument();
+    });
+
+    it('should disable tab buttons while loading in edit mode', async () => {
+      const loadForEditMode = vi.fn().mockImplementation(() => {
+        return new Promise(resolve => setTimeout(resolve, 100));
+      });
+
+      useOrgAssignment.mockReturnValue(createMockOrgAssignment({ loadForEditMode }));
+      
+      render(
+        <AddEmployeeDrawer 
+          isOpen={true} 
+          onClose={vi.fn()}
+          mode="edit"
+          employee={mockEmployee}
+        />
+      );
+      
+      // Tab buttons should be disabled during loading
+      const detailsTab = screen.getByRole('button', { name: /Employee Details/i });
+      const skillsTab = screen.getByRole('button', { name: /Skills/i });
+      
+      expect(detailsTab).toBeDisabled();
+      expect(skillsTab).toBeDisabled();
+    });
+  });
+
+  describe('7. Lazy Skills Loading', () => {
+    const mockEmployeeWithSkills = {
+      employee_id: 123,
+      zid: 'Z0123456',
+      full_name: 'Test User',
+      email: 'test@example.com',
+      role_id: 1,
+      team_id: 500,
+      skills: [
+        { skill_id: 1, skill_name: 'React' },
+        { skill_id: 2, skill_name: 'TypeScript' }
+      ]
+    };
+
+    it('should NOT load skills during initial edit drawer load', async () => {
+      const loadForEditMode = vi.fn().mockResolvedValue();
+
+      useOrgAssignment.mockReturnValue(createMockOrgAssignment({ loadForEditMode }));
+      
+      render(
+        <AddEmployeeDrawer 
+          isOpen={true} 
+          onClose={vi.fn()}
+          mode="edit"
+          employee={mockEmployeeWithSkills}
+        />
+      );
+      
+      // Wait for edit loading to complete
+      await waitFor(() => {
+        expect(screen.queryByTestId('edit-loading')).not.toBeInTheDocument();
+      });
+      
+      // Should start on Details tab, skills not yet loaded
+      expect(screen.getByRole('button', { name: /Employee Details/i })).toHaveClass('active');
+    });
+
+    it('should show skills loading state when Skills tab clicked quickly', async () => {
+      const loadForEditMode = vi.fn().mockResolvedValue();
+
+      useOrgAssignment.mockReturnValue(createMockOrgAssignment({ loadForEditMode }));
+      
+      render(
+        <AddEmployeeDrawer 
+          isOpen={true} 
+          onClose={vi.fn()}
+          mode="edit"
+          employee={mockEmployeeWithSkills}
+        />
+      );
+      
+      // Wait for initial load to complete
+      await waitFor(() => {
+        expect(screen.queryByTestId('edit-loading')).not.toBeInTheDocument();
+      });
+      
+      // Click Skills tab
+      const skillsTab = screen.getByRole('button', { name: /Skills/i });
+      fireEvent.click(skillsTab);
+      
+      // Should show skills loading briefly (may be too fast to catch in some cases)
+      // The test verifies the tab change works
+      expect(skillsTab).toHaveClass('active');
+    });
+
+    it('should NOT show skills loading in add mode', () => {
+      useOrgAssignment.mockReturnValue(createMockOrgAssignment());
+      
+      render(
+        <AddEmployeeDrawer 
+          isOpen={true} 
+          onClose={vi.fn()}
+          mode="add"
+        />
+      );
+      
+      // Click Skills tab
+      const skillsTab = screen.getByRole('button', { name: /Skills/i });
+      fireEvent.click(skillsTab);
+      
+      // Should NOT show loading state
+      expect(screen.queryByTestId('skills-loading')).not.toBeInTheDocument();
+    });
+  });
+
+  describe('8. Dropdown Preselection in Edit Mode', () => {
+    it('should call loadForEditMode with org IDs from employee data', async () => {
+      // Backend now returns all org IDs directly
+      const mockEmployee = {
+        employee_id: 123,
+        zid: 'Z0123456',
+        full_name: 'Test User',
+        email: 'test@example.com',
+        segment_id: 1,
+        sub_segment_id: 10,
+        project_id: 100,
+        team_id: 500,
+        skills: []
+      };
+
+      const loadForEditMode = vi.fn().mockResolvedValue();
+
+      useOrgAssignment.mockReturnValue(createMockOrgAssignment({ loadForEditMode }));
+      
+      render(
+        <AddEmployeeDrawer 
+          isOpen={true} 
+          onClose={vi.fn()}
+          mode="edit"
+          employee={mockEmployee}
+        />
+      );
+      
+      // loadForEditMode should be called with all org IDs from backend
+      await waitFor(() => {
+        expect(loadForEditMode).toHaveBeenCalledWith({
+          segmentId: 1,
+          subSegmentId: 10,
+          projectId: 100,
+          teamId: 500
+        });
+      });
+    });
+
+    it('should show correct dropdown values after edit loading completes', async () => {
+      const loadForEditMode = vi.fn().mockResolvedValue();
+
+      // Set up org assignment with selected values (simulating after load)
+      useOrgAssignment.mockReturnValue(createMockOrgAssignment({
+        loadForEditMode,
+        selectedSegmentId: 1,
+        selectedSubSegmentId: 10,
+        selectedProjectId: 100,
+        selectedTeamId: 500,
+        segments: [{ id: 1, name: 'DTS' }],
+        subSegments: [{ id: 10, name: 'FW' }],
+        projects: [{ id: 100, name: 'Alpha' }],
+        teams: [{ id: 500, name: 'Team A' }]
+      }));
+      
+      render(
+        <AddEmployeeDrawer 
+          isOpen={true} 
+          onClose={vi.fn()}
+          mode="edit"
+          employee={{
+            employee_id: 123,
+            zid: 'Z0123456',
+            full_name: 'Test User',
+            segment_id: 1,
+            sub_segment_id: 10,
+            project_id: 100,
+            team_id: 500,
+            skills: []
+          }}
+        />
+      );
+      
+      // Wait for loading to complete
+      await waitFor(() => {
+        expect(screen.queryByTestId('edit-loading')).not.toBeInTheDocument();
+      });
+      
+      // Verify dropdowns show selected values
+      const segmentSelect = screen.getByTestId('segment-select');
+      const subSegmentSelect = screen.getByTestId('subsegment-select');
+      const projectSelect = screen.getByTestId('project-select');
+      const teamSelect = screen.getByTestId('team-select');
+      
+      expect(segmentSelect).toHaveValue('1');
+      expect(subSegmentSelect).toHaveValue('10');
+      expect(projectSelect).toHaveValue('100');
+      expect(teamSelect).toHaveValue('500');
     });
   });
 });

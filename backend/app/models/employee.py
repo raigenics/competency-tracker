@@ -41,6 +41,7 @@ class Employee(Base):
     team = relationship("Team", back_populates="employees")
     role = relationship("Role", back_populates="employees")
     employee_skills = relationship("EmployeeSkill", back_populates="employee", cascade="all, delete-orphan")
+    project_allocations = relationship("EmployeeProjectAllocation", back_populates="employee", cascade="all, delete-orphan")
     
     # Derived properties (navigate through relationships)
     @property

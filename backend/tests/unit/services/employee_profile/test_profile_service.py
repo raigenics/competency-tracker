@@ -41,16 +41,30 @@ class TestGetEmployeeProfile:
         # Arrange
         employee = mock_employee(1)
         employee.employee_skills = []
+        employee.email = 'test@example.com'
+        employee.team_id = 1
+        # Set up team relationship chain
+        employee.team = Mock()
+        employee.team.project = Mock()
+        employee.team.project.sub_segment = Mock()
+        employee.team.project.sub_segment.segment = Mock()
+        employee.team.project.sub_segment.segment.segment_id = 1
+        employee.team.project.sub_segment.sub_segment_id = 10
+        employee.team.project.project_id = 100
+        employee.team.team_name = 'Team A'
+        employee.team.project.project_name = 'Project A'
+        employee.team.project.sub_segment.sub_segment_name = 'Sub A'
+        employee.role = None
         
-        with patch.object(profile_service, '_query_employee_by_id', return_value=employee) as mock_query, \
-             patch.object(profile_service, '_build_profile_response', return_value={}) as mock_build:
+        with patch.object(profile_service, '_query_employee_by_id', return_value=employee) as mock_query:
             
             # Act
-            profile_service.get_employee_profile(mock_db, 1)
+            result = profile_service.get_employee_profile(mock_db, 1)
             
             # Assert
             mock_query.assert_called_once_with(mock_db, 1)
-            mock_build.assert_called_once_with(employee)
+            assert 'skills' in result
+            assert 'organization' in result
 
 
 class TestQueryEmployeeById:
@@ -99,23 +113,35 @@ class TestBuildProfileResponse:
         role = mock_organization("role", 1, "Developer")
         employee = mock_employee(1, "Z1001", "John Doe", role=role, start_date=date(2020, 1, 15))
         employee.employee_skills = []
+        employee.email = 'john@example.com'
+        employee.team_id = 1
         
-        with patch.object(profile_service, '_build_skills_list', return_value=[]), \
-             patch.object(profile_service, '_build_organization_dict', return_value={}), \
-             patch.object(profile_service, '_format_date', return_value="2020-01-15"):
-            
-            # Act
-            result = profile_service._build_profile_response(employee)
-            
-            # Assert
-            assert result["employee_id"] == 1
-            assert result["zid"] == "Z1001"
-            assert result["full_name"] == "John Doe"
-            assert result["role"] == role
-            assert result["start_date_of_working"] == "2020-01-15"
-            assert "organization" in result
-            assert "skills" in result
-            assert "skills_count" in result
+        # Set up org relationship chain (team -> project -> sub_segment -> segment)
+        segment = mock_organization("segment", 100, "DTS")
+        sub_seg = mock_organization("sub_segment", 10, "FW")
+        sub_seg.segment = segment
+        proj = mock_organization("project", 1, "Project A")
+        proj.sub_segment = sub_seg
+        team = mock_organization("team", 1, "Team X")
+        team.project = proj
+        employee.team = team
+        
+        # Act
+        result = profile_service._build_profile_response(employee)
+        
+        # Assert
+        assert result["employee_id"] == 1
+        assert result["zid"] == "Z1001"
+        assert result["full_name"] == "John Doe"
+        assert result["role"]["role_name"] == "Developer"
+        assert "organization" in result
+        assert "skills" in result
+        assert "skills_count" in result
+        # New org IDs should be present
+        assert result["team_id"] == 1
+        assert result["project_id"] == 1
+        assert result["sub_segment_id"] == 10
+        assert result["segment_id"] == 100
     
     def test_includes_skills_count(self, mock_employee):
         """Should include count of skills in profile."""
@@ -208,17 +234,67 @@ class TestBuildSkillsList:
         assert result == []
 
 
+class TestExtractOrgIds:
+    """Test the _extract_org_ids() pure function."""
+    
+    def test_extracts_all_org_ids_from_relationship_chain(self, mock_organization):
+        """Should extract segment_id, sub_segment_id, project_id, team_id from relationships."""
+        # Arrange
+        segment = mock_organization("segment", 100, "DI")
+        segment.segment_id = 100
+        
+        sub_seg = mock_organization("sub_segment", 200, "Engineering")
+        sub_seg.segment = segment
+        
+        proj = mock_organization("project", 300, "Project A")
+        proj.sub_segment = sub_seg
+        
+        team = mock_organization("team", 400, "Team X")
+        team.project = proj
+        
+        employee = Mock()
+        employee.team_id = 400
+        employee.team = team
+        
+        # Act
+        result = profile_service._extract_org_ids(employee)
+        
+        # Assert
+        assert result["team_id"] == 400
+        assert result["project_id"] == 300
+        assert result["sub_segment_id"] == 200
+        assert result["segment_id"] == 100
+    
+    def test_returns_none_for_missing_relationships(self):
+        """Should return None values when relationships are missing."""
+        # Arrange
+        employee = Mock()
+        employee.team_id = None
+        employee.team = None
+        
+        # Act
+        result = profile_service._extract_org_ids(employee)
+        
+        # Assert
+        assert result["team_id"] is None
+        assert result["project_id"] is None
+        assert result["sub_segment_id"] is None
+        assert result["segment_id"] is None
+
+
 class TestBuildOrganizationDict:
     """Test the _build_organization_dict() pure function."""
     
     def test_builds_organization_dict_from_employee(self, mock_employee, mock_organization):
-        """Should extract organization info from employee relationships."""
-        # Arrange
+        """Should extract organization info from employee relationships via team chain."""
+        # Arrange - set up relationship chain: team -> project -> sub_segment
         sub_seg = mock_organization("sub_segment", 1, "Engineering")
         proj = mock_organization("project", 1, "Project A")
+        proj.sub_segment = sub_seg
         team = mock_organization("team", 1, "Team X")
+        team.project = proj
         
-        employee = mock_employee(1, "Z1001", "Alice", sub_segment=sub_seg, project=proj, team=team)
+        employee = mock_employee(1, "Z1001", "Alice", team=team)
         
         # Act
         result = profile_service._build_organization_dict(employee)

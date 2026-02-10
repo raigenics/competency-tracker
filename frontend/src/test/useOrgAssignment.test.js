@@ -12,7 +12,7 @@ import { useOrgAssignment } from '@/hooks/useOrgAssignment.js';
 
 // Mock the API
 vi.mock('@/services/api/dropdownApi.js', () => ({
-  default: {
+  dropdownApi: {
     getSegments: vi.fn(),
     getSubSegmentsBySegment: vi.fn(),
     getProjects: vi.fn(),
@@ -36,7 +36,7 @@ vi.mock('@/config/featureFlags.js', () => ({
   }
 }));
 
-import dropdownApi from '@/services/api/dropdownApi.js';
+import { dropdownApi } from '@/services/api/dropdownApi.js';
 import { getRbacContext, RBAC_ROLES } from '@/config/featureFlags.js';
 
 describe('useOrgAssignment', () => {
@@ -86,7 +86,7 @@ describe('useOrgAssignment', () => {
     it('Segment Head: segment is locked', async () => {
       getRbacContext.mockReturnValue({
         role: RBAC_ROLES.SEGMENT_HEAD,
-        scope: { segmentId: 1 }
+        scope: { segment_id: 1 }
       });
       
       const { result } = renderHook(() => useOrgAssignment());
@@ -102,7 +102,7 @@ describe('useOrgAssignment', () => {
     it('Subsegment Head: segment + subSegment are locked', async () => {
       getRbacContext.mockReturnValue({
         role: RBAC_ROLES.SUBSEGMENT_HEAD,
-        scope: { segmentId: 1, subSegmentId: 2 }
+        scope: { segment_id: 1, sub_segment_id: 2 }
       });
       
       const { result } = renderHook(() => useOrgAssignment());
@@ -118,7 +118,7 @@ describe('useOrgAssignment', () => {
     it('Project Manager: segment + subSegment + project are locked', async () => {
       getRbacContext.mockReturnValue({
         role: RBAC_ROLES.PROJECT_MANAGER,
-        scope: { segmentId: 1, subSegmentId: 2, projectId: 3 }
+        scope: { segment_id: 1, sub_segment_id: 2, project_id: 3 }
       });
       
       const { result } = renderHook(() => useOrgAssignment());
@@ -134,7 +134,7 @@ describe('useOrgAssignment', () => {
     it('Team Lead: all dropdowns are locked', async () => {
       getRbacContext.mockReturnValue({
         role: RBAC_ROLES.TEAM_LEAD,
-        scope: { segmentId: 1, subSegmentId: 2, projectId: 3, teamId: 4 }
+        scope: { segment_id: 1, sub_segment_id: 2, project_id: 3, team_id: 4 }
       });
       
       const { result } = renderHook(() => useOrgAssignment());
@@ -278,7 +278,7 @@ describe('useOrgAssignment', () => {
     it('reset preserves locked selections for Segment Head', async () => {
       getRbacContext.mockReturnValue({
         role: RBAC_ROLES.SEGMENT_HEAD,
-        scope: { segmentId: 1 }
+        scope: { segment_id: 1 }
       });
       
       const { result } = renderHook(() => useOrgAssignment());

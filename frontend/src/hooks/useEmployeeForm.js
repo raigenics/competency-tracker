@@ -105,11 +105,12 @@ export function useEmployeeForm({ onSuccess, onError } = {}) {
   }, [formData]);
 
   /**
-   * Submit the form (create employee)
+   * Submit the form (create or update employee)
    * @param {Object} orgAssignment - Contains org IDs from useOrgAssignment hook
-   * @returns {Promise<Object>} Created employee or null on error
+   * @param {number|null} employeeId - If provided, updates existing employee; otherwise creates new
+   * @returns {Promise<Object>} Created/updated employee or null on error
    */
-  const submit = useCallback(async (orgAssignment) => {
+  const submit = useCallback(async (orgAssignment, employeeId = null) => {
     // Validate form with org assignment data
     if (!validate(orgAssignment)) {
       return null;
@@ -118,30 +119,56 @@ export function useEmployeeForm({ onSuccess, onError } = {}) {
     setIsSubmitting(true);
     setSubmitError(null);
     
+    const isUpdate = employeeId !== null;
+    
     try {
-      const payload = {
-        zid: formData.zid.trim(),
-        full_name: formData.fullName.trim(),
-        email: formData.email.trim() || null,
-        team_id: orgAssignment.selectedTeamId,
-        role_id: formData.roleId,  // Use role_id instead of role_name
-        start_date_of_working: formData.startDate || null
-      };
-      
-      console.log('[useEmployeeForm] Submitting payload:', payload);
-      
-      const response = await employeeApi.createEmployee(payload);
-      
-      if (onSuccess) {
-        onSuccess(response);
+      if (isUpdate) {
+        // Update existing employee
+        const payload = {
+          full_name: formData.fullName.trim(),
+          email: formData.email.trim() || null,
+          team_id: orgAssignment.selectedTeamId,
+          role_id: formData.roleId,
+          start_date_of_working: formData.startDate || null,
+          allocation_pct: formData.allocation ? parseInt(formData.allocation, 10) : null
+        };
+        
+        console.log('[useEmployeeForm] Updating employee:', employeeId, payload);
+        
+        const response = await employeeApi.updateEmployee(employeeId, payload);
+        
+        if (onSuccess) {
+          onSuccess(response);
+        }
+        
+        return response;
+      } else {
+        // Create new employee
+        const payload = {
+          zid: formData.zid.trim(),
+          full_name: formData.fullName.trim(),
+          email: formData.email.trim() || null,
+          team_id: orgAssignment.selectedTeamId,
+          role_id: formData.roleId,
+          start_date_of_working: formData.startDate || null,
+          allocation_pct: formData.allocation ? parseInt(formData.allocation, 10) : null
+        };
+        
+        console.log('[useEmployeeForm] Submitting payload:', payload);
+        
+        const response = await employeeApi.createEmployee(payload);
+        
+        if (onSuccess) {
+          onSuccess(response);
+        }
+        
+        return response;
       }
-      
-      return response;
     } catch (err) {
-      console.error('Failed to create employee:', err);
+      console.error(`Failed to ${isUpdate ? 'update' : 'create'} employee:`, err);
       
       // Extract error message
-      let errorMessage = 'Failed to create employee';
+      let errorMessage = `Failed to ${isUpdate ? 'update' : 'create'} employee`;
       if (err.response?.data?.detail) {
         errorMessage = err.response.data.detail;
       } else if (err.message) {

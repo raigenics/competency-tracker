@@ -14,6 +14,7 @@ from fastapi import HTTPException, status
 from app.models.employee import Employee
 from app.models.team import Team
 from app.models.role import Role
+from app.services.imports.employee_import.allocation_writer import upsert_active_project_allocation
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,8 @@ def create_employee(
     team_id: int,
     role_id: int,
     email: str,
-    start_date_of_working: Optional[date] = None
+    start_date_of_working: Optional[date] = None,
+    allocation_pct: Optional[int] = None
 ) -> Employee:
     """
     Create a new employee record.
@@ -87,6 +89,7 @@ def create_employee(
         role_id: Role ID from roles table (required)
         email: Employee's email address (required)
         start_date_of_working: Employment start date (optional)
+        allocation_pct: Project allocation percentage 0-100 (optional)
         
     Returns:
         Created Employee object
@@ -130,6 +133,22 @@ def create_employee(
         db.commit()
         db.refresh(employee)
         logger.info(f"Created employee: {zid} - {full_name}")
+        
+        # Post-create: Save allocation_pct to employee_project_allocations
+        if allocation_pct is not None:
+            project_id = employee.project_id
+            if project_id:
+                upsert_active_project_allocation(
+                    db=db,
+                    employee_id=employee.employee_id,
+                    project_id=project_id,
+                    allocation_pct=allocation_pct
+                )
+                db.commit()
+                logger.info(f"Created allocation for employee {zid}: {allocation_pct}% on project {project_id}")
+            else:
+                logger.warning(f"Cannot create allocation for employee {zid}: no project assigned via team")
+        
         return employee
     except IntegrityError as e:
         db.rollback()
@@ -146,8 +165,9 @@ def update_employee(
     full_name: Optional[str] = None,
     team_id: Optional[int] = None,
     email: Optional[str] = None,
-    role_name: Optional[str] = None,
-    start_date_of_working: Optional[date] = None
+    role_id: Optional[int] = None,
+    start_date_of_working: Optional[date] = None,
+    allocation_pct: Optional[int] = None
 ) -> Employee:
     """
     Update an existing employee record.
@@ -158,14 +178,16 @@ def update_employee(
         full_name: New full name (optional)
         team_id: New team ID (optional)
         email: New email (optional)
-        role_name: New role name (optional)
+        role_id: New role ID (optional)
         start_date_of_working: New start date (optional)
+        allocation_pct: Project allocation percentage 0-100 (optional)
         
     Returns:
         Updated Employee object
         
     Raises:
         HTTPException(404): If employee_id or team_id is invalid
+        HTTPException(422): If role_id is invalid
     """
     employee = db.query(Employee).filter(Employee.employee_id == employee_id).first()
     if not employee:
@@ -191,11 +213,34 @@ def update_employee(
     if email is not None:
         employee.email = email.strip() if email else None
     
-    if role_name is not None:
-        employee.role_id = get_or_create_role(db, role_name)
+    if role_id is not None:
+        validate_role_id(db, role_id)
+        employee.role_id = role_id
     
     if start_date_of_working is not None:
         employee.start_date_of_working = start_date_of_working
+
+    logger.info(
+        "update_employee called | employee_id=%s | allocation_pct=%s",
+        employee_id,
+        allocation_pct
+    )
+    
+    # Update project allocation if provided
+    if allocation_pct is not None:
+        # Get the project_id from the employee's team (refresh to get latest team)
+        db.flush()  # Ensure team_id is updated before accessing project
+        project_id = employee.project_id
+        if project_id:
+            upsert_active_project_allocation(
+                db=db,
+                employee_id=employee_id,
+                project_id=project_id,
+                allocation_pct=allocation_pct
+            )
+            logger.info(f"Updated allocation for employee {employee.zid}: {allocation_pct}% on project {project_id}")
+        else:
+            logger.warning(f"Cannot update allocation for employee {employee.zid}: no project assigned")
     
     db.commit()
     db.refresh(employee)

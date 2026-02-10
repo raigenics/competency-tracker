@@ -32,14 +32,8 @@ export const employeeApi = {// Get employee suggestions for autocomplete
   // Get specific employee by ID
   async getEmployee(employeeId) {
     try {
-      // TODO: return await httpClient.get(`/employees/${employeeId}`);
-      console.log('Mock: Fetching employee:', employeeId);
-      
-      const employee = mockEmployees.find(emp => emp.id === employeeId);
-      if (!employee) {
-        throw new Error('Employee not found');
-      }
-      return employee;
+      const response = await httpClient.get(`/employees/${employeeId}`);
+      return response;
     } catch (error) {
       console.error('Failed to fetch employee:', error);
       throw error;
@@ -172,6 +166,17 @@ export const employeeApi = {// Get employee suggestions for autocomplete
     }
   },
 
+  // Update existing employee (basic details only)
+  async updateEmployee(employeeId, employeeData) {
+    try {
+      const response = await httpClient.put(`/employees/${employeeId}`, employeeData);
+      return response;
+    } catch (error) {
+      console.error('Failed to update employee:', error);
+      throw error;
+    }
+  },
+
   // Save employee skills (bulk replace-all)
   async saveEmployeeSkills(employeeId, skills) {
     try {
@@ -181,6 +186,39 @@ export const employeeApi = {// Get employee suggestions for autocomplete
       return response;
     } catch (error) {
       console.error('Failed to save employee skills:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all data needed for Edit Employee form in ONE call.
+   * Returns employee data, dropdown options, and skills.
+   * 
+   * @param {number} employeeId - Employee ID to fetch
+   * @returns {Promise<Object>} Bootstrap data: { employee, options, skills, meta }
+   */
+  async getEmployeeEditBootstrap(employeeId) {
+    try {
+      const response = await httpClient.get(`/employees/${employeeId}/edit-bootstrap`);
+
+       console.groupCollapsed('[BOOTSTRAP][API]');
+       console.log('employee ids', {
+          segment_id: response?.employee?.segment_id,
+          sub_segment_id: response?.employee?.sub_segment_id,
+          project_id: response?.employee?.project_id,
+          team_id: response?.employee?.team_id,
+        });
+       console.log('options count', {
+          segments: response?.options?.segments?.length,
+          sub_segments: response?.options?.sub_segments?.length,
+          projects: response?.options?.projects?.length,
+          teams: response?.options?.teams?.length,
+        });
+       console.groupEnd();
+
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch edit bootstrap:', error);
       throw error;
     }
   }

@@ -5,10 +5,98 @@
  * 1. EmployeesPage mount triggers employeeApi.getEmployees once
  * 2. EmployeesPage mount does NOT call skills API or roles API
  * 3. Clicking "+ Add Employee" opens drawer and triggers roles + skills loading
+ * 
+ * Tests for RBAC UI visibility:
+ * 4. Add Employee button visible for roles with canCreate=true (excluding TEAM_MEMBER)
+ * 5. Actions column shows View/Edit/Delete based on role permissions
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
+
+// RBAC Role constants (duplicated to avoid hoisting issues with vi.mock)
+const RBAC_ROLES = {
+  SUPER_ADMIN: 'SUPER_ADMIN',
+  SEGMENT_HEAD: 'SEGMENT_HEAD',
+  SUBSEGMENT_HEAD: 'SUBSEGMENT_HEAD',
+  PROJECT_MANAGER: 'PROJECT_MANAGER',
+  TEAM_LEAD: 'TEAM_LEAD',
+  TEAM_MEMBER: 'TEAM_MEMBER'
+};
+
+const ROLE_PERMISSIONS = {
+  SUPER_ADMIN: { canView: true, canCreate: true, canUpdate: true, canDelete: true, scopeLevel: 'all' },
+  SEGMENT_HEAD: { canView: true, canCreate: false, canUpdate: false, canDelete: false, scopeLevel: 'segment' },
+  SUBSEGMENT_HEAD: { canView: true, canCreate: false, canUpdate: false, canDelete: false, scopeLevel: 'sub_segment' },
+  PROJECT_MANAGER: { canView: true, canCreate: true, canUpdate: true, canDelete: true, scopeLevel: 'project' },
+  TEAM_LEAD: { canView: true, canCreate: true, canUpdate: true, canDelete: true, scopeLevel: 'team' },
+  TEAM_MEMBER: { canView: true, canCreate: true, canUpdate: true, canDelete: true, scopeLevel: 'team', selfOnly: true }
+};
+
+// Use vi.hoisted to create mock state that's available during mock hoisting
+const { mockState } = vi.hoisted(() => ({
+  mockState: {
+    currentRole: 'SUPER_ADMIN',
+    currentScope: { segment_id: null, sub_segment_id: null, project_id: null, team_id: null, employee_id: null }
+  }
+}));
+
+// Mock RBAC permissions module
+vi.mock('@/rbac/permissions.js', () => {
+  const ROLES = {
+    SUPER_ADMIN: 'SUPER_ADMIN',
+    SEGMENT_HEAD: 'SEGMENT_HEAD',
+    SUBSEGMENT_HEAD: 'SUBSEGMENT_HEAD',
+    PROJECT_MANAGER: 'PROJECT_MANAGER',
+    TEAM_LEAD: 'TEAM_LEAD',
+    TEAM_MEMBER: 'TEAM_MEMBER'
+  };
+  
+  const PERMISSIONS = {
+    SUPER_ADMIN: { canView: true, canCreate: true, canUpdate: true, canDelete: true, scopeLevel: 'all' },
+    SEGMENT_HEAD: { canView: true, canCreate: false, canUpdate: false, canDelete: false, scopeLevel: 'segment' },
+    SUBSEGMENT_HEAD: { canView: true, canCreate: false, canUpdate: false, canDelete: false, scopeLevel: 'sub_segment' },
+    PROJECT_MANAGER: { canView: true, canCreate: true, canUpdate: true, canDelete: true, scopeLevel: 'project' },
+    TEAM_LEAD: { canView: true, canCreate: true, canUpdate: true, canDelete: true, scopeLevel: 'team' },
+    TEAM_MEMBER: { canView: true, canCreate: true, canUpdate: true, canDelete: true, scopeLevel: 'team', selfOnly: true }
+  };
+
+  return {
+    getCurrentRole: () => mockState.currentRole,
+    getCurrentScope: () => mockState.currentScope,
+    getPermissionsForRole: (role) => PERMISSIONS[role] || PERMISSIONS.TEAM_MEMBER,
+    canShowAddEmployee: () => {
+      const permissions = PERMISSIONS[mockState.currentRole] || PERMISSIONS.TEAM_MEMBER;
+      if (!permissions.canCreate) return false;
+      if (permissions.selfOnly) {
+        if (!mockState.currentScope.employee_id) return false;
+        return false;
+      }
+      return true;
+    },
+    getRowActions: ({ employee } = {}) => {
+      const permissions = PERMISSIONS[mockState.currentRole] || PERMISSIONS.TEAM_MEMBER;
+      const result = { canView: permissions.canView, canEdit: false, canDelete: false };
+      if (!permissions.canUpdate && !permissions.canDelete) return result;
+      if (permissions.selfOnly) {
+        const userEmployeeId = mockState.currentScope.employee_id;
+        if (employee && userEmployeeId) {
+          const isSelf = employee.employee_id === userEmployeeId || employee.id === userEmployeeId;
+          result.canEdit = isSelf && permissions.canUpdate;
+          result.canDelete = isSelf && permissions.canDelete;
+        }
+        return result;
+      }
+      result.canEdit = permissions.canUpdate;
+      result.canDelete = permissions.canDelete;
+      return result;
+    },
+    RBAC_ROLES: ROLES,
+    ROLE_PERMISSIONS: PERMISSIONS
+  };
+});
+
+// Import after mocks are set up
 import EmployeesPage from '@/pages/Employees/EmployeesPage.jsx';
 
 // Mock react-router-dom
@@ -152,6 +240,10 @@ describe('EmployeesPage', () => {
   beforeEach(() => {
     // Reset all mocks
     vi.clearAllMocks();
+    
+    // Reset RBAC mocks to default (SUPER_ADMIN)
+    mockState.currentRole = RBAC_ROLES.SUPER_ADMIN;
+    mockState.currentScope = { segment_id: null, sub_segment_id: null, project_id: null, team_id: null, employee_id: null };
     
     // Setup default mock implementations
     mockGetEmployees.mockResolvedValue(mockEmployeesResponse);
@@ -334,6 +426,230 @@ describe('EmployeesPage', () => {
       
       // This test verifies the initial fetch works
       expect(initialCallCount).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('RBAC: Add Employee button visibility', () => {
+    it('SUPER_ADMIN: should show Add Employee button', async () => {
+      mockState.currentRole = RBAC_ROLES.SUPER_ADMIN;
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(mockGetEmployees).toHaveBeenCalled();
+      });
+
+      const addButton = screen.queryByRole('button', { name: /add employee/i });
+      expect(addButton).toBeInTheDocument();
+    });
+
+    it('SEGMENT_HEAD: should NOT show Add Employee button (view-only role)', async () => {
+      mockState.currentRole = RBAC_ROLES.SEGMENT_HEAD;
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(mockGetEmployees).toHaveBeenCalled();
+      });
+
+      const addButton = screen.queryByRole('button', { name: /add employee/i });
+      expect(addButton).not.toBeInTheDocument();
+    });
+
+    it('SUBSEGMENT_HEAD: should NOT show Add Employee button (view-only role)', async () => {
+      mockState.currentRole = RBAC_ROLES.SUBSEGMENT_HEAD;
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(mockGetEmployees).toHaveBeenCalled();
+      });
+
+      const addButton = screen.queryByRole('button', { name: /add employee/i });
+      expect(addButton).not.toBeInTheDocument();
+    });
+
+    it('PROJECT_MANAGER: should show Add Employee button', async () => {
+      mockState.currentRole = RBAC_ROLES.PROJECT_MANAGER;
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(mockGetEmployees).toHaveBeenCalled();
+      });
+
+      const addButton = screen.queryByRole('button', { name: /add employee/i });
+      expect(addButton).toBeInTheDocument();
+    });
+
+    it('TEAM_LEAD: should show Add Employee button', async () => {
+      mockState.currentRole = RBAC_ROLES.TEAM_LEAD;
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(mockGetEmployees).toHaveBeenCalled();
+      });
+
+      const addButton = screen.queryByRole('button', { name: /add employee/i });
+      expect(addButton).toBeInTheDocument();
+    });
+
+    it('TEAM_MEMBER without self id: should NOT show Add Employee button', async () => {
+      mockState.currentRole = RBAC_ROLES.TEAM_MEMBER;
+      mockState.currentScope = { segment_id: null, sub_segment_id: null, project_id: null, team_id: null, employee_id: null };
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(mockGetEmployees).toHaveBeenCalled();
+      });
+
+      const addButton = screen.queryByRole('button', { name: /add employee/i });
+      expect(addButton).not.toBeInTheDocument();
+    });
+  });
+
+  describe('RBAC: Actions column visibility', () => {
+    it('SUPER_ADMIN: should show View, Edit, and Delete buttons for each row', async () => {
+      mockState.currentRole = RBAC_ROLES.SUPER_ADMIN;
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('John Doe')).toBeInTheDocument();
+      });
+
+      // Find the row and check for all action buttons
+      const viewButtons = screen.getAllByRole('button', { name: /view/i });
+      const editButtons = screen.getAllByRole('button', { name: /edit/i });
+      const deleteButtons = screen.getAllByRole('button', { name: /delete/i });
+
+      expect(viewButtons.length).toBeGreaterThanOrEqual(1);
+      expect(editButtons.length).toBeGreaterThanOrEqual(1);
+      expect(deleteButtons.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('SEGMENT_HEAD: should show only View button (view-only role)', async () => {
+      mockState.currentRole = RBAC_ROLES.SEGMENT_HEAD;
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('John Doe')).toBeInTheDocument();
+      });
+
+      // Should have View button
+      const viewButtons = screen.getAllByRole('button', { name: /view/i });
+      expect(viewButtons.length).toBeGreaterThanOrEqual(1);
+
+      // Should NOT have Edit or Delete buttons
+      const editButtons = screen.queryAllByRole('button', { name: /^edit$/i });
+      const deleteButtons = screen.queryAllByRole('button', { name: /delete/i });
+      expect(editButtons.length).toBe(0);
+      expect(deleteButtons.length).toBe(0);
+    });
+
+    it('TEAM_MEMBER without self id: should show only View button', async () => {
+      mockState.currentRole = RBAC_ROLES.TEAM_MEMBER;
+      mockState.currentScope = { segment_id: null, sub_segment_id: null, project_id: null, team_id: null, employee_id: null };
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('John Doe')).toBeInTheDocument();
+      });
+
+      // Should have View button
+      const viewButtons = screen.getAllByRole('button', { name: /view/i });
+      expect(viewButtons.length).toBeGreaterThanOrEqual(1);
+
+      // Should NOT have Edit or Delete buttons (can't determine self)
+      const editButtons = screen.queryAllByRole('button', { name: /^edit$/i });
+      const deleteButtons = screen.queryAllByRole('button', { name: /delete/i });
+      expect(editButtons.length).toBe(0);
+      expect(deleteButtons.length).toBe(0);
+    });
+
+    it('TEAM_MEMBER with self id: should show Edit/Delete only on own row', async () => {
+      mockState.currentRole = RBAC_ROLES.TEAM_MEMBER;
+      // Set employee_id to match the mock employee
+      mockState.currentScope = { segment_id: null, sub_segment_id: null, project_id: null, team_id: null, employee_id: 1 };
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('John Doe')).toBeInTheDocument();
+      });
+
+      // Should have View, Edit, Delete for own row (employee_id: 1)
+      const viewButtons = screen.getAllByRole('button', { name: /view/i });
+      const editButtons = screen.getAllByRole('button', { name: /^edit$/i });
+      const deleteButtons = screen.getAllByRole('button', { name: /delete/i });
+
+      expect(viewButtons.length).toBeGreaterThanOrEqual(1);
+      expect(editButtons.length).toBeGreaterThanOrEqual(1);
+      expect(deleteButtons.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('PROJECT_MANAGER: should show View, Edit, and Delete buttons', async () => {
+      mockState.currentRole = RBAC_ROLES.PROJECT_MANAGER;
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('John Doe')).toBeInTheDocument();
+      });
+
+      const viewButtons = screen.getAllByRole('button', { name: /view/i });
+      const editButtons = screen.getAllByRole('button', { name: /^edit$/i });
+      const deleteButtons = screen.getAllByRole('button', { name: /delete/i });
+
+      expect(viewButtons.length).toBeGreaterThanOrEqual(1);
+      expect(editButtons.length).toBeGreaterThanOrEqual(1);
+      expect(deleteButtons.length).toBeGreaterThanOrEqual(1);
+    });
+
+    it('TEAM_LEAD: should show View, Edit, and Delete buttons', async () => {
+      mockState.currentRole = RBAC_ROLES.TEAM_LEAD;
+      
+      await act(async () => {
+        renderWithRouter(<EmployeesPage />);
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText('John Doe')).toBeInTheDocument();
+      });
+
+      const viewButtons = screen.getAllByRole('button', { name: /view/i });
+      const editButtons = screen.getAllByRole('button', { name: /^edit$/i });
+      const deleteButtons = screen.getAllByRole('button', { name: /delete/i });
+
+      expect(viewButtons.length).toBeGreaterThanOrEqual(1);
+      expect(editButtons.length).toBeGreaterThanOrEqual(1);
+      expect(deleteButtons.length).toBeGreaterThanOrEqual(1);
     });
   });
 });

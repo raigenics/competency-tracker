@@ -61,7 +61,7 @@ class EmployeeProjectAllocation(Base):
     )
     
     # Relationships
-    employee = relationship("Employee")
+    employee = relationship("Employee", back_populates="project_allocations")
     project = relationship("Project")
     
     # Table-level constraints and indexes

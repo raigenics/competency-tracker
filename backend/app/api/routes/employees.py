@@ -21,8 +21,10 @@ from app.schemas.employee import (
     EmployeesByIdsRequest, EmployeesByIdsResponse,
     EmployeeSuggestion,
     EmployeeCreateRequest, EmployeeCreateResponse,
+    EmployeeUpdateRequest,
     EmployeeSkillsBulkSaveRequest, EmployeeSkillsBulkSaveResponse,
-    EmployeeValidateUniqueResponse
+    EmployeeValidateUniqueResponse,
+    EditBootstrapResponse
 )
 from app.schemas.common import PaginationParams
 from app.security.rbac_policy import get_rbac_context, RbacContext
@@ -36,6 +38,7 @@ from app.services.employee_profile import by_ids_service
 from app.services.employee_profile import create_service
 from app.services.employee_profile import employee_skills_service
 from app.services.employee_profile import validation_service
+from app.services.employee_profile import edit_bootstrap_service
 
 logger = logging.getLogger(__name__)
 
@@ -174,6 +177,41 @@ async def get_employee(
         )
 
 
+@router.get("/{employee_id}/edit-bootstrap", response_model=EditBootstrapResponse)
+async def get_edit_bootstrap(
+    employee_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get all data needed to render the Edit Employee form in ONE call.
+    
+    Eliminates frontend waterfall calls by returning:
+    - Employee data with org hierarchy IDs
+    - All dropdown options (segments, sub-segments, projects, teams, roles)
+    - Employee skills with proficiency IDs
+    
+    This endpoint is optimized for Edit mode - use standard GET /{employee_id}
+    for read-only views.
+    """
+    logger.info(f"[EDIT-BOOTSTRAP] Fetching edit-bootstrap for employee_id={employee_id}")
+    
+    try:
+        return edit_bootstrap_service.get_edit_bootstrap(db, employee_id)
+        
+    except ValueError as e:
+        logger.warning(f"[EDIT-BOOTSTRAP] Employee not found: {employee_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"[EDIT-BOOTSTRAP] Error: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching edit bootstrap data"
+        )
+
+
 @router.get("/stats/overview", response_model=EmployeeStatsResponse)
 async def get_employee_stats(db: Session = Depends(get_db)):
     """
@@ -260,7 +298,8 @@ async def create_employee(
         team_id=request.team_id,
         role_id=request.role_id,
         email=request.email,
-        start_date_of_working=request.start_date_of_working
+        start_date_of_working=request.start_date_of_working,
+        allocation_pct=request.allocation_pct
     )
     
     # Build response with organization info
@@ -276,6 +315,64 @@ async def create_employee(
         role_name=employee.role.role_name if employee.role else None,
         start_date_of_working=employee.start_date_of_working,
         message="Employee created successfully"
+    )
+
+
+@router.put("/{employee_id}", response_model=EmployeeCreateResponse)
+async def update_employee(
+    employee_id: int,
+    request: EmployeeUpdateRequest,
+    db: Session = Depends(get_db)
+):
+    """
+    Update an existing employee record.
+    
+    This endpoint updates employee details. Only provided fields are updated.
+    
+    Args:
+        employee_id: ID of the employee to update
+        request: Employee update data (all fields optional):
+            - full_name: Employee's full name
+            - team_id: ID of the team
+            - email: Employee email
+            - role_id: Role ID from roles table
+            - start_date_of_working: Employment start date
+    
+    Returns:
+        Updated employee details with organization info
+        
+    Raises:
+        404: If employee_id or team_id is invalid
+        422: If role_id is invalid
+    """
+    logger.info(f"Updating employee with ID: {employee_id}")
+    
+    # Service handles validation and update
+    employee = create_service.update_employee(
+        db=db,
+        employee_id=employee_id,
+        full_name=request.full_name,
+        team_id=request.team_id,
+        email=request.email,
+        role_id=request.role_id,
+        start_date_of_working=request.start_date_of_working,
+        allocation_pct=request.allocation_pct
+    )
+
+   
+    # Build response with organization info
+    return EmployeeCreateResponse(
+        employee_id=employee.employee_id,
+        zid=employee.zid,
+        full_name=employee.full_name,
+        email=employee.email,
+        team_id=employee.team_id,
+        team_name=employee.team.team_name if employee.team else "",
+        project_name=employee.project.project_name if employee.project else "",
+        sub_segment_name=employee.sub_segment.sub_segment_name if employee.sub_segment else "",
+        role_name=employee.role.role_name if employee.role else None,
+        start_date_of_working=employee.start_date_of_working,
+        message="Employee updated successfully"
     )
 
 

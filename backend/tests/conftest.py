@@ -68,6 +68,9 @@ def mock_employee():
         # Skills relationship
         employee.employee_skills = kwargs.get('employee_skills', [])
         
+        # Project allocations relationship
+        employee.project_allocations = kwargs.get('project_allocations', [])
+        
         return employee
     return _create
 
@@ -116,11 +119,14 @@ def mock_employee_skill():
 
 @pytest.fixture
 def mock_organization():
-    """Factory to create mock organization objects (SubSegment, Project, Team, Role)."""
+    """Factory to create mock organization objects (Segment, SubSegment, Project, Team, Role)."""
     def _create(obj_type="sub_segment", id=1, name="Engineering"):
         obj = Mock()
         
-        if obj_type == "sub_segment":
+        if obj_type == "segment":
+            obj.segment_id = id
+            obj.segment_name = name
+        elif obj_type == "sub_segment":
             obj.sub_segment_id = id
             obj.sub_segment_name = name
         elif obj_type == "project":

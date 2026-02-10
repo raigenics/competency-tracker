@@ -6,7 +6,17 @@ import { useUniqueEmployeeValidation } from '../hooks/useUniqueEmployeeValidatio
 import { RoleAutoSuggestSelect } from './RoleAutoSuggestSelect.jsx';
 import { EmployeeSkillsTab, createEmptySkill } from './skills/EmployeeSkillsTab.jsx';
 import { employeeApi } from '../services/api/employeeApi.js';
+import { dropdownApi } from '../services/api/dropdownApi.js';
 import { validateEmployeeSkills } from '../utils/skillsValidation.js';
+
+// ========== DIAGNOSTIC LOGGING - START ==========
+const DIAG_T0 = performance.now();
+const diagLog = (tag, msg, extra = {}) => {
+  const t = (performance.now() - DIAG_T0).toFixed(1);
+  console.log(`[${tag}] t=${t}ms ${msg}`, extra);
+};
+let editDrawerOpenCount = 0;
+// ========== DIAGNOSTIC LOGGING - END ==========
 
 /**
  * Add Employee Drawer Component
@@ -29,8 +39,16 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
   // Active tab: 'details' or 'skills'
   const [activeTab, setActiveTab] = useState('details');
   
+  // Edit mode loading state - shows loading UI while preparing form
+  const [isEditLoading, setIsEditLoading] = useState(false);
+  
+  // Skills loading state - for lazy loading skills on tab click
+  const [isSkillsLoading, setIsSkillsLoading] = useState(false);
+  const [skillsLoaded, setSkillsLoaded] = useState(false);
+  
   // Use organizational assignment hook for cascading dropdowns
-  const orgAssignment = useOrgAssignment();
+  // Pass isEditMode to skip initial API calls (bootstrap will provide data)
+  const orgAssignment = useOrgAssignment({ isEditMode: mode === 'edit' });
   
   // Use employee form hook for form state and validation
   // NOTE: Don't pass onSuccess here - we handle success after skills save in handleSave
@@ -40,8 +58,13 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
     }
   });
   
-  // Use roles hook for role dropdown
-  const { roles, loading: rolesLoading } = useRoles();
+  // Use roles hook for role dropdown (only fetches in add mode or if bootstrap doesn't have roles)
+  const rolesHook = useRoles();
+  
+  // In edit mode with bootstrap data, use bootstrap roles instead of separate API call
+  const bootstrapRoles = employee?._bootstrapOptions?.roles;
+  const roles = bootstrapRoles || rolesHook.roles;
+  const rolesLoading = bootstrapRoles ? false : rolesHook.loading;
   
   // Use uniqueness validation hook for ZID/email
   // Pass excludeEmployeeId in edit mode so current employee doesn't trigger duplicate error
@@ -156,24 +179,244 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
 
   // Note: createEmptySkill is now imported from EmployeeSkillsTab
 
+  /**
+   * Load employee data for Edit mode with sequential dropdown loading.
+   * Ensures dropdowns are properly populated before setting values.
+   * 
+   * Backend now returns org IDs directly (segment_id, sub_segment_id, project_id, team_id),
+   * so we no longer need to fetch hierarchy separately.
+   * 
+   * OPTIMIZATION: If _bootstrapLoaded flag is set, skip API calls and use setFromBootstrap.
+   */
+  const loadEmployeeForEdit = useCallback(async (employeeData) => {
+    if (!employeeData) return;
+    
+    // ===== DIAGNOSTIC LOGGING =====
+    const loadStart = performance.now();
+    diagLog('EDIT', 'loadEmployeeForEdit-start', { 
+      employee_id: employeeData.employee_id,
+      _bootstrapLoaded: !!employeeData._bootstrapLoaded,
+      _awaitingBootstrap: !!employeeData._awaitingBootstrap
+    });
+    // ===== END DIAGNOSTIC =====
+    
+    // OPTIMIZATION: If awaiting bootstrap, skip entirely - do nothing until bootstrap arrives
+    if (employeeData._awaitingBootstrap) {
+      diagLog('EDIT', 'skipping-loadEmployeeForEdit (awaiting bootstrap)');
+      // Suppress cascade effects while waiting for bootstrap
+      orgAssignment.suppressCascades();
+      // Just prefill basic form fields, dropdowns will be set when bootstrap arrives
+      employeeForm.prefill(employeeData);
+      return;
+    }
+    
+    // OPTIMIZATION: Bootstrap path - SINGLE-SHOT, NO loading state, NO cascade API calls
+    if (employeeData._bootstrapLoaded && employeeData._bootstrapOptions) {
+      diagLog('EDIT', 'using-bootstrap-options (single-shot)', {
+        segments: employeeData._bootstrapOptions.segments?.length,
+        subSegments: employeeData._bootstrapOptions.sub_segments?.length,
+        projects: employeeData._bootstrapOptions.projects?.length,
+        teams: employeeData._bootstrapOptions.teams?.length
+      });
+      
+      // Step 1: Pre-fill basic form fields
+      employeeForm.prefill(employeeData);
+      
+      // Step 2: Use setFromBootstrap to populate dropdowns WITHOUT API calls
+      orgAssignment.setFromBootstrap(
+        employeeData._bootstrapOptions,
+        {
+          segmentId: employeeData.segment_id,
+          subSegmentId: employeeData.sub_segment_id,
+          projectId: employeeData.project_id,
+          teamId: employeeData.team_id
+        }
+      );
+      
+      diagLog('EDIT', 'setFromBootstrap-complete', { duration: (performance.now() - loadStart).toFixed(1) + 'ms' });
+      
+      // Step 3: Pre-load skills if available from bootstrap
+      if (employeeData.skills && employeeData.skills.length > 0) {
+        setSkills(employeeData.skills.map(s => ({ ...createEmptySkill(), ...s })));
+        setSkillsLoaded(true);
+        diagLog('EDIT', 'skills-loaded-from-bootstrap', { count: employeeData.skills.length });
+      } else {
+        setSkills([createEmptySkill()]);
+      }
+      
+      // Step 4: Clear validation errors
+      uniqueValidation.clearAllUniqueErrors();
+      
+      // NO loading state for bootstrap path - it's synchronous
+      setIsEditLoading(false);
+      return;
+    }
+    
+    // FALLBACK: Sequential API calls (only when bootstrap is NOT available)
+    console.warn('[EDIT] FALLBACK path triggered - this should NOT happen if bootstrap succeeded!', {
+      _bootstrapLoaded: employeeData._bootstrapLoaded,
+      _bootstrapOptions: !!employeeData._bootstrapOptions,
+      segment_id: employeeData.segment_id,
+      sub_segment_id: employeeData.sub_segment_id,
+      project_id: employeeData.project_id,
+      team_id: employeeData.team_id,
+      employeeData_keys: Object.keys(employeeData)
+    });
+    diagLog('EDIT', 'fallback-path (no bootstrap)', {
+      segment_id: employeeData.segment_id,
+      sub_segment_id: employeeData.sub_segment_id,
+      project_id: employeeData.project_id,
+      team_id: employeeData.team_id
+    });
+    
+    setIsEditLoading(true);
+    setSkillsLoaded(false);
+    
+    try {
+      // Step 1: Pre-fill basic form fields
+      employeeForm.prefill(employeeData);
+      
+      // Step 2: Load org dropdowns via sequential API calls
+      const hasAnyOrgId = employeeData.segment_id || employeeData.sub_segment_id || 
+                          employeeData.project_id || employeeData.team_id;
+      if (hasAnyOrgId) {
+        diagLog('EDIT', 'calling-loadForEditMode', {
+          segmentId: employeeData.segment_id,
+          subSegmentId: employeeData.sub_segment_id,
+          projectId: employeeData.project_id,
+          teamId: employeeData.team_id
+        });
+        
+        await orgAssignment.loadForEditMode({
+          segmentId: employeeData.segment_id,
+          subSegmentId: employeeData.sub_segment_id,
+          projectId: employeeData.project_id,
+          teamId: employeeData.team_id
+        });
+        diagLog('EDIT', 'loadForEditMode-complete', { duration: (performance.now() - loadStart).toFixed(1) + 'ms' });
+      }
+      
+      // Reset skills for lazy loading
+      setSkills([createEmptySkill()]);
+      
+      // Step 3: Clear validation errors
+      uniqueValidation.clearAllUniqueErrors();
+      
+    } catch (err) {
+      console.error('Failed to load employee for edit:', err);
+      diagLog('EDIT', 'loadEmployeeForEdit-ERROR', { error: err.message });
+    } finally {
+      diagLog('EDIT', 'loadEmployeeForEdit-end', { totalDuration: (performance.now() - loadStart).toFixed(1) + 'ms' });
+      setIsEditLoading(false);
+    }
+  }, [employeeForm, orgAssignment, uniqueValidation]);
+
+  /**
+   * @deprecated No longer needed - backend returns org IDs directly
+   * Fetch org hierarchy from team_id to get all parent IDs.
+   * Uses dropdownApi to traverse the hierarchy.
+   */
+  const fetchOrgHierarchy = async (teamId) => {
+    diagLog('EDIT', 'fetchOrgHierarchy-start', { teamId });
+    const hierarchyStart = performance.now();
+    
+    diagLog('EDIT', 'fetchOrgHierarchy-getTeams-start');
+    const allTeams = await dropdownApi.getTeams(null);
+    diagLog('EDIT', 'fetchOrgHierarchy-getTeams-end', { count: allTeams?.length, duration: (performance.now() - hierarchyStart).toFixed(1) + 'ms' });
+    const team = allTeams.find(t => t.team_id === teamId);
+    if (!team) throw new Error('Team not found');
+    
+    diagLog('EDIT', 'fetchOrgHierarchy-getProjects-start');
+    const projStart = performance.now();
+    const allProjects = await dropdownApi.getProjects(null);
+    diagLog('EDIT', 'fetchOrgHierarchy-getProjects-end', { count: allProjects?.length, duration: (performance.now() - projStart).toFixed(1) + 'ms' });
+    const project = allProjects.find(p => p.project_id === team.project_id);
+    if (!project) throw new Error('Project not found');
+    
+    diagLog('EDIT', 'fetchOrgHierarchy-getSubSegments-start');
+    const subSegStart = performance.now();
+    const allSubSegments = await dropdownApi.getSubSegments(null);
+    diagLog('EDIT', 'fetchOrgHierarchy-getSubSegments-end', { count: allSubSegments?.length, duration: (performance.now() - subSegStart).toFixed(1) + 'ms' });
+    const subSegment = allSubSegments.find(s => s.sub_segment_id === project.sub_segment_id);
+    if (!subSegment) throw new Error('Sub-segment not found');
+    
+    diagLog('EDIT', 'fetchOrgHierarchy-complete', { totalDuration: (performance.now() - hierarchyStart).toFixed(1) + 'ms' });
+    return {
+      segmentId: subSegment.segment_id,
+      subSegmentId: subSegment.sub_segment_id,
+      projectId: project.project_id,
+      teamId: teamId
+    };
+  };
+
+  /**
+   * Load skills when Skills tab is clicked (lazy loading).
+   */
+  const loadSkillsForEdit = useCallback(async () => {
+    if (skillsLoaded || !employee?.skills) return;
+    
+    setIsSkillsLoading(true);
+    try {
+      // Simulate slight delay for UX (skills may already be in memory)
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      if (employee.skills && employee.skills.length > 0) {
+        setSkills(employee.skills.map(s => ({ ...createEmptySkill(), ...s })));
+      }
+      setSkillsLoaded(true);
+    } finally {
+      setIsSkillsLoading(false);
+    }
+  }, [employee, skillsLoaded]);
+
+  /**
+   * Handle tab change - load skills lazily when Skills tab is clicked
+   */
+  const handleTabChange = useCallback((tab) => {
+    setActiveTab(tab);
+    if (tab === 'skills' && mode === 'edit' && !skillsLoaded) {
+      loadSkillsForEdit();
+    }
+  }, [mode, skillsLoaded, loadSkillsForEdit]);
+
   // Reset form when drawer opens/closes or mode changes
   useEffect(() => {
+    // ===== DIAGNOSTIC LOGGING =====
+    diagLog('EDIT', 'drawer-useEffect-fired', { 
+      isOpen, 
+      mode, 
+      hasEmployee: !!employee,
+      employee_id: employee?.employee_id,
+      _bootstrapLoaded: employee?._bootstrapLoaded,
+      _awaitingBootstrap: employee?._awaitingBootstrap,
+      hasBootstrapOptions: !!employee?._bootstrapOptions
+    });
+    // ===== END DIAGNOSTIC =====
+    
     if (isOpen) {
       if (mode === 'edit' && employee) {
-        // Pre-fill form with employee data
-        employeeForm.prefill(employee);
-        // Pre-fill skills if available
-        if (employee.skills && employee.skills.length > 0) {
-          setSkills(employee.skills.map(s => ({ ...createEmptySkill(), ...s })));
-        }
-        // Clear uniqueness errors in edit mode (user can re-validate as needed)
-        uniqueValidation.clearAllUniqueErrors();
+        // ===== DIAGNOSTIC LOGGING =====
+        editDrawerOpenCount++;
+        diagLog('EDIT', 'drawer-open (edit mode)', { 
+          openCount: editDrawerOpenCount, 
+          employee_id: employee?.employee_id,
+          _bootstrapLoaded: employee?._bootstrapLoaded,
+          _awaitingBootstrap: employee?._awaitingBootstrap,
+          segment_id: employee?.segment_id,
+          sub_segment_id: employee?.sub_segment_id,
+          project_id: employee?.project_id,
+          team_id: employee?.team_id
+        });
+        // ===== END DIAGNOSTIC =====
+        // Edit mode: use sequential loading for dropdowns
+        loadEmployeeForEdit(employee);
       } else {
-        // Reset for add mode
+        // Add mode: reset everything
+        setIsEditLoading(false);
+        setSkillsLoaded(false);
         employeeForm.reset();
         orgAssignment.reset();
         setSkills([createEmptySkill()]);
-        // Clear uniqueness errors
         uniqueValidation.clearAllUniqueErrors();
       }
       setActiveTab('details');
@@ -260,7 +503,9 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
     }
     
     // Step 1: Submit employee details via hook
-    const employeeResult = await employeeForm.submit(orgAssignment);
+    // Pass employee ID for updates, null for creates
+    const employeeIdForUpdate = mode === 'edit' ? employee?.employee_id : null;
+    const employeeResult = await employeeForm.submit(orgAssignment, employeeIdForUpdate);
     
     // If employee save failed, stop (error already handled by hook)
     if (!employeeResult || !employeeResult.employee_id) {
@@ -285,20 +530,26 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
     }
     
     // Step 3: Both succeeded - show success and notify parent
-    alert('Employee saved successfully!');
+    const successMessage = mode === 'edit' ? 'Employee updated successfully!' : 'Employee saved successfully!';
+    alert(successMessage);
     if (onSave) onSave(employeeResult);
     
-    // Reset form for next entry (instead of closing drawer)
-    // This allows user to quickly add another employee
-    employeeForm.reset();
-    orgAssignment.reset();
-    setSkills([createEmptySkill()]);
-    setSkillErrors({});
-    setSkillsError(null);
-    setSkillsSaveError(null);
-    uniqueValidation.clearAllUniqueErrors();
-    setActiveTab('details');
-    // Note: Drawer stays open - user can close manually via X or Cancel
+    if (mode === 'edit') {
+      // In edit mode, close the drawer after successful update
+      onClose();
+    } else {
+      // In add mode, reset form for next entry (instead of closing drawer)
+      // This allows user to quickly add another employee
+      employeeForm.reset();
+      orgAssignment.reset();
+      setSkills([createEmptySkill()]);
+      setSkillErrors({});
+      setSkillsError(null);
+      setSkillsSaveError(null);
+      uniqueValidation.clearAllUniqueErrors();
+      setActiveTab('details');
+      // Note: Drawer stays open - user can close manually via X or Cancel
+    }
   };
 
   // Handle skills validation callback
@@ -321,6 +572,24 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
 
       {/* Drawer */}
       <div className={`add-employee-drawer ${isOpen ? 'open' : ''}`} data-testid="add-employee-drawer">
+        {/* Full-page loading overlay while awaiting bootstrap data */}
+        {mode === 'edit' && employee?._awaitingBootstrap && (
+          <div className="absolute inset-0 bg-gray-900/20 backdrop-blur-[2px] z-50 flex flex-col items-center justify-center cursor-not-allowed">
+            <div className="flex flex-col items-center gap-4 bg-white/95 px-8 py-6 rounded-xl shadow-lg">
+              <div className="relative">
+                <div className="w-10 h-10 border-4 border-blue-200 rounded-full"></div>
+                <div className="absolute top-0 left-0 w-10 h-10 border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+              </div>
+              <div className="text-center">
+                <p className="text-base font-medium text-gray-700">
+                  Loading {employee?.full_name || 'employee'} data
+                </p>
+                <p className="text-sm text-gray-500 mt-1">Please wait...</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Header */}
         <div className="drawer-header">
           <div className="drawer-title">
@@ -336,7 +605,8 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
         <div className="tab-nav">
           <button 
             className={`tab-btn ${activeTab === 'details' ? 'active' : ''}`}
-            onClick={() => setActiveTab('details')}
+            onClick={() => handleTabChange('details')}
+            disabled={isEditLoading}
           >
             Employee Details
             {Object.keys(errors).length > 0 && (
@@ -345,7 +615,8 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
           </button>
           <button 
             className={`tab-btn ${activeTab === 'skills' ? 'active' : ''}`}
-            onClick={() => setActiveTab('skills')}
+            onClick={() => handleTabChange('skills')}
+            disabled={isEditLoading}
           >
             Skills
             {(skillsError || Object.keys(skillErrors).length > 0) && (
@@ -356,10 +627,18 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
 
         {/* Body */}
         <div className="drawer-body">
+          {/* Edit Loading State */}
+          {isEditLoading && (
+            <div className="edit-loading-container" data-testid="edit-loading">
+              <div className="edit-loading-spinner" />
+              <p className="edit-loading-text">Loading employee information…</p>
+            </div>
+          )}
+          
           {/* Tab 1: Employee Details */}
-          <div className={`tab-content ${activeTab === 'details' ? 'active' : ''}`}>
+          <div className={`tab-content ${activeTab === 'details' && !isEditLoading ? 'active' : ''}`}>
             {/* Import Info Callout (only in edit mode) */}
-            {isEditMode && (
+            {isEditMode && !isEditLoading && (
               <div className="info-callout">
                 <div className="info-callout-title">📥 Imported from Excel</div>
                 <div className="info-callout-text">
@@ -575,20 +854,33 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
           </div>
 
           {/* Tab 2: Skills */}
-          <div className={`tab-content ${activeTab === 'skills' ? 'active' : ''}`}>
-            {/* Skills validation error message */}
-            {skillsError && (
-              <div className="info-callout" style={{ background: '#fef2f2', borderColor: '#fecaca', marginBottom: '1rem' }}>
-                <div className="info-callout-title" style={{ color: '#dc2626' }}>❌ Validation Error</div>
-                <div className="info-callout-text" style={{ color: '#dc2626' }}>{skillsError}</div>
+          <div className={`tab-content ${activeTab === 'skills' && !isEditLoading ? 'active' : ''}`}>
+            {/* Skills Loading State (for lazy loading in edit mode) */}
+            {isSkillsLoading && (
+              <div className="skills-loading-container" data-testid="skills-loading">
+                <div className="edit-loading-spinner" />
+                <p className="edit-loading-text">Loading skills…</p>
               </div>
             )}
-            <EmployeeSkillsTab
-              skills={skills}
-              onSkillsChange={handleSkillsChange}
-              errors={skillErrors}
-              onValidate={handleSkillsValidate}
-            />
+            
+            {/* Skills content (only show when not loading) */}
+            {!isSkillsLoading && (
+              <>
+                {/* Skills validation error message */}
+                {skillsError && (
+                  <div className="info-callout" style={{ background: '#fef2f2', borderColor: '#fecaca', marginBottom: '1rem' }}>
+                    <div className="info-callout-title" style={{ color: '#dc2626' }}>❌ Validation Error</div>
+                    <div className="info-callout-text" style={{ color: '#dc2626' }}>{skillsError}</div>
+                  </div>
+                )}
+                <EmployeeSkillsTab
+                  skills={skills}
+                  onSkillsChange={handleSkillsChange}
+                  errors={skillErrors}
+                  onValidate={handleSkillsValidate}
+                />
+              </>
+            )}
           </div>
         </div>
 
@@ -604,7 +896,7 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
               Cancel
             </button>
             <button className="btn btn-primary" onClick={handleSave} disabled={isSubmitting}>
-              {isSubmitting ? 'Saving...' : 'Save Employee'}
+              {isSubmitting ? 'Saving...' : (isEditMode ? 'Update Employee' : 'Save Employee')}
             </button>
           </div>
         </div>

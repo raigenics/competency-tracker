@@ -30,6 +30,7 @@ from app.models import Employee, EmployeeSkill
 from app.models.team import Team
 from app.models.project import Project
 from app.models.sub_segment import SubSegment
+from app.models.segment import Segment
 from app.schemas.employee import EmployeeResponse, EmployeeListResponse, OrganizationInfo
 from app.schemas.common import PaginationParams
 from app.services.utils.org_query_helpers import apply_org_filters
@@ -138,10 +139,11 @@ def _build_employee_query(
     - Other roles: filter on direct columns (sub_segment_id, project_id, team_id)
     """
     query = db.query(Employee).options(
-        # NORMALIZED: Load org chain via team -> project -> sub_segment
+        # NORMALIZED: Load org chain via team -> project -> sub_segment -> segment
         joinedload(Employee.team)
             .joinedload(Team.project)
-            .joinedload(Project.sub_segment),
+            .joinedload(Project.sub_segment)
+            .joinedload(SubSegment.segment),
         joinedload(Employee.role)
     )
     
@@ -316,13 +318,20 @@ def _build_organization_info(employee: Employee) -> OrganizationInfo:
     
     NORMALIZED SCHEMA: Derives sub_segment/project via team relationship.
     Returns empty strings for missing relationships to preserve API contract.
+    Now includes IDs for Edit form preselection (stale-while-revalidate optimization).
     """
     team = employee.team
     project = team.project if team else None
     sub_segment = project.sub_segment if project else None
+    segment = sub_segment.segment if sub_segment else None
     
     return OrganizationInfo(
         sub_segment=sub_segment.sub_segment_name if sub_segment else "",
         project=project.project_name if project else "",
-        team=team.team_name if team else ""
+        team=team.team_name if team else "",
+        # IDs for Edit form preselection
+        segment_id=segment.segment_id if segment else None,
+        sub_segment_id=sub_segment.sub_segment_id if sub_segment else None,
+        project_id=project.project_id if project else None,
+        team_id=team.team_id if team else None
     )
