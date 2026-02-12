@@ -105,7 +105,7 @@ async def validate_unique(
     return EmployeeValidateUniqueResponse(**result)
 
 
-@router.get("/", response_model=EmployeeListResponse)
+@router.get("", response_model=EmployeeListResponse)
 async def get_employees(
     pagination: PaginationParams = Depends(),
     sub_segment_id: Optional[int] = Query(None, description="Filter by sub-segment ID"),
