@@ -48,7 +48,9 @@ def get_employee_stats(db: Session) -> EmployeeStatsResponse:
 
 def _query_total_employees(db: Session) -> int:
     """Count total employees in database."""
-    return db.query(func.count(Employee.employee_id)).scalar() or 0
+    return db.query(func.count(Employee.employee_id)).filter(
+        Employee.deleted_at.is_(None)
+    ).scalar() or 0
 
 
 def _query_employees_by_sub_segment(db: Session) -> Dict[str, int]:
@@ -59,7 +61,9 @@ def _query_employees_by_sub_segment(db: Session) -> Dict[str, int]:
     results = db.query(
         SubSegment.sub_segment_name,
         func.count(Employee.employee_id)
-    ).join(Employee).group_by(SubSegment.sub_segment_name).all()
+    ).join(Employee).filter(
+        Employee.deleted_at.is_(None)
+    ).group_by(SubSegment.sub_segment_name).all()
     
     return dict(results)
 
@@ -72,7 +76,9 @@ def _query_employees_by_project(db: Session) -> Dict[str, int]:
     results = db.query(
         Project.project_name,
         func.count(Employee.employee_id)
-    ).join(Employee).group_by(Project.project_name).all()
+    ).join(Employee).filter(
+        Employee.deleted_at.is_(None)
+    ).group_by(Project.project_name).all()
     
     return dict(results)
 
@@ -85,7 +91,9 @@ def _query_employees_by_team(db: Session) -> Dict[str, int]:
     results = db.query(
         Team.team_name,
         func.count(Employee.employee_id)
-    ).join(Employee).group_by(Team.team_name).all()
+    ).join(Employee).filter(
+        Employee.deleted_at.is_(None)
+    ).group_by(Team.team_name).all()
     
     return dict(results)
 
@@ -99,7 +107,9 @@ def _query_average_skills_per_employee(db: Session) -> float:
         db.query(func.count(EmployeeSkill.emp_skill_id))
         .filter(EmployeeSkill.employee_id == Employee.employee_id)
         .scalar_subquery()
-    )).scalar()
+    )).filter(
+        Employee.deleted_at.is_(None)
+    ).scalar()
     
     return avg_skills or 0.0
 

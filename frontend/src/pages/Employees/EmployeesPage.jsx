@@ -101,6 +101,10 @@ const EmployeesPage = () => {
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [editLoading, setEditLoading] = useState(false);
   
+  // Delete confirmation state
+  const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, employeeId: null, employeeName: '' });
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  
   // Refs
   const searchDebounceRef = useRef(null);
   const searchInputRef = useRef(null);
@@ -504,17 +508,19 @@ const EmployeesPage = () => {
           console.groupEnd();
           
           // Transform skills from bootstrap format to frontend format
+          // Field names must match createEmptySkill() in EmployeeSkillsTab.jsx
           const transformedSkills = (bootstrap.skills || []).map(skill => ({
+            id: Date.now() + Math.random(),  // Unique ID for React key
             emp_skill_id: skill.emp_skill_id,
-            skillId: skill.skill_id,
+            skill_id: skill.skill_id,        // Must be skill_id (not skillId)
             skillName: skill.skill_name,
-            proficiency: skill.proficiency_level_name || '',
+            proficiency: skill.proficiency_enum || '',  // Use ENUM format (NOVICE, EXPERT, etc.)
             proficiencyLevelId: skill.proficiency_level_id,
-            yearsOfExperience: '',
-            lastUsedMonth: '',
-            lastUsedYear: '',
-            startedFrom: '',
-            certification: ''
+            yearsExperience: skill.years_experience != null ? String(skill.years_experience) : '',
+            lastUsedMonth: skill.last_used_month || '',
+            lastUsedYear: skill.last_used_year || '',
+            startedFrom: skill.started_from || '',
+            certification: skill.certification || ''
           }));
           
           // Resolve role_name from options
@@ -606,6 +612,45 @@ const EmployeesPage = () => {
     setIsAddEmployeeOpen(false);
     setDrawerMode('add');
     setSelectedEmployee(null);
+  };
+
+  /**
+   * Handle delete button click - shows confirmation modal.
+   */
+  const handleDeleteClick = (employeeId, employeeName) => {
+    setDeleteConfirm({ isOpen: true, employeeId, employeeName });
+  };
+
+  /**
+   * Handle delete confirmation - calls API to soft-delete employee.
+   */
+  const handleDeleteConfirm = async () => {
+    if (!deleteConfirm.employeeId) return;
+    
+    setDeleteLoading(true);
+    try {
+      await employeeApi.deleteEmployee(deleteConfirm.employeeId);
+      
+      // Clear cache and refresh employee list
+      pageCacheRef.current = {};
+      filterKeyRef.current = '';
+      setRefreshTrigger(prev => prev + 1);
+      
+      // Close confirmation modal
+      setDeleteConfirm({ isOpen: false, employeeId: null, employeeName: '' });
+    } catch (error) {
+      console.error('Failed to delete employee:', error);
+      alert('Failed to delete employee. Please try again.');
+    } finally {
+      setDeleteLoading(false);
+    }
+  };
+
+  /**
+   * Handle delete cancel - closes confirmation modal.
+   */
+  const handleDeleteCancel = () => {
+    setDeleteConfirm({ isOpen: false, employeeId: null, employeeName: '' });
   };
 
     // Handle sub-segment change
@@ -946,18 +991,6 @@ const EmployeesPage = () => {
                       <div>{employee.team || '—'}</div>
                       <div>{employee.role || '—'}</div>
                       <div className="flex gap-1.5 justify-end">
-                        {actions.canView && (
-                          <button
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              navigate(`/profile/employee/${employee.id}`);
-                            }}
-                            className="px-2.5 py-1 border border-[#e2e8f0] rounded bg-white text-xs hover:bg-[#f8fafc] hover:border-[#cbd5e1] transition-all"
-                            title="View employee details"
-                          >
-                            View
-                          </button>
-                        )}
                         {actions.canEdit && (
                           <button
                             onClick={(e) => {
@@ -975,10 +1008,10 @@ const EmployeesPage = () => {
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
-                              // TODO: Show delete confirmation
-                              console.log('Delete employee:', employee.id);
+                              handleDeleteClick(employee.id, employee.name || employee.full_name || 'this employee');
                             }}
-                            className="px-2.5 py-1 border border-red-200 rounded bg-white text-xs text-red-600 hover:bg-red-50 hover:border-red-300 transition-all"
+                            disabled={deleteLoading}
+                            className="px-2.5 py-1 border border-red-200 rounded bg-white text-xs text-red-600 hover:bg-red-50 hover:border-red-300 transition-all disabled:opacity-50 disabled:cursor-wait"
                             title="Delete employee"
                           >
                             Delete
@@ -1024,6 +1057,34 @@ const EmployeesPage = () => {
           )}
         </div>
       </div>
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirm.isOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4 shadow-xl">
+            <h3 className="text-lg font-semibold text-[#1e293b] mb-2">Delete Employee</h3>
+            <p className="text-sm text-[#64748b] mb-6">
+              Are you sure you want to delete <strong>{deleteConfirm.employeeName}</strong>? This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={handleDeleteCancel}
+                disabled={deleteLoading}
+                className="px-4 py-2 text-sm font-medium text-[#64748b] bg-white border border-[#e2e8f0] rounded-lg hover:bg-[#f8fafc] disabled:opacity-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDeleteConfirm}
+                disabled={deleteLoading}
+                className="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+              >
+                {deleteLoading ? 'Deleting...' : 'Delete'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

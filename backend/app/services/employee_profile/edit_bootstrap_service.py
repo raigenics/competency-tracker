@@ -189,21 +189,53 @@ def _get_current_allocation(employee: Employee, project: Optional[Project]) -> O
     return None
 
 
+# Mapping from database proficiency name to frontend enum
+PROFICIENCY_NAME_TO_ENUM = {
+    'Novice': 'NOVICE',
+    'Advanced Beginner': 'ADVANCED_BEGINNER',
+    'Competent': 'COMPETENT',
+    'Proficient': 'PROFICIENT',
+    'Expert': 'EXPERT'
+}
+
+
 def _build_skills_list(employee: Employee) -> List[Dict[str, Any]]:
     """
     Build skills list from employee_skills relationship.
-    Includes proficiency_level_id for dropdown preselection.
+    Returns all fields needed by frontend Skills tab.
     """
+    logger.info(f"[BUILD_SKILLS_LIST] Called for employee with {len(employee.employee_skills)} skills")
     skills = []
     
     for emp_skill in employee.employee_skills:
         proficiency = emp_skill.proficiency_level
+        proficiency_name = proficiency.level_name if proficiency else None
+        proficiency_enum = PROFICIENCY_NAME_TO_ENUM.get(proficiency_name, '') if proficiency_name else ''
+        
+        # Parse last_used date into month/year components
+        last_used_month = ''
+        last_used_year = ''
+        if emp_skill.last_used:
+            last_used_month = f"{emp_skill.last_used.month:02d}"
+            last_used_year = str(emp_skill.last_used.year)
+        
+        # Format started_learning_from as ISO date string (YYYY-MM-DD)
+        started_from = ''
+        if emp_skill.started_learning_from:
+            started_from = emp_skill.started_learning_from.isoformat()
+        
         skills.append({
             "emp_skill_id": emp_skill.emp_skill_id,
             "skill_id": emp_skill.skill_id,
             "skill_name": emp_skill.skill.skill_name,
             "proficiency_level_id": proficiency.proficiency_level_id if proficiency else None,
-            "proficiency_level_name": proficiency.level_name if proficiency else None
+            "proficiency_level_name": proficiency_name,
+            "proficiency_enum": proficiency_enum,
+            "years_experience": emp_skill.years_experience,
+            "last_used_month": last_used_month,
+            "last_used_year": last_used_year,
+            "started_from": started_from,
+            "certification": emp_skill.certification or ''
         })
     
     return skills

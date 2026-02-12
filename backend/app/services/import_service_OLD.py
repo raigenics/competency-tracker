@@ -360,7 +360,7 @@ class ImportService:
             ).first()
             
             if not existing:
-                new_sub_segment = SubSegment(sub_segment_name=sub_segment_name)
+                new_sub_segment = SubSegment(sub_segment_name=sub_segment_name, created_by="excel_import")
                 self.db.add(new_sub_segment)
                 self.import_stats['new_sub_segments'].append(sub_segment_name)
                 logger.info(f"Added new sub-segment: {sub_segment_name}")
@@ -376,7 +376,7 @@ class ImportService:
             ).first()
 
             if not existing:
-                new_role = Role(role_name=role_name)
+                new_role = Role(role_name=role_name, created_by="excel_import")
                 self.db.add(new_role)
                 self.import_stats['new_roles'].append(role_name)
                 logger.info(f"Added new role: {role_name}")
@@ -401,7 +401,8 @@ class ImportService:
             if not existing_project:
                 new_project = Project(
                     project_name=project_name,
-                    sub_segment_id=sub_segment.sub_segment_id
+                    sub_segment_id=sub_segment.sub_segment_id,
+                    created_by="excel_import"
                 )
                 self.db.add(new_project)
                 self.import_stats['new_projects'].append(project_name)
@@ -428,7 +429,8 @@ class ImportService:
             if not existing_team:
                 new_team = Team(
                     team_name=team_name,
-                    project_id=project.project_id
+                    project_id=project.project_id,
+                    created_by="excel_import"
                 )
                 self.db.add(new_team)
                 self.import_stats['new_teams'].append(team_name)

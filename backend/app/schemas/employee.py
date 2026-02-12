@@ -280,6 +280,12 @@ class EditBootstrapSkill(BaseModel):
     skill_name: str = Field(description="Skill name")
     proficiency_level_id: Optional[int] = Field(None, description="Proficiency level ID for dropdown preselection")
     proficiency_level_name: Optional[str] = Field(None, description="Proficiency level name for display")
+    proficiency_enum: str = Field("", description="Proficiency level as frontend enum (NOVICE, EXPERT, etc.)")
+    years_experience: Optional[int] = Field(None, description="Years of experience")
+    last_used_month: str = Field("", description="Last used month (01-12)")
+    last_used_year: str = Field("", description="Last used year (YYYY)")
+    started_from: str = Field("", description="Started learning date (YYYY-MM-DD)")
+    certification: str = Field("", description="Certification name")
 
 
 class EditBootstrapMeta(BaseModel):
@@ -300,3 +306,10 @@ class EditBootstrapResponse(BaseModel):
     options: EditBootstrapOptions = Field(description="All dropdown options")
     skills: List[EditBootstrapSkill] = Field(description="Employee skills")
     meta: EditBootstrapMeta = Field(description="Response metadata")
+
+
+class EmployeeDeleteResponse(BaseModel):
+    """Response schema for soft-deleted employee."""
+    message: str = Field(description="Success message")
+    employee_id: int = Field(description="Deleted employee ID")
+

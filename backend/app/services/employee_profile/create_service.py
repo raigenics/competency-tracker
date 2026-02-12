@@ -19,13 +19,14 @@ from app.services.imports.employee_import.allocation_writer import upsert_active
 logger = logging.getLogger(__name__)
 
 
-def get_or_create_role(db: Session, role_name: Optional[str]) -> Optional[int]:
+def get_or_create_role(db: Session, role_name: Optional[str], created_by: str = "auto_create") -> Optional[int]:
     """
     Get role_id from role name, creating if necessary.
     
     Args:
         db: Database session
         role_name: Name of the role (can be None)
+        created_by: Identifier for who/what created the role (default: 'auto_create')
         
     Returns:
         role_id or None if role_name is empty
@@ -37,7 +38,7 @@ def get_or_create_role(db: Session, role_name: Optional[str]) -> Optional[int]:
     role = db.query(Role).filter(Role.role_name == role_name).first()
     
     if not role:
-        role = Role(role_name=role_name)
+        role = Role(role_name=role_name, created_by=created_by)
         db.add(role)
         db.flush()  # Get the role_id
         logger.info(f"Created new role: {role_name}")
@@ -111,7 +112,10 @@ def create_employee(
     validate_role_id(db, role_id)
     
     # Check for duplicate ZID
-    existing = db.query(Employee).filter(Employee.zid == zid).first()
+    existing = db.query(Employee).filter(
+        Employee.zid == zid,
+        Employee.deleted_at.is_(None)
+    ).first()
     if existing:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
@@ -189,7 +193,10 @@ def update_employee(
         HTTPException(404): If employee_id or team_id is invalid
         HTTPException(422): If role_id is invalid
     """
-    employee = db.query(Employee).filter(Employee.employee_id == employee_id).first()
+    employee = db.query(Employee).filter(
+        Employee.employee_id == employee_id,
+        Employee.deleted_at.is_(None)
+    ).first()
     if not employee:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

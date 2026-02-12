@@ -5,7 +5,8 @@ NORMALIZED: employees no longer have direct project_id FK.
 Access employees via teams: project.teams -> team.employees
 
 """
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -18,6 +19,19 @@ class Project(Base):
     project_id = Column(Integer, primary_key=True, index=True)
     project_name = Column(String, nullable=False, index=True)
     sub_segment_id = Column(Integer, ForeignKey("sub_segments.sub_segment_id", ondelete="CASCADE"), nullable=False)
+    
+    # Audit columns
+    created_at = Column(
+        DateTime(timezone=True), 
+        nullable=False, 
+        server_default=func.now(),
+        default=func.now()
+    )
+    created_by = Column(String(100), nullable=False, default="system", index=True)
+    
+    # Soft delete columns
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    deleted_by = Column(String(100), nullable=True, index=True)
     
     # Relationships
     sub_segment = relationship("SubSegment", back_populates="projects")

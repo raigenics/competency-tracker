@@ -318,6 +318,68 @@ class HttpClient {
       throw error;
     }
   }
+
+  async patch(endpoint, data = {}) {
+    const reqId = ++_httpRequestId;
+    const startTime = performance.now();
+    const fullUrl = `${API_BASE_URL}${endpoint}`;
+    const record = { id: reqId, method: 'PATCH', url: fullUrl, startTime: Date.now() };
+    
+    if (DEBUG_HTTP) {
+      console.log(`[HTTP START] id=${reqId} method=PATCH url=${fullUrl} t=${startTime.toFixed(2)}`);
+    }
+    
+    try {
+      const response = await fetch(fullUrl, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          ...buildRbacHeaders(),
+        },
+        body: JSON.stringify(data),
+      });
+      
+      const durationMs = performance.now() - startTime;
+      const text = await response.text();
+      const bytes = text.length;
+      
+      record.status = response.status;
+      record.durationMs = durationMs;
+      record.bytes = bytes;
+      recordTiming(record);
+      
+      if (DEBUG_HTTP) {
+        console.log(`[HTTP END]   id=${reqId} status=${response.status} ms=${durationMs.toFixed(1)} bytes=${bytes}`);
+      }
+      
+      if (!response.ok) {
+        // Parse error response for structured error messages
+        let errorData;
+        try {
+          errorData = JSON.parse(text);
+        } catch {
+          errorData = { detail: text || `HTTP error! status: ${response.status}` };
+        }
+        const error = new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        error.status = response.status;
+        error.data = errorData;
+        throw error;
+      }
+      return JSON.parse(text);
+    } catch (error) {
+      const durationMs = performance.now() - startTime;
+      if (!record.durationMs) {
+        record.durationMs = durationMs;
+        record.error = error.message;
+        recordTiming(record);
+      }
+      if (DEBUG_HTTP && !record.status) {
+        console.log(`[HTTP FAIL]  id=${reqId} ms=${durationMs.toFixed(1)} error="${error.message}" aborted=false`);
+      }
+      console.error('PATCH request failed:', error);
+      throw error;
+    }
+  }
   
   async delete(endpoint, data = null) {
     const reqId = ++_httpRequestId;
@@ -351,12 +413,29 @@ class HttpClient {
       record.durationMs = durationMs;
       
       if (!response.ok) {
-        record.error = `HTTP ${response.status}`;
+        // Parse error response for structured error messages (409 conflicts, etc.)
+        let errorData;
+        try {
+          const text = await response.text();
+          record.bytes = text.length;
+          errorData = text ? JSON.parse(text) : { detail: `HTTP error! status: ${response.status}` };
+        } catch {
+          errorData = { detail: `HTTP error! status: ${response.status}` };
+        }
+        
         recordTiming(record);
         if (DEBUG_HTTP) {
           console.log(`[HTTP FAIL]  id=${reqId} status=${response.status} ms=${durationMs.toFixed(1)}`);
         }
-        throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const error = new Error(
+          typeof errorData.detail === 'string' 
+            ? errorData.detail 
+            : errorData.detail?.message || `HTTP error! status: ${response.status}`
+        );
+        error.status = response.status;
+        error.data = errorData.detail || errorData;
+        throw error;
       }
       
       // 204 No Content - return null immediately

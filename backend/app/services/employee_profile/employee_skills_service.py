@@ -117,7 +117,8 @@ def validate_employee_exists(db: Session, employee_id: int) -> Employee:
         HTTPException: If employee not found
     """
     employee = db.query(Employee).filter(
-        Employee.employee_id == employee_id
+        Employee.employee_id == employee_id,
+        Employee.deleted_at.is_(None)
     ).first()
     
     if not employee:

@@ -66,6 +66,7 @@ def _query_employees_by_search(
             .joinedload(Team.project)
             .joinedload(Project.sub_segment)
     ).filter(
+        Employee.deleted_at.is_(None),
         (Employee.full_name.ilike(search_term)) | 
         (Employee.zid.ilike(search_term))
     ).limit(limit).all()

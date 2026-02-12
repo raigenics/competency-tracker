@@ -11,6 +11,13 @@ import BulkImportPage from '../pages/BulkImport/BulkImportPage.jsx';
 import RbacAdminPage from '../pages/RbacAdmin/RbacAdminPage.jsx';
 import { FEATURE_FLAGS } from '../config/featureFlags';
 
+// Master Data pages
+import { 
+  SkillTaxonomyPage as MasterDataSkillTaxonomyPage,
+  OrgHierarchyPage,
+  RolesPage 
+} from '../pages/MasterData';
+
 export const router = createBrowserRouter([
   {
     path: "/",
@@ -53,6 +60,19 @@ export const router = createBrowserRouter([
           element: <RbacAdminPage />,
         }
       ] : []),
+      // Master Data routes
+      {
+        path: "admin/master-data/skill-taxonomy",
+        element: <MasterDataSkillTaxonomyPage />,
+      },
+      {
+        path: "admin/master-data/org-hierarchy",
+        element: <OrgHierarchyPage />,
+      },
+      {
+        path: "admin/master-data/roles",
+        element: <RolesPage />,
+      },
     ],
   },
 ]);

@@ -76,7 +76,10 @@ def _query_employees_by_ids(
                 .joinedload(Project.sub_segment),
             joinedload(Employee.role)
         )\
-        .filter(Employee.employee_id.in_(employee_ids))\
+        .filter(
+            Employee.employee_id.in_(employee_ids),
+            Employee.deleted_at.is_(None)
+        )\
         .all()
 
 

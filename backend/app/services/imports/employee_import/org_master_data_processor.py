@@ -87,7 +87,7 @@ class OrgMasterDataProcessor:
             ).first()
             
             if not existing:
-                new_segment = Segment(segment_name=segment_name_clean)
+                new_segment = Segment(segment_name=segment_name_clean, created_by="employee_import")
                 self.db.add(new_segment)
                 self.stats.setdefault('new_segments', []).append(segment_name_clean)
                 logger.info(f"Added new segment: {segment_name_clean}")
@@ -136,7 +136,8 @@ class OrgMasterDataProcessor:
                 # Create new sub_segment with segment link (or NULL if no mapping)
                 new_sub_segment = SubSegment(
                     sub_segment_name=sub_segment_name,
-                    segment_id=segment.segment_id if segment else None
+                    segment_id=segment.segment_id if segment else None,
+                    created_by="employee_import"
                 )
                 self.db.add(new_sub_segment)
                 self.stats.setdefault('new_sub_segments', []).append(sub_segment_name)
@@ -175,7 +176,7 @@ class OrgMasterDataProcessor:
             ).first()
             
             if not existing:
-                new_role = Role(role_name=role_name)
+                new_role = Role(role_name=role_name, created_by="employee_import")
                 self.db.add(new_role)
                 self.stats.setdefault('new_roles', []).append(role_name)
                 logger.info(f"Added new role: {role_name}")
@@ -201,7 +202,8 @@ class OrgMasterDataProcessor:
             if not existing_project:
                 new_project = Project(
                     project_name=project_name,
-                    sub_segment_id=sub_segment.sub_segment_id
+                    sub_segment_id=sub_segment.sub_segment_id,
+                    created_by="employee_import"
                 )
                 self.db.add(new_project)
                 self.stats.setdefault('new_projects', []).append(project_name)
@@ -243,7 +245,8 @@ class OrgMasterDataProcessor:
             if not existing_team:
                 new_team = Team(
                     team_name=team_name,
-                    project_id=project.project_id
+                    project_id=project.project_id,
+                    created_by="employee_import"
                 )
                 self.db.add(new_team)
                 self.stats.setdefault('new_teams', []).append(team_name)

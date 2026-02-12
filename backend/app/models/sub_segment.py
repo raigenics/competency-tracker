@@ -6,7 +6,8 @@ Sub-segments are organizational units within a parent segment.
 NORMALIZED: employees no longer have direct sub_segment_id FK.
 Access employees via: sub_segment.projects -> project.teams -> team.employees
 """
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -28,6 +29,19 @@ class SubSegment(Base):
         nullable=True,
         index=True
     )
+    
+    # Audit columns
+    created_at = Column(
+        DateTime(timezone=True), 
+        nullable=False, 
+        server_default=func.now(),
+        default=func.now()
+    )
+    created_by = Column(String(100), nullable=False, default="system", index=True)
+    
+    # Soft delete columns
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    deleted_by = Column(String(100), nullable=True, index=True)
     
     # Relationships
     segment = relationship("Segment", back_populates="sub_segments")

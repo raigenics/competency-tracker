@@ -74,7 +74,10 @@ def _query_employee_by_id(db: Session, employee_id: int) -> Optional[Employee]:
         joinedload(Employee.employee_skills).joinedload(EmployeeSkill.skill),
         joinedload(Employee.employee_skills).joinedload(EmployeeSkill.proficiency_level),
         joinedload(Employee.project_allocations)
-    ).filter(Employee.employee_id == employee_id).first()
+    ).filter(
+        Employee.employee_id == employee_id,
+        Employee.deleted_at.is_(None)
+    ).first()
 
 
 # === RESPONSE BUILDING ===

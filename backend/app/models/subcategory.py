@@ -1,7 +1,8 @@
 """
 Skill subcategory model - master/dimension table.
 """
-from sqlalchemy import Column, Integer, String, ForeignKey
+from sqlalchemy import Column, Integer, String, ForeignKey, DateTime
+from sqlalchemy.sql import func
 from sqlalchemy.orm import relationship
 from app.db.base import Base
 
@@ -14,6 +15,19 @@ class SkillSubcategory(Base):
     subcategory_id = Column(Integer, primary_key=True, index=True)
     category_id = Column(Integer, ForeignKey("skill_categories.category_id", ondelete="CASCADE"), nullable=False)
     subcategory_name = Column(String, nullable=False, index=True)
+    
+    # Audit columns
+    created_at = Column(
+        DateTime(timezone=True), 
+        nullable=False, 
+        server_default=func.now(),
+        default=func.now()
+    )
+    created_by = Column(String(100), nullable=False, default="system", index=True)
+    
+    # Soft delete columns
+    deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    deleted_by = Column(String(100), nullable=True, index=True)
     
     # Relationships
     category = relationship("SkillCategory", back_populates="subcategories")

@@ -21,9 +21,10 @@ logger = logging.getLogger(__name__)
 class DataUpserter:
     """Handles upsert operations for categories, subcategories, skills, and aliases."""
     
-    def __init__(self, db: Session, cache: DataCache):
+    def __init__(self, db: Session, cache: DataCache, created_by: str = "master_import"):
         self.db = db
         self.cache = cache
+        self.created_by = created_by
         self.errors = []
         
         # Track stats
@@ -44,7 +45,7 @@ class DataUpserter:
             return self.cache.categories[category_norm]
         
         # Insert new category
-        new_category = SkillCategory(category_name=category_name)
+        new_category = SkillCategory(category_name=category_name, created_by=self.created_by)
         self.db.add(new_category)
         self.db.flush()
         
@@ -67,7 +68,8 @@ class DataUpserter:
         # Insert new subcategory
         new_subcat = SkillSubcategory(
             subcategory_name=subcategory_name,
-            category_id=category_id
+            category_id=category_id,
+            created_by=self.created_by
         )
         self.db.add(new_subcat)
         self.db.flush()
@@ -114,7 +116,8 @@ class DataUpserter:
         # Insert new skill
         new_skill = Skill(
             skill_name=row.skill_name,
-            subcategory_id=subcategory_id
+            subcategory_id=subcategory_id,
+            created_by=self.created_by
         )
         self.db.add(new_skill)
         self.db.flush()

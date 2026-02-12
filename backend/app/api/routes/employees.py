@@ -24,7 +24,8 @@ from app.schemas.employee import (
     EmployeeUpdateRequest,
     EmployeeSkillsBulkSaveRequest, EmployeeSkillsBulkSaveResponse,
     EmployeeValidateUniqueResponse,
-    EditBootstrapResponse
+    EditBootstrapResponse,
+    EmployeeDeleteResponse
 )
 from app.schemas.common import PaginationParams
 from app.security.rbac_policy import get_rbac_context, RbacContext
@@ -38,6 +39,7 @@ from app.services.employee_profile import by_ids_service
 from app.services.employee_profile import create_service
 from app.services.employee_profile import employee_skills_service
 from app.services.employee_profile import validation_service
+from app.services.employee_profile import delete_service
 from app.services.employee_profile import edit_bootstrap_service
 
 logger = logging.getLogger(__name__)
@@ -402,4 +404,41 @@ def save_employee_skills(
         employee_id=employee_id,
         skills_saved=skills_saved,
         skills_deleted=skills_deleted
+    )
+
+
+@router.delete(
+    "/{employee_id}",
+    response_model=EmployeeDeleteResponse,
+    summary="Soft-delete an employee",
+    description="Soft-deletes an employee by setting deleted_at timestamp. The employee record is retained but excluded from queries."
+)
+async def delete_employee(
+    employee_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Soft-delete an employee.
+    
+    This endpoint performs a soft delete by setting the deleted_at timestamp.
+    The employee record is retained in the database but will be excluded 
+    from all employee queries.
+    
+    Args:
+        employee_id: ID of the employee to delete
+        
+    Returns:
+        Confirmation message with deleted employee ID
+        
+    Raises:
+        404: If employee not found
+        400: If employee is already deleted
+    """
+    logger.info(f"Soft-deleting employee with ID: {employee_id}")
+    
+    employee = delete_service.soft_delete_employee(db, employee_id)
+    
+    return EmployeeDeleteResponse(
+        message=f"Employee '{employee.full_name}' has been deleted successfully",
+        employee_id=employee_id
     )

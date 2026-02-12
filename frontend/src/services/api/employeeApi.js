@@ -221,6 +221,22 @@ export const employeeApi = {// Get employee suggestions for autocomplete
       console.error('Failed to fetch edit bootstrap:', error);
       throw error;
     }
+  },
+
+  /**
+   * Soft-delete an employee.
+   * 
+   * @param {number} employeeId - Employee ID to delete
+   * @returns {Promise<Object>} Response with message and employee_id
+   */
+  async deleteEmployee(employeeId) {
+    try {
+      const response = await httpClient.delete(`/employees/${employeeId}`);
+      return response;
+    } catch (error) {
+      console.error('Failed to delete employee:', error);
+      throw error;
+    }
   }
 };
 

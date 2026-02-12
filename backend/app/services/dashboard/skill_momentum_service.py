@@ -121,7 +121,9 @@ def _get_employee_ids_in_scope(
     # PHASE 1 NORMALIZATION: Use centralized helper for join-based filtering
     # OLD: Direct inline filters on Employee.sub_segment_id, Employee.project_id
     # NEW: Canonical helper enforces team_id as source of truth with joins
-    query = db.query(Employee.employee_id)
+    query = db.query(Employee.employee_id).filter(
+        Employee.deleted_at.is_(None)
+    )
     query = apply_org_filters_to_employee_ids(query, sub_segment_id, project_id, team_id)
     
     employee_ids = [e[0] for e in query.all()]

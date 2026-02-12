@@ -145,6 +145,8 @@ def _build_employee_query(
             .joinedload(Project.sub_segment)
             .joinedload(SubSegment.segment),
         joinedload(Employee.role)
+    ).filter(
+        Employee.deleted_at.is_(None)
     )
     
     # === RBAC SCOPE FILTERING ===

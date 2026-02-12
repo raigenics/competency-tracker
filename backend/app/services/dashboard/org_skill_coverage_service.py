@@ -122,7 +122,7 @@ def _query_sub_segment_aggregates(db: Session):
         func.sum(case((Role.role_name == 'PM', 1), else_=0)).label('devops')
     ).outerjoin(Project, SubSegment.sub_segment_id == Project.sub_segment_id
     ).outerjoin(Team, Project.project_id == Team.project_id
-    ).outerjoin(Employee, Team.team_id == Employee.team_id
+    ).outerjoin(Employee, (Team.team_id == Employee.team_id) & (Employee.deleted_at.is_(None))
     ).outerjoin(Role, Employee.role_id == Role.role_id
     ).group_by(SubSegment.sub_segment_id, SubSegment.sub_segment_name
     ).order_by(SubSegment.sub_segment_name)
@@ -153,6 +153,7 @@ def _query_certified_count_for_sub_segment(
         SubSegment, Project.sub_segment_id == SubSegment.sub_segment_id
     ).filter(
         SubSegment.sub_segment_name == sub_segment_name,
+        Employee.deleted_at.is_(None),
         Employee.employee_id.in_(
             db.query(EmployeeSkill.employee_id).filter(
                 EmployeeSkill.certification.isnot(None),
@@ -175,6 +176,7 @@ def _query_organization_certified_count(db: Session) -> int:
         Count of certified employees across organization
     """
     org_certified_count = db.query(func.count(func.distinct(Employee.employee_id))).filter(
+        Employee.deleted_at.is_(None),
         Employee.employee_id.in_(
             db.query(EmployeeSkill.employee_id).filter(
                 EmployeeSkill.certification.isnot(None),

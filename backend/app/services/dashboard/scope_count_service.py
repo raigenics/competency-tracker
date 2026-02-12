@@ -116,7 +116,8 @@ def _query_team_scope(db: Session, team_id: int) -> Tuple[int, str, str]:
         raise ValueError(f"Team with ID {team_id} not found")
     
     count = db.query(func.count(Employee.employee_id)).filter(
-        Employee.team_id == team_id
+        Employee.team_id == team_id,
+        Employee.deleted_at.is_(None)
     ).scalar()
     
     return count, "TEAM", team.team_name
@@ -148,7 +149,9 @@ def _query_project_scope(db: Session, project_id: int) -> Tuple[int, str, str]:
     # PHASE 1 NORMALIZATION: Use join-based filtering
     # OLD: Employee.project_id == project_id (direct redundant column)
     # NEW: Join through Team to derive project membership
-    query = db.query(func.count(Employee.employee_id))
+    query = db.query(func.count(Employee.employee_id)).filter(
+        Employee.deleted_at.is_(None)
+    )
     query = apply_org_filters(query, project_id=project_id)
     count = query.scalar()
     
@@ -183,7 +186,9 @@ def _query_sub_segment_scope(db: Session, sub_segment_id: int) -> Tuple[int, str
     # PHASE 1 NORMALIZATION: Use join-based filtering
     # OLD: Employee.sub_segment_id == sub_segment_id (direct redundant column)
     # NEW: Join through Team->Project to derive sub-segment membership
-    query = db.query(func.count(Employee.employee_id))
+    query = db.query(func.count(Employee.employee_id)).filter(
+        Employee.deleted_at.is_(None)
+    )
     query = apply_org_filters(query, sub_segment_id=sub_segment_id)
     count = query.scalar()
     
@@ -200,6 +205,8 @@ def _query_organization_scope(db: Session) -> Tuple[int, str, str]:
     Returns:
         Tuple of (count, "ORGANIZATION", "Organization-Wide")
     """
-    count = db.query(func.count(Employee.employee_id)).scalar()
+    count = db.query(func.count(Employee.employee_id)).filter(
+        Employee.deleted_at.is_(None)
+    ).scalar()
     
     return count, "ORGANIZATION", "Organization-Wide"

@@ -12,6 +12,8 @@ lerna-debug.log*
 *.xls
 *.xlsm
 *.csv
+# Allow template file
+!backend/static/templates/SkillMasterData_Template.xlsx
 
 # Environment files
 .env

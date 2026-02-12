@@ -25,6 +25,8 @@ from app.api.routes.capability_finder import router as capability_finder_router
 from app.api.routes.admin_master_import import router as admin_master_import_router
 from app.api.routes.rbac_admin import router as rbac_admin_router
 from app.api.routes.roles import router as roles_router
+from app.api.routes.master_data import router as master_data_router
+from app.api.routes.org_hierarchy import router as org_hierarchy_router
 
 # Configure logging
 logging.basicConfig(
@@ -85,6 +87,8 @@ app.include_router(capability_finder_router, prefix="/api")
 app.include_router(admin_master_import_router, prefix="/api")
 app.include_router(rbac_admin_router, prefix="/api")
 app.include_router(roles_router, prefix="/api")
+app.include_router(master_data_router, prefix="/api")
+app.include_router(org_hierarchy_router, prefix="/api")
 
 @app.on_event("startup")
 async def startup_event():
