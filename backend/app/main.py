@@ -37,6 +37,9 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Log startup environment
+logger.info(f"🚀 Starting Competency Tracker API | FASTAPI_ENV={FASTAPI_ENV} | IS_DEV={IS_DEV}")
+
 # Create FastAPI application
 app = FastAPI(
     title="Competency Tracking System API",
