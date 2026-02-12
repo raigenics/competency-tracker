@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 
 from app.services.import_service import ImportService, ImportServiceError
-from app.services.import_job_service import ImportJobService
+from app.services.import_job_service import ImportJobService, JobStatusDBError
 from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
@@ -228,10 +228,25 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)) -> Dict[str
         Dict with job status, progress, and results
         
     Raises:
-        HTTPException: If job not found
+        HTTPException: 
+            - 404 if job truly not found (confirmed DB query returned no results)
+            - 503 if database temporarily unavailable (transient error)
     """
     job_service = ImportJobService(db)
-    job_status = job_service.get_job_status(job_id)
+    
+    try:
+        job_status = job_service.get_job_status(job_id)
+    except JobStatusDBError as e:
+        # Transient DB error - return 503 so frontend keeps polling
+        logger.warning(f"Transient DB error for job {job_id}: {e}")
+        return JSONResponse(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            content={
+                "status": "unavailable",
+                "message": "Database temporarily busy. Import is still running, please retry.",
+                "job_id": job_id
+            }
+        )
     
     if not job_status:
         raise HTTPException(

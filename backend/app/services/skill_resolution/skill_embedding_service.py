@@ -6,7 +6,8 @@ Single Responsibility: Orchestrate embedding generation and persistence.
 """
 import logging
 import hashlib
-from typing import List, Dict, Any
+import time
+from typing import List, Dict, Any, Optional, Callable
 from datetime import datetime
 from sqlalchemy.orm import Session
 from dataclasses import dataclass, field
@@ -16,6 +17,13 @@ from app.services.skill_resolution.embedding_provider import EmbeddingProvider
 from app.services.skill_resolution.skill_embedding_repository import SkillEmbeddingRepository
 
 logger = logging.getLogger(__name__)
+
+# Progress callback type: (percent: int, message: str) -> None
+EmbeddingProgressCallback = Callable[[int, str], None]
+
+# Throttling: minimum interval between progress updates during embedding generation
+EMBEDDING_PROGRESS_MIN_INTERVAL_SECONDS = 2
+EMBEDDING_PROGRESS_MIN_COUNT = 10
 
 
 @dataclass
@@ -55,7 +63,10 @@ class SkillEmbeddingService:
     
     def ensure_embeddings_for_skill_ids(
         self,
-        skill_ids: List[int]
+        skill_ids: List[int],
+        progress_callback: Optional[EmbeddingProgressCallback] = None,
+        progress_start: int = 90,
+        progress_end: int = 95
     ) -> EmbeddingResult:
         """
         Ensure embeddings exist for given skill IDs (batch operation).
@@ -67,6 +78,9 @@ class SkillEmbeddingService:
         
         Args:
             skill_ids: List of skill IDs to process
+            progress_callback: Optional callback for progress updates (percent, message)
+            progress_start: Starting progress percentage (default 90)
+            progress_end: Ending progress percentage (default 95)
             
         Returns:
             EmbeddingResult with succeeded, failed, and skipped skill IDs
@@ -83,11 +97,19 @@ class SkillEmbeddingService:
         skills = self.db.query(Skill).filter(Skill.skill_id.in_(skill_ids)).all()
         skill_map = {skill.skill_id: skill for skill in skills}
         
+        # Progress tracking
+        total_skills = len(skill_ids)
+        processed_count = 0
+        last_progress_time = time.time()
+        last_progress_count = 0
+        progress_range = progress_end - progress_start
+        
         # Process each skill
         for skill_id in skill_ids:
             skill = skill_map.get(skill_id)
             if not skill:
                 logger.warning(f"Skill ID {skill_id} not found in database")
+                processed_count += 1
                 continue
             
             try:
@@ -95,22 +117,36 @@ class SkillEmbeddingService:
                 if self._is_embedding_up_to_date(skill):
                     logger.debug(f"Embedding skipped (up-to-date): skill_id={skill_id}, skill_name='{skill.skill_name}'")
                     result.skipped.append(skill_id)
-                    continue
-                
-                # Generate and save embedding
-                success = self._generate_and_save_embedding(skill)
-                if success:
-                    logger.info(f"Embedding upserted: skill_id={skill_id}, skill_name='{skill.skill_name}', model={self.model_name}, version={self.embedding_version}")
-                    result.succeeded.append(skill_id)
+                    processed_count += 1
                 else:
-                    # Should not happen as exceptions are caught below
-                    result.failed.append({
-                        'skill_id': skill_id,
-                        'skill_name': skill.skill_name,
-                        'error': 'Unknown error'
-                    })
+                    # Generate and save embedding
+                    success = self._generate_and_save_embedding(skill)
+                    processed_count += 1
+                    
+                    if success:
+                        logger.info(f"Embedding upserted: skill_id={skill_id}, skill_name='{skill.skill_name}', model={self.model_name}, version={self.embedding_version}")
+                        result.succeeded.append(skill_id)
+                    else:
+                        result.failed.append({
+                            'skill_id': skill_id,
+                            'skill_name': skill.skill_name,
+                            'error': 'Unknown error'
+                        })
+                
+                # Throttled progress update
+                if progress_callback:
+                    elapsed = time.time() - last_progress_time
+                    count_since_last = processed_count - last_progress_count
+                    
+                    if elapsed >= EMBEDDING_PROGRESS_MIN_INTERVAL_SECONDS or count_since_last >= EMBEDDING_PROGRESS_MIN_COUNT:
+                        percent = progress_start + int((processed_count / total_skills) * progress_range)
+                        progress_callback(percent, f"Generating embeddings... ({processed_count} / {total_skills})")
+                        last_progress_time = time.time()
+                        last_progress_count = processed_count
+                        logger.debug(f"[EMBEDDING] Progress update: {percent}% | {processed_count}/{total_skills}")
                     
             except Exception as e:
+                processed_count += 1
                 # Log warning but continue processing
                 logger.warning(
                     f"Embedding failed: skill_id={skill_id}, skill_name='{skill.skill_name}', "

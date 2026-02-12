@@ -11,6 +11,7 @@ export { default as DeleteSelectedModal } from './DeleteSelectedModal';
 export { default as DependencyModal } from './DependencyModal';
 export { default as ImportModal } from './ImportModal';
 export { default as AuditModal } from './AuditModal';
+export { default as ImportBlockingOverlay } from './ImportBlockingOverlay';
 export { default as InlineEditableTitle } from './InlineEditableTitle';
 export { default as SkillsTable } from './SkillsTable';
 export { default as SkillsTableRow } from './SkillsTableRow';

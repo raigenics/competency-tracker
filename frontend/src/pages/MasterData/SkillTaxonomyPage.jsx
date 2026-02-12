@@ -28,7 +28,8 @@ import {
   Alert,
   EmptyState,
   InlineEditableTitle,
-  SkillsTable
+  SkillsTable,
+  ImportBlockingOverlay
 } from './components';
 import { 
   fetchSkillTaxonomy, 
@@ -43,8 +44,11 @@ import {
   deleteSkill,
   createCategory,
   createSubcategory,
-  createSkill
+  createSkill,
+  importSkills,
+  getImportJobStatus
 } from '../../services/api/masterDataApi';
+import { API_BASE_URL } from '../../config/apiConfig';
 
 // Loading delay threshold (ms) - only show loader after this time to prevent flicker
 const LOADING_DELAY_MS = 500;
@@ -248,6 +252,16 @@ const SkillTaxonomyPage = () => {
   // Skill search query (for filtering skills table)
   const [skillSearchQuery, setSkillSearchQuery] = useState('');
 
+  // Import loading state
+  const [isImporting, setIsImporting] = useState(false);
+
+  // Import overlay state (for blocking UI during import)
+  const [importOverlay, setImportOverlay] = useState({
+    visible: false,
+    message: 'Starting import...'
+  });
+  const importPollingRef = useRef(null);
+
   /**
    * Fetch taxonomy data from API
    */
@@ -308,6 +322,10 @@ const SkillTaxonomyPage = () => {
       }
       if (loaderTimeoutRef.current) {
         clearTimeout(loaderTimeoutRef.current);
+      }
+      // Cleanup import polling on unmount
+      if (importPollingRef.current) {
+        clearTimeout(importPollingRef.current);
       }
     };
   }, [loadTaxonomy]);
@@ -1065,36 +1083,38 @@ const SkillTaxonomyPage = () => {
   };
 
   // Render header action buttons (Download Template, Import, Add)
+  // Download Template and Import Skills are ALWAYS visible
+  // + Add Sub-Category only appears when a Category is selected
   const renderHeaderActions = () => {
-    if (!selectedItem) return null;
-    
-    const childType = getChildType();
+    // Get backend base URL (without /api suffix) for static file access
+    const backendBaseUrl = API_BASE_URL.replace(/\/api$/, '');
+    const templateUrl = `${backendBaseUrl}/static/templates/SkillMasterData_Template.xlsx`;
     
     return (
       <>
-        <button 
+        <a 
           className="btn btn-secondary" 
-          onClick={() => {
-            // TODO: Implement template download
-            console.log('Download template clicked');
-          }}
+          href={templateUrl}
+          download="SkillMasterData_Template.xlsx"
           title="Download Excel template to add skills in bulk"
+          style={{ textDecoration: 'none' }}
         >
           📥 Download Template
-        </button>
+        </a>
         <button 
           className="btn btn-outline" 
           onClick={() => setImportModalOpen(true)}
           title="Upload completed template to import skills"
+          disabled={isImporting}
         >
-          📤 Import Skills
+          {isImporting ? '⏳ Importing...' : '📤 Import Skills'}
         </button>
-        {selectedItem.type === 'category' && childType && (
+        {selectedItem?.type === 'category' && (
           <button 
             className="btn btn-primary" 
             onClick={handleAddChild}
           >
-            + Add {childType}
+            + Add Sub-Category
           </button>
         )}
       </>
@@ -1259,10 +1279,10 @@ const SkillTaxonomyPage = () => {
         />
         
         <DetailsPanel
-          title={selectedItem ? `${selectedItem.name}` : 'Select an item'}
+          title={selectedItem ? `${selectedItem.name}` : 'Skill Taxonomy'}
           subtitle={null}
           headerContent={selectedItem ? renderHeaderContent() : null}
-          headerActions={selectedItem ? renderHeaderActions() : null}
+          headerActions={renderHeaderActions()}
           showActions={false}
         >
           {renderDetailsContent()}
@@ -1300,10 +1320,165 @@ const SkillTaxonomyPage = () => {
         isOpen={importModalOpen}
         onClose={() => setImportModalOpen(false)}
         itemType="Skills"
-        onImport={(data) => {
-          console.log('Importing:', data);
+        onImport={async (data) => {
+          if (data.type !== 'file' || !data.file) {
+            window.alert('Please select an Excel file to import.');
+            return;
+          }
+          
           setImportModalOpen(false);
+          setIsImporting(true);
+          
+          try {
+            // Start import - returns job_id immediately
+            const response = await importSkills(data.file);
+            const jobId = response.job_id;
+            
+            if (!jobId) {
+              throw new Error('No job ID returned from import');
+            }
+            
+            // Show blocking overlay
+            setImportOverlay({
+              visible: true,
+              message: 'Starting import...'
+            });
+            
+            // Polling logic with exponential backoff on errors
+            let pollInterval = 2000;
+            let consecutiveErrors = 0;
+            const maxErrors = 5;
+            
+            const pollStatus = async () => {
+              try {
+                const status = await getImportJobStatus(jobId);
+                consecutiveErrors = 0;
+                pollInterval = 2000; // Reset on success
+                
+                // Handle 503 "unavailable" response (DB busy but import still running)
+                if (status.status === 'unavailable') {
+                  // Keep polling - this is a transient DB issue, NOT an error
+                  setImportOverlay(prev => ({
+                    ...prev,
+                    message: status.message || 'Still working... database busy'
+                  }));
+                  // Don't increment errors, keep polling
+                  importPollingRef.current = setTimeout(pollStatus, 3000);
+                  return;
+                }
+                
+                // Update overlay
+                setImportOverlay({
+                  visible: true,
+                  message: status.message || 'Processing...'
+                });
+                
+                // Check completion
+                if (status.status === 'completed') {
+                  // Stop polling
+                  if (importPollingRef.current) {
+                    clearTimeout(importPollingRef.current);
+                    importPollingRef.current = null;
+                  }
+                  
+                  // Hide overlay
+                  setImportOverlay({ visible: false, message: '' });
+                  setIsImporting(false);
+                  
+                  // Build success message from result
+                  const result = status.result || {};
+                  const summary = result.summary || {};
+                  let message = `Import completed!\n\n`;
+                  message += `Categories: ${summary.categories?.inserted || 0} new, ${summary.categories?.existing || 0} existing\n`;
+                  message += `Sub-Categories: ${summary.subcategories?.inserted || 0} new, ${summary.subcategories?.existing || 0} existing\n`;
+                  message += `Skills: ${summary.skills?.inserted || 0} new, ${summary.skills?.existing || 0} existing\n`;
+                  message += `Aliases: ${summary.aliases?.inserted || 0} new, ${summary.aliases?.existing || 0} existing`;
+                  
+                  if (result.errors_count > 0) {
+                    message += `\n\n⚠️ ${result.errors_count} conflict(s) detected. Check data for duplicates.`;
+                  }
+                  
+                  window.alert(message);
+                  loadTaxonomy();
+                  return;
+                }
+                
+                if (status.status === 'failed') {
+                  // Stop polling
+                  if (importPollingRef.current) {
+                    clearTimeout(importPollingRef.current);
+                    importPollingRef.current = null;
+                  }
+                  
+                  // Hide overlay
+                  setImportOverlay({ visible: false, message: '' });
+                  setIsImporting(false);
+                  
+                  window.alert(`❌ Import Failed:\n${status.error || status.message || 'Unknown error'}`);
+                  return;
+                }
+                
+                // Continue polling
+                importPollingRef.current = setTimeout(pollStatus, pollInterval);
+                
+              } catch (err) {
+                // Check if this is a 503 (transient DB busy) - don't count as error
+                const is503 = err?.message?.includes('503') || err?.status === 503;
+                
+                if (is503) {
+                  // Transient DB issue - keep polling without incrementing error count
+                  setImportOverlay(prev => ({
+                    ...prev,
+                    message: 'Still working... database busy, checking status'
+                  }));
+                  // Retry after short delay
+                  importPollingRef.current = setTimeout(pollStatus, 3000);
+                  return;
+                }
+                
+                consecutiveErrors++;
+                
+                // Update overlay with reconnect message
+                setImportOverlay(prev => ({
+                  ...prev,
+                  message: 'Still working... attempting to reconnect'
+                }));
+                
+                if (consecutiveErrors >= maxErrors) {
+                  // Stop polling after too many errors
+                  if (importPollingRef.current) {
+                    clearTimeout(importPollingRef.current);
+                    importPollingRef.current = null;
+                  }
+                  setImportOverlay({ visible: false, message: '' });
+                  setIsImporting(false);
+                  window.alert('❌ Lost connection to import job. Please check the data and try again.');
+                  return;
+                }
+                
+                // Exponential backoff: 2s -> 4s -> 6s -> 8s -> 10s (capped)
+                pollInterval = Math.min(pollInterval + 2000, 10000);
+                importPollingRef.current = setTimeout(pollStatus, pollInterval);
+              }
+            };
+            
+            // Start polling
+            importPollingRef.current = setTimeout(pollStatus, pollInterval);
+            
+          } catch (err) {
+            setImportOverlay({ visible: false, message: '' });
+            setIsImporting(false);
+            const errorMsg = err?.message || err?.detail || 'Import failed. Please check the file format.';
+            window.alert(`❌ Import Error:\n${errorMsg}`);
+          }
         }}
+      />
+
+      {/* Import blocking overlay */}
+      <ImportBlockingOverlay
+        isVisible={importOverlay.visible}
+        message={importOverlay.message}
+        title="Import in progress"
       />
 
       <AuditModal

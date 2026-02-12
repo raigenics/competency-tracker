@@ -303,6 +303,31 @@ export async function deleteSkill(skillId) {
   return httpClient.delete(`/master-data/skill-taxonomy/skills/${skillId}`);
 }
 
+/**
+ * Import skills from Excel file.
+ * Returns immediately with job_id - poll getImportJobStatus for progress.
+ * 
+ * @param {File} file - Excel file (.xlsx or .xls)
+ * @returns {Promise<{job_id: string, status: string, message: string}>} Job info
+ * @throws {Error} 400 if file invalid, 500 on server error
+ */
+export async function importSkills(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+  return httpClient.post('/admin/skills/master-import', formData);
+}
+
+/**
+ * Get import job status (for polling progress).
+ * 
+ * @param {string} jobId - Job ID returned from importSkills
+ * @returns {Promise<{job_id: string, status: string, percent_complete: number, message: string, error: string|null, result: Object|null}>}
+ * @throws {Error} 404 if job not found
+ */
+export async function getImportJobStatus(jobId) {
+  return httpClient.get(`/import/status/${jobId}`);
+}
+
 export default {
   fetchSkillTaxonomy,
   updateCategoryName,
@@ -317,4 +342,6 @@ export default {
   deleteCategory,
   deleteSubcategory,
   deleteSkill,
+  importSkills,
+  getImportJobStatus,
 };

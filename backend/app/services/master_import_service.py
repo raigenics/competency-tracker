@@ -10,6 +10,7 @@ Usage:
     # Works exactly as before, but uses refactored code under the hood
 """
 import logging
+from typing import Callable, Optional
 from sqlalchemy.orm import Session
 
 # Import from new location
@@ -19,6 +20,9 @@ logger = logging.getLogger(__name__)
 
 # Re-export for backward compatibility
 __all__ = ['MasterImportService']
+
+# Progress callback type
+ProgressCallback = Callable[[int, str], None]
 
 
 class MasterImportService:
@@ -82,6 +86,13 @@ class MasterImportService:
         """Upsert aliases (backward compatibility method)."""
         return self._service.upserter.upsert_aliases(row, skill_id)
     
-    def process_import(self, rows):
-        """Process import - main method."""
-        return self._service.process_import(rows)
+    def process_import(self, rows, progress_callback: Optional[ProgressCallback] = None):
+        """Process import - main method.
+        
+        Args:
+            rows: List of parsed rows to import
+            progress_callback: Optional callback for progress updates (percent, message).
+                              This should use a SEPARATE DB session to commit progress
+                              independently of the main import transaction.
+        """
+        return self._service.process_import(rows, progress_callback=progress_callback)

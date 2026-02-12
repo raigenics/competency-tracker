@@ -3,9 +3,11 @@ FastAPI application for the Competency Tracking System.
 """
 import logging
 import os
+from pathlib import Path
 import uvicorn
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -89,6 +91,13 @@ app.include_router(rbac_admin_router, prefix="/api")
 app.include_router(roles_router, prefix="/api")
 app.include_router(master_data_router, prefix="/api")
 app.include_router(org_hierarchy_router, prefix="/api")
+
+# Mount static files for template downloads
+# Serves files from backend/static/ at /static/ URL path
+static_dir = Path(__file__).parent.parent / "static"
+if static_dir.exists():
+    app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+    logger.info(f"Static files mounted from: {static_dir}")
 
 @app.on_event("startup")
 async def startup_event():

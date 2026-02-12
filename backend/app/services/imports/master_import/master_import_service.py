@@ -5,7 +5,8 @@ Single Responsibility: Orchestrate the master import process.
 """
 import logging
 import os
-from typing import List
+import time
+from typing import List, Optional, Callable
 from sqlalchemy.orm import Session
 
 from app.schemas.master_import import (
@@ -19,6 +20,13 @@ from .conflict_detector import ConflictDetector
 from .data_upsert import DataUpserter
 
 logger = logging.getLogger(__name__)
+
+# Progress callback type: (percent: int, message: str) -> None
+ProgressCallback = Callable[[int, str], None]
+
+# Batch size for commits and progress updates
+# Commits happen every COMMIT_BATCH_SIZE rows to distribute DB work evenly
+COMMIT_BATCH_SIZE = 300
 
 
 class MasterImportService:
@@ -48,29 +56,51 @@ class MasterImportService:
             self.embedding_unavailable_reason = f"{type(e).__name__}: {str(e)}"
             logger.warning(f"Master import: Embedding service not available: {self.embedding_unavailable_reason}. Imports will continue without embeddings.")
     
-    def process_import(self, rows: List[MasterSkillRow]) -> MasterImportResponse:
+    def process_import(self, rows: List[MasterSkillRow], progress_callback: Optional[ProgressCallback] = None) -> MasterImportResponse:
         """
         Process master skills import with conflict detection.
+        
+        Args:
+            rows: List of parsed rows to import
+            progress_callback: Optional callback for progress updates (percent, message).
+                              This should use a SEPARATE DB session to commit progress
+                              independently of the main import transaction.
         
         Returns:
             MasterImportResponse with status, summary, and errors
         """
-        logger.info(f"Starting import processing for {len(rows)} rows")
-        logger.info(f"Embedding service status: enabled={self.embedding_enabled}")
+        import_start_time = time.time()
+        logger.info(f"[IMPORT] ====== IMPORT STARTED ======")
+        logger.info(f"[IMPORT] Total rows to process: {len(rows)}")
+        logger.info(f"[IMPORT] Embedding service enabled: {self.embedding_enabled}")
+        logger.info(f"[IMPORT] Commit batch size: {COMMIT_BATCH_SIZE}")
         
         # Load existing data
+        if progress_callback:
+            progress_callback(12, "Loading existing data...")
+        cache_start = time.time()
         self.cache.load_all()
+        logger.info(f"[IMPORT] Cache loaded in {time.time() - cache_start:.2f}s")
         
         # Detect duplicates within the file
+        if progress_callback:
+            progress_callback(15, "Checking for duplicates...")
+        dup_start = time.time()
         skip_rows = self.conflict_detector.detect_file_duplicates(rows)
+        logger.info(f"[IMPORT] Duplicate detection completed in {time.time() - dup_start:.2f}s | Skipping {len(skip_rows)} rows")
         
-        # Process each row
-        rows_processed, skill_ids_processed = self._process_rows(rows, skip_rows)
+        # Process each row (10-85% progress range)
+        logger.info(f"[IMPORT] Starting row processing at {time.time() - import_start_time:.2f}s elapsed")
+        rows_processed, skill_ids_processed = self._process_rows(rows, skip_rows, progress_callback, import_start_time)
         
-        # Flush to ensure all skill_ids are available in database
+        # Commit any remaining rows from the final partial batch
         if skill_ids_processed:
-            self.db.flush()
-            logger.info(f"Flushed {len(skill_ids_processed)} skill IDs to database before embedding generation")
+            if progress_callback:
+                progress_callback(88, "Committing final batch...")
+            final_commit_start = time.time()
+            logger.info(f"[IMPORT] Final batch commit starting at {time.time() - import_start_time:.2f}s elapsed")
+            self.db.commit()
+            logger.info(f"[IMPORT] Final batch commit finished in {time.time() - final_commit_start:.2f}s | Total skill IDs: {len(skill_ids_processed)}")
         
         # Generate embeddings for all processed skills (batch operation)
         embedding_result = None
@@ -78,10 +108,20 @@ class MasterImportService:
         if self.embedding_enabled and skill_ids_processed:
             try:
                 embedding_attempted = True
-                logger.info(f"Attempting to generate embeddings for {len(skill_ids_processed)} skills")
-                embedding_result = self.embedding_service.ensure_embeddings_for_skill_ids(skill_ids_processed)
+                if progress_callback:
+                    progress_callback(90, f"Generating embeddings for {len(skill_ids_processed)} skills...")
+                embed_start = time.time()
+                logger.info(f"[IMPORT] Embedding generation starting at {time.time() - import_start_time:.2f}s elapsed")
+                # Pass progress callback for smooth updates during embedding generation (90% → 95%)
+                embedding_result = self.embedding_service.ensure_embeddings_for_skill_ids(
+                    skill_ids_processed,
+                    progress_callback=progress_callback,
+                    progress_start=90,
+                    progress_end=95
+                )
                 logger.info(
-                    f"Embedding generation complete: succeeded={len(embedding_result.succeeded)}, "
+                    f"[IMPORT] Embedding generation completed in {time.time() - embed_start:.2f}s | "
+                    f"succeeded={len(embedding_result.succeeded)}, "
                     f"skipped={len(embedding_result.skipped)}, failed={len(embedding_result.failed)}"
                 )
             except Exception as e:
@@ -98,18 +138,41 @@ class MasterImportService:
         elif not skill_ids_processed:
             logger.info("Embedding generation not attempted: no skills processed")
         
-        # Commit transaction (includes skills, aliases, and embeddings)
-        self.db.commit()
-        logger.info(f"Import committed: {rows_processed} rows processed")
+        # Commit embeddings (rows already committed in batches during _process_rows)
+        if progress_callback:
+            progress_callback(95, "Finalizing...")
+        finalize_commit_start = time.time()
+        logger.info(f"[IMPORT] Finalize commit starting at {time.time() - import_start_time:.2f}s elapsed")
+        self.db.commit()  # Commit any embedding changes
+        logger.info(f"[IMPORT] Finalize commit finished in {time.time() - finalize_commit_start:.2f}s")
+        logger.info(f"[IMPORT] ====== IMPORT COMPLETED ======")
+        logger.info(f"[IMPORT] Total time: {time.time() - import_start_time:.2f}s | Rows processed: {rows_processed}")
           # Build and return response
         return self._build_response(rows, rows_processed, embedding_result, embedding_attempted)
     
-    def _process_rows(self, rows: List[MasterSkillRow], skip_rows: set) -> tuple:
-        """Process all rows and return (count of successfully processed rows, list of skill_ids)."""
-        rows_processed = 0
-        skill_ids_processed = []
+    def _process_rows(self, rows: List[MasterSkillRow], skip_rows: set, progress_callback: Optional[ProgressCallback] = None, import_start_time: float = None) -> tuple:
+        """Process all rows with batch commits and return (count of successfully processed rows, list of skill_ids).
         
-        for row in rows:
+        Progress is reported in the 15-85% range during row processing.
+        Commits happen every COMMIT_BATCH_SIZE rows to distribute DB work evenly.
+        Progress is updated AFTER each commit to reflect real database state.
+        """
+        if import_start_time is None:
+            import_start_time = time.time()
+            
+        rows_processed = 0
+        rows_in_current_batch = 0
+        committed_count = 0
+        batch_number = 0
+        skill_ids_processed = []
+        total_rows = len(rows)
+        
+        # Progress range: 15% to 85% during row processing
+        PROGRESS_START = 15
+        PROGRESS_END = 85
+        PROGRESS_RANGE = PROGRESS_END - PROGRESS_START
+        
+        for idx, row in enumerate(rows):
             # Skip duplicate rows
             if row.row_number in skip_rows:
                 continue
@@ -138,6 +201,25 @@ class MasterImportService:
                     self.upserter.upsert_aliases(row, skill_id)
                 
                 rows_processed += 1
+                rows_in_current_batch += 1
+                
+                # Commit batch and update progress AFTER commit
+                if rows_in_current_batch >= COMMIT_BATCH_SIZE:
+                    batch_commit_start = time.time()
+                    logger.info(f"[IMPORT] Batch {batch_number + 1} commit starting at {time.time() - import_start_time:.2f}s elapsed | rows_in_batch={rows_in_current_batch}")
+                    self.db.commit()  # Distribute DB work across batches
+                    batch_commit_duration = time.time() - batch_commit_start
+                    batch_number += 1
+                    committed_count += rows_in_current_batch
+                    rows_in_current_batch = 0
+                    
+                    # Update progress AFTER commit (reflects real DB state)
+                    if progress_callback:
+                        percent = PROGRESS_START + int((committed_count / total_rows) * PROGRESS_RANGE)
+                        progress_callback(percent, f"Committed batch {batch_number} ({committed_count} / {total_rows} rows)")
+                        logger.info(f"[IMPORT] Progress update: {percent}% | Committed {committed_count}/{total_rows} | Batch commit took {batch_commit_duration:.2f}s | Total elapsed {time.time() - import_start_time:.2f}s")
+                    else:
+                        logger.info(f"[IMPORT] Batch {batch_number} committed in {batch_commit_duration:.2f}s | {committed_count}/{total_rows} rows | Total elapsed {time.time() - import_start_time:.2f}s")
                 
             except Exception as e:
                 # Log unexpected errors with full traceback
@@ -153,7 +235,13 @@ class MasterImportService:
                     skill_name=row.skill_name,
                     error_type="UNEXPECTED_ERROR",
                     message=f"{type(e).__name__}: {str(e)}"
-                ))        
+                ))
+        
+        # Note: Final partial batch is committed in process_import() after this method returns
+        # This ensures embedding generation has all skill_ids available
+        if progress_callback:
+            progress_callback(PROGRESS_END, f"Row processing complete: {rows_processed} / {total_rows}")
+        
         return rows_processed, skill_ids_processed
     
     def _build_response(self, rows: List[MasterSkillRow], rows_processed: int, embedding_result, embedding_attempted: bool) -> MasterImportResponse:

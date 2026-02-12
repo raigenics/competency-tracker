@@ -6,7 +6,7 @@ Replaces in-memory job tracker to support Azure App Service multi-worker deploym
 """
 import logging
 import uuid
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import SQLAlchemyError
@@ -14,6 +14,15 @@ from sqlalchemy.exc import SQLAlchemyError
 from app.models.import_job import ImportJob
 
 logger = logging.getLogger(__name__)
+
+
+class JobStatusDBError(Exception):
+    """Raised when a transient database error occurs fetching job status.
+    
+    This should NOT be treated as 'job not found' - the job may exist but
+    the database is temporarily unavailable.
+    """
+    pass
 
 
 class ImportJobService:
@@ -163,8 +172,8 @@ class ImportJobService:
             if status is not None:
                 self._last_status[job_id] = status
             
-            logger.info(f"📊 Updated job {job_id}: status={status or job.status}, "
-                       f"percent={percent or job.percent_complete}, message='{message or job.message}'")
+            logger.info(f"[JOB DB] Committed job {job_id}: status={status or job.status}, "
+                       f"percent={percent or job.percent_complete}%, message='{message or job.message}'")
             return True
             
         except SQLAlchemyError as e:
@@ -256,7 +265,10 @@ class ImportJobService:
             job_id: Job identifier
             
         Returns:
-            Job status dictionary or None if not found
+            Job status dictionary or None if job does not exist
+            
+        Raises:
+            JobStatusDBError: If a transient database error occurs (NOT 'not found')
         """
         try:
             job = self.db.query(ImportJob).filter_by(job_id=job_id).first()
@@ -266,8 +278,9 @@ class ImportJobService:
             return job.to_dict()
             
         except SQLAlchemyError as e:
-            logger.error(f"❌ Failed to get job status for {job_id}: {str(e)}")
-            return None
+            logger.error(f"❌ Database error getting job status for {job_id}: {str(e)}")
+            # Raise specific exception so endpoint can return 503 instead of 404
+            raise JobStatusDBError(f"Database temporarily unavailable: {type(e).__name__}")
     
     def _should_update(self, job_id: str, status: Optional[str], percent: Optional[int]) -> bool:
         """
