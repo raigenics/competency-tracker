@@ -17,7 +17,6 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.employee import (
     EmployeeListResponse, 
-    EmployeeStatsResponse,
     EmployeesByIdsRequest, EmployeesByIdsResponse,
     EmployeeSuggestion,
     EmployeeCreateRequest, EmployeeCreateResponse,
@@ -34,7 +33,6 @@ from app.security.rbac_policy import get_rbac_context, RbacContext
 from app.services.employee_profile import suggest_service
 from app.services.employee_profile import list_service
 from app.services.employee_profile import profile_service
-from app.services.employee_profile import stats_service
 from app.services.employee_profile import by_ids_service
 from app.services.employee_profile import create_service
 from app.services.employee_profile import employee_skills_service
@@ -211,24 +209,6 @@ async def get_edit_bootstrap(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching edit bootstrap data"
-        )
-
-
-@router.get("/stats/overview", response_model=EmployeeStatsResponse)
-async def get_employee_stats(db: Session = Depends(get_db)):
-    """
-    Get employee statistics and overview.
-    """
-    logger.info("Fetching employee statistics")
-    
-    try:
-        return stats_service.get_employee_stats(db)
-        
-    except Exception as e:
-        logger.error(f"Error fetching employee stats: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error fetching employee statistics"
         )
 
 

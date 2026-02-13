@@ -263,19 +263,3 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)) -> Dict[str
         status_code=status.HTTP_200_OK,
         content=job_status
     )
-
-
-@router.get("/status")
-async def get_import_status() -> Dict[str, str]:
-    """
-    Get the current status of the import service.
-    
-    Returns:
-        Dict with service status information
-    """
-    return {
-        "service": "import_service",
-        "status": "ready",
-        "version": "1.0.0",
-        "supported_formats": ["xlsx", "xls"]
-    }

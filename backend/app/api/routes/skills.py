@@ -12,7 +12,6 @@ from sqlalchemy.orm import Session
 from app.db.session import get_db
 from app.schemas.skill import (
     SkillListResponse, SkillDetailResponse,
-    SkillStatsResponse, CategoryResponse, SubcategoryResponse,
     SkillSummaryResponse, TaxonomyTreeResponse,
     CategoriesResponse, SubcategoriesResponse,
     SkillsResponse, SkillSearchResponse
@@ -22,9 +21,6 @@ from app.schemas.common import PaginationParams
 # Import isolated service modules
 from app.services.capability_overview import list_skills_service
 from app.services.capability_overview import skill_detail_service
-from app.services.capability_overview import skill_stats_service
-from app.services.capability_overview import categories_service
-from app.services.capability_overview import subcategories_service
 from app.services.capability_overview import taxonomy_tree_service
 from app.services.capability_overview import skill_summary_service
 from app.services.capability_overview import taxonomy_categories_service
@@ -87,63 +83,6 @@ async def get_skill(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching skill details"
-        )
-
-
-@router.get("/stats/overview", response_model=SkillStatsResponse)
-async def get_skill_stats(db: Session = Depends(get_db)):
-    """
-    Get skill statistics and overview.
-    """
-    logger.info("GET /skills/stats/overview")
-    
-    try:
-        return skill_stats_service.get_skill_stats(db)
-        
-    except Exception as e:
-        logger.error(f"Error fetching skill stats: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error fetching skill statistics"
-        )
-
-
-@router.get("/categories/", response_model=List[CategoryResponse])
-async def get_categories(db: Session = Depends(get_db)):
-    """
-    Get all skill categories with counts.
-    """
-    logger.info("GET /skills/categories/")
-    
-    try:
-        return categories_service.get_categories(db)
-        
-    except Exception as e:
-        logger.error(f"Error fetching categories: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error fetching categories"
-        )
-
-
-@router.get("/subcategories/", response_model=List[SubcategoryResponse])
-async def get_subcategories(
-    category: Optional[str] = Query(None, description="Filter by category name"),
-    db: Session = Depends(get_db)
-):
-    """
-    Get all skill subcategories with optional category filter.
-    """
-    logger.info(f"GET /skills/subcategories/ - category={category}")
-    
-    try:
-        return subcategories_service.get_subcategories(db, category)
-        
-    except Exception as e:
-        logger.error(f"Error fetching subcategories: {str(e)}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Error fetching subcategories"
         )
 
 
