@@ -1,0 +1,22 @@
+name: CD - Deploy Backend (Staging)
+
+on:
+  push:
+    branches: [ "staging" ]
+    paths:
+      - "backend/**"
+      - ".github/workflows/cd-backend-staging.yml"
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy backend to Azure App Service (staging)
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: "competencytracker-staging"
+          publish-profile: ${{ secrets.AZURE_WEBAPP_PUBLISH_PROFILE_STAGING }}
+          package: ./backend
