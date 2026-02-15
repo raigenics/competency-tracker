@@ -14,7 +14,7 @@ lerna-debug.log*
 *.csv
 # Allow template file
 !backend/static/templates/SkillMasterData_Template.xlsx
-!docs/specs/capability-finder.feature-spec.md
+!docs/specs/capabilityfinder/capability-finder.feature-spec.md
 
 # Environment files
 .env
