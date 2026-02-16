@@ -10,7 +10,11 @@
     "preview": "vite preview",
     "test": "vitest",
     "test:ui": "vitest --ui",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "clean": "rimraf node_modules",
+    "clean:all": "rimraf node_modules package-lock.json",
+    "reinstall": "npm run clean && npm cache verify && npm ci",
+    "reinstall:fresh": "npm run clean:all && npm cache verify && npm install"
   },
   "dependencies": {
     "exceljs": "^4.4.0",
@@ -37,6 +41,7 @@
     "globals": "^16.5.0",
     "jsdom": "^24.0.0",
     "postcss": "^8.5.6",
+    "rimraf": "^5.0.5",
     "tailwindcss": "^4.1.18",
     "vite": "^5.4.10",
     "vitest": "^1.3.1"
