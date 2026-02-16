@@ -15,8 +15,8 @@ const Sidebar = () => {
       title: 'ANALYTICS',
       items: [
         { id: 'dashboard', path: '/', icon: BarChart3, label: 'Dashboard' },
-        { id: 'query', path: '/query', icon: Search, label: 'Capability Finder' },
-        { id: 'taxonomy', path: '/taxonomy', icon: Layers, label: 'Capability Overview' },
+        { id: 'query', path: '/query', icon: Search, label: 'Skill Search' },
+        { id: 'taxonomy', path: '/taxonomy', icon: Layers, label: 'Organizational Skill Map' },
         { id: 'profile', path: '/profile', icon: User, label: 'Employee Profile' }
       ]
     },

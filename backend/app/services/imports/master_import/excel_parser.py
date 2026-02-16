@@ -9,6 +9,7 @@ from typing import List, Dict
 from dataclasses import dataclass
 import pandas as pd
 from io import BytesIO
+from openpyxl import load_workbook
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +72,32 @@ class ExcelParser:
         return rows
     
     def _read_excel_file(self, file_content: bytes) -> pd.DataFrame:
-        """Read Excel file into DataFrame."""
+        """Read Excel file into DataFrame.
+        
+        Uses openpyxl with read_only=True to skip data validation parsing,
+        which avoids errors like "Value must be either numerical or a string 
+        containing a wildcard" caused by complex validation rules (e.g., dropdowns).
+        """
         try:
-            df = pd.read_excel(BytesIO(file_content), engine='openpyxl')
+            # Load workbook with read_only=True to skip data validation parsing
+            # This avoids errors with complex validation rules containing formulas
+            wb = load_workbook(filename=BytesIO(file_content), read_only=True, data_only=True)
+            ws = wb.active
+            
+            # Read all rows from worksheet
+            rows_data = list(ws.iter_rows(values_only=True))
+            wb.close()
+            
+            if not rows_data:
+                raise ValueError("Excel file is empty")
+            
+            # First row is header
+            columns = rows_data[0]
+            data = rows_data[1:]
+            df = pd.DataFrame(data, columns=columns)
+            
             logger.info(f"Excel loaded: {len(df)} rows, {len(df.columns)} columns")
-            logger.info(f"Detected Excel columns: {', '.join(df.columns)}")
+            logger.info(f"Detected Excel columns: {', '.join(str(c) for c in df.columns)}")
             return df
         except Exception as e:
             error_msg = f"Failed to parse Excel file: {type(e).__name__}: {str(e)}"

@@ -774,3 +774,92 @@
     position: relative;
     width: 100%;
 }
+
+/* ==========================================================================
+   Proficiency Info Tooltip
+   ========================================================================== */
+
+.proficiency-info-wrapper {
+    position: relative;
+    display: inline-block;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+
+.proficiency-info-icon {
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 14px;
+    color: #64748b;
+    padding: 0 2px;
+    line-height: 1;
+    border-radius: 50%;
+    transition: color 0.15s ease;
+}
+
+.proficiency-info-icon:hover,
+.proficiency-info-icon:focus {
+    color: #3b82f6;
+    outline: none;
+}
+
+.proficiency-info-icon:focus-visible {
+    box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.5);
+}
+
+.proficiency-info-tooltip {
+    position: absolute;
+    top: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    background: #1e293b;
+    color: #f1f5f9;
+    border-radius: 8px;
+    padding: 12px 14px;
+    max-width: 320px;
+    min-width: 240px;
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+    font-size: 12px;
+    line-height: 1.5;
+    text-transform: none;
+    letter-spacing: normal;
+    font-weight: 400;
+}
+
+.proficiency-info-tooltip::before {
+    content: '';
+    position: absolute;
+    top: -6px;
+    left: 50%;
+    transform: translateX(-50%);
+    border-width: 0 6px 6px 6px;
+    border-style: solid;
+    border-color: transparent transparent #1e293b transparent;
+}
+
+.proficiency-info-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.proficiency-info-item {
+    padding: 4px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.proficiency-info-item:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+}
+
+.proficiency-info-item:first-child {
+    padding-top: 0;
+}
+
+.proficiency-info-item strong {
+    color: #93c5fd;
+    font-weight: 600;
+}

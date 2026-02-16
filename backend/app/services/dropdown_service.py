@@ -7,6 +7,7 @@ from app.models.segment import Segment
 from app.models.sub_segment import SubSegment
 from app.models.project import Project
 from app.models.team import Team
+from app.models.proficiency import ProficiencyLevel
 
 
 class DropdownService:
@@ -115,5 +116,22 @@ class DropdownService:
             db.query(Team)
             .filter(Team.project_id == project_id)
             .order_by(Team.team_name)
+            .all()
+        )
+
+    @staticmethod
+    def get_proficiency_levels(db: Session) -> List[ProficiencyLevel]:
+        """
+        Get all proficiency levels ordered by ID (ascending).
+        
+        Args:
+            db: Database session
+            
+        Returns:
+            List of ProficiencyLevel objects ordered by proficiency_level_id
+        """
+        return (
+            db.query(ProficiencyLevel)
+            .order_by(ProficiencyLevel.proficiency_level_id)
             .all()
         )

@@ -6,21 +6,12 @@
  * 
  * NOTE: This is UI only - does NOT save to backend.
  */
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import { SkillRowEditor } from './SkillRowEditor.jsx';
+import { ProficiencyInfoTooltip } from './ProficiencyInfoTooltip.jsx';
 import { useSkillSuggestions } from '../../hooks/useSkillSuggestions.js';
+import { useProficiencyLevels } from '../../hooks/useProficiencyLevels.js';
 import { SUPER_ADMIN_EMAIL } from '../../config/constants.js';
-
-/**
- * Proficiency options for skill level dropdown
- */
-const PROFICIENCY_OPTIONS = [
-  { value: 'NOVICE', label: 'Novice' },
-  { value: 'ADVANCED_BEGINNER', label: 'Advanced Beginner' },
-  { value: 'COMPETENT', label: 'Competent' },
-  { value: 'PROFICIENT', label: 'Proficient' },
-  { value: 'EXPERT', label: 'Expert' }
-];
 
 /**
  * Create an empty skill row
@@ -91,6 +82,14 @@ export function EmployeeSkillsTab({
     search: searchSkills,
     getSuggestions
   } = useSkillSuggestions();
+
+  // Use proficiency levels hook (fetches from DB)
+  const {
+    levels: proficiencyLevels,
+    options: proficiencyOptions,
+    loading: proficiencyLoading,
+    error: proficiencyError
+  } = useProficiencyLevels();
 
   // Current search query per row (for managing separate autocomplete states)
   const [currentSearchRowId, setCurrentSearchRowId] = useState(null);
@@ -222,7 +221,10 @@ export function EmployeeSkillsTab({
           <thead>
             <tr>
               <th style={{ width: '36%' }}>Skill Name *</th>
-              <th style={{ width: '11%' }}>Proficiency *</th>
+              <th style={{ width: '11%' }}>
+                Proficiency *{' '}
+                <ProficiencyInfoTooltip levels={proficiencyLevels} />
+              </th>
               <th style={{ width: '8%' }}>Exp (Yrs) *</th>
               <th style={{ width: '13%' }}>Last Used</th>
               <th style={{ width: '11%' }}>Started From</th>
@@ -241,7 +243,7 @@ export function EmployeeSkillsTab({
                 suggestions={currentSearchRowId === skill.id ? suggestions : []}
                 onSearch={(query) => handleSearch(skill.id, query)}
                 loading={currentSearchRowId === skill.id && skillsLoading}
-                proficiencies={PROFICIENCY_OPTIONS}
+                proficiencies={proficiencyOptions}
                 errors={errors[skill.id] || {}}
                 canDelete={canDeleteRow}
               />
