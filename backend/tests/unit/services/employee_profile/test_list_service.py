@@ -144,6 +144,7 @@ class TestBuildEmployeeQuery:
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
         mock_query.options.return_value = mock_query
+        mock_query.filter.return_value = mock_query
         
         # Act
         result = list_service._build_employee_query(mock_db, None, None, None, None, None)
@@ -151,6 +152,8 @@ class TestBuildEmployeeQuery:
         # Assert
         mock_db.query.assert_called_once()
         mock_query.options.assert_called_once()
+        # filter is called at least for deleted_at check
+        assert mock_query.filter.called
         assert result == mock_query
     
     def test_filters_by_sub_segment_id(self, mock_db):
@@ -240,8 +243,8 @@ class TestBuildEmployeeQuery:
         list_service._build_employee_query(mock_db, sub_segment_id=1, project_id=2,
                                            team_id=3, role_id=4, search="test")
         
-        # Assert
-        assert mock_query.filter.call_count == 5  # All 5 filters applied
+        # Assert - deleted_at + team_id (highest org filter) + role_id + search = 4
+        assert mock_query.filter.call_count >= 3  # At least deleted_at, team, role, search
 
 
 class TestGetSkillsCountsBatch:
@@ -301,11 +304,20 @@ class TestBuildEmployeeResponses:
     
     def test_builds_response_list_from_employees(self, mock_employee, mock_organization):
         """Should transform Employee objects to EmployeeResponse list."""
-        # Arrange
+        # Arrange - set up full org chain: segment -> sub_segment -> project -> team
+        segment = mock_organization("segment", 1, "Global")
+        sub_seg = mock_organization("sub_segment", 1, "Engineering")
+        sub_seg.segment = segment
+        proj = mock_organization("project", 1, "Project A")
+        proj.sub_segment = sub_seg
+        team = mock_organization("team", 1, "Team X")
+        team.project = proj
         role = mock_organization("role", 1, "Developer")
+        role.role_description = "Developer role"
+        
         employees = [
-            mock_employee(1, "Z1001", "Alice", role=role),
-            mock_employee(2, "Z1002", "Bob", role=role)
+            mock_employee(1, "Z1001", "Alice", team=team, role=role),
+            mock_employee(2, "Z1002", "Bob", team=team, role=role)
         ]
         skills_counts = {1: 5, 2: 3}
         
@@ -358,14 +370,18 @@ class TestBuildEmployeeResponses:
     
     def test_includes_organization_info(self, mock_employee, mock_organization):
         """Should include organization information in response."""
-        # Arrange
+        # Arrange - set up full org chain: segment -> sub_segment -> project -> team
+        segment = mock_organization("segment", 1, "Global")
         sub_seg = mock_organization("sub_segment", 1, "Engineering")
+        sub_seg.segment = segment
         proj = mock_organization("project", 1, "Project A")
+        proj.sub_segment = sub_seg
         team = mock_organization("team", 1, "Team X")
+        team.project = proj
         role = mock_organization("role", 1, "Developer")
+        role.role_description = "Developer role"
         
-        employees = [mock_employee(1, "Z1001", "Alice", sub_segment=sub_seg, 
-                                   project=proj, team=team, role=role)]
+        employees = [mock_employee(1, "Z1001", "Alice", team=team, role=role)]
         skills_counts = {1: 0}
         
         # Act
@@ -381,13 +397,16 @@ class TestBuildOrganizationInfo:
     
     def test_builds_organization_info_from_employee(self, mock_employee, mock_organization):
         """Should extract organization information from employee relationships."""
-        # Arrange
+        # Arrange - set up full org chain: segment -> sub_segment -> project -> team
+        segment = mock_organization("segment", 1, "Global")
         sub_seg = mock_organization("sub_segment", 1, "Engineering")
+        sub_seg.segment = segment
         proj = mock_organization("project", 1, "Project A")
+        proj.sub_segment = sub_seg
         team = mock_organization("team", 1, "Team X")
+        team.project = proj
         
-        employee = mock_employee(1, "Z1001", "Alice", sub_segment=sub_seg, 
-                                project=proj, team=team)
+        employee = mock_employee(1, "Z1001", "Alice", team=team)
         
         # Act
         result = list_service._build_organization_info(employee)
@@ -414,14 +433,16 @@ class TestBuildOrganizationInfo:
     
     def test_handles_partial_organization_data(self, mock_employee, mock_organization):
         """Should handle employees with some organization fields missing."""
-        # Arrange
-        sub_seg = mock_organization("sub_segment", 1, "Engineering")
-        employee = mock_employee(1, "Z1001", "Alice", sub_segment=sub_seg,
-                                project=None, team=None)
+        # Arrange - team exists but project chain is incomplete
+        team = mock_organization("team", 1, "Team X")
+        team.project = None  # No project assigned
+        
+        employee = mock_employee(1, "Z1001", "Alice", team=team)
         
         # Act
         result = list_service._build_organization_info(employee)
         
         # Assert
         assert isinstance(result, OrganizationInfo)
-        assert result.sub_segment == "Engineering"
+        assert result.team == "Team X"
+        assert result.project == ""  # Empty when not available

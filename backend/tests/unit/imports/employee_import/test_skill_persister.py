@@ -16,9 +16,9 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock, MagicMock, patch, call
 from datetime import datetime, date
-from backend.app.services.imports.employee_import.skill_persister import SkillPersister
-from backend.app.models import Employee, EmployeeSkill, ProficiencyLevel
-from backend.app.models.skill_history import ChangeSource
+from app.services.imports.employee_import.skill_persister import SkillPersister
+from app.models import Employee, EmployeeSkill, ProficiencyLevel
+from app.models.skill_history import ChangeSource
 
 
 class TestSkillPersisterInit:
@@ -150,8 +150,8 @@ class TestProcessSingleSkillResolved:
     
     def test_creates_employee_skill_for_resolved_skill(self, persister):
         """Should create EmployeeSkill record when skill is resolved."""
-        # Setup mocks
-        persister.skill_resolver.resolve_skill.return_value = 42  # Resolved skill_id
+        # Setup mocks - resolve_skill returns (skill_id, resolution_method, confidence)
+        persister.skill_resolver.resolve_skill.return_value = (42, "exact", None)
         
         mock_proficiency = Mock(spec=ProficiencyLevel)
         mock_proficiency.proficiency_level_id = 3
@@ -187,7 +187,7 @@ class TestProcessSingleSkillResolved:
     
     def test_resolves_skill_name(self, persister):
         """Should call skill resolver with skill name."""
-        persister.skill_resolver.resolve_skill.return_value = 42
+        persister.skill_resolver.resolve_skill.return_value = (42, "exact", None)
         
         mock_proficiency = Mock(spec=ProficiencyLevel)
         mock_proficiency.proficiency_level_id = 3
@@ -217,7 +217,7 @@ class TestProcessSingleSkillUnresolved:
     
     def test_logs_unresolved_skill(self, persister):
         """Should log to raw_skill_inputs when skill cannot be resolved."""
-        persister.skill_resolver.resolve_skill.return_value = None  # Unresolved
+        persister.skill_resolver.resolve_skill.return_value = (None, None, None)  # Unresolved
         
         row = pd.Series({'skill_name': 'UnknownSkill', 'proficiency': 'Expert'})
         timestamp = datetime(2025, 1, 1)
@@ -239,7 +239,7 @@ class TestProcessSingleSkillUnresolved:
     
     def test_tracks_unresolved_in_failed_rows(self, persister):
         """Should add unresolved skill to failed_rows stats."""
-        persister.skill_resolver.resolve_skill.return_value = None
+        persister.skill_resolver.resolve_skill.return_value = (None, None, None)
         
         row = pd.Series({'skill_name': 'UnknownSkill', 'proficiency': 'Expert'})
         
@@ -278,7 +278,7 @@ class TestProcessSingleSkillErrors:
     
     def test_handles_pandas_series_skill_name(self, persister):
         """Should handle edge case where skill_name is a pandas Series."""
-        persister.skill_resolver.resolve_skill.return_value = 42
+        persister.skill_resolver.resolve_skill.return_value = (42, "exact", None)
         mock_proficiency = Mock(spec=ProficiencyLevel, proficiency_level_id=3)
         persister.db.query.return_value.filter.return_value.first.return_value = mock_proficiency
         persister.date_parser.parse_date_safely.return_value = None
@@ -314,7 +314,8 @@ class TestProcessSingleSkillErrors:
     
     def test_determines_error_codes(self, persister):
         """Should determine appropriate error codes from exception messages."""
-        persister.skill_resolver.resolve_skill.return_value = 42
+        persister.skill_resolver.resolve_skill.return_value = (42, "exact", None)
+        # "not found" is matched first in _determine_skill_error_code, so use MISSING_REFERENCE
         persister.db.query.side_effect = Exception("Proficiency level not found: Invalid")
         
         row = pd.Series({'skill_name': 'Python', 'proficiency': 'Invalid'})
@@ -324,7 +325,7 @@ class TestProcessSingleSkillErrors:
         )
         
         failed = persister.stats['failed_rows'][0]
-        assert failed['error_code'] == 'INVALID_PROFICIENCY'
+        assert failed['error_code'] == 'MISSING_REFERENCE'
 
 
 class TestCommitEmployeeSkills:

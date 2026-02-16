@@ -16,9 +16,9 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch, mock_open
 from datetime import datetime
 from pathlib import Path
-from backend.app.services.imports.employee_import.unresolved_skill_logger import UnresolvedSkillLogger
-from backend.app.models.raw_skill_input import RawSkillInput
-from backend.app.models import Employee, SubSegment
+from app.services.imports.employee_import.unresolved_skill_logger import UnresolvedSkillLogger
+from app.models.raw_skill_input import RawSkillInput
+from app.models import Employee, SubSegment
 
 
 class TestUnresolvedSkillLoggerInit:
@@ -129,7 +129,8 @@ class TestRecordUnresolvedSkill:
                 timestamp=timestamp
             )
         
-        mock_log_file.assert_called_once_with("FileSkill", 456, 7, timestamp)
+        # _log_to_file now includes resolution_method and confidence (None for unresolved)
+        mock_log_file.assert_called_once_with("FileSkill", 456, 7, timestamp, None, None)
     
     def test_logs_info_message(self, logger_instance, mock_db, timestamp, caplog):
         """Should log info message when skill is recorded."""

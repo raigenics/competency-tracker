@@ -78,7 +78,7 @@ def mock_employee():
 @pytest.fixture
 def mock_skill():
     """Factory to create mock Skill objects."""
-    def _create(skill_id=1, skill_name="Python", **kwargs):
+    def _create(skill_id=1, skill_name="Python", subcategory=None, category=None, **kwargs):
         skill = Mock()
         skill.skill_id = skill_id
         skill.skill_name = skill_name
@@ -86,9 +86,9 @@ def mock_skill():
         skill.subcategory_id = kwargs.get('subcategory_id', 1)
         skill.skill_description = kwargs.get('description', f"{skill_name} programming")
         
-        # Relationships
-        skill.category = kwargs.get('category')
-        skill.subcategory = kwargs.get('subcategory')
+        # Relationships - use positional args if provided, otherwise kwargs
+        skill.category = category if category is not None else kwargs.get('category')
+        skill.subcategory = subcategory if subcategory is not None else kwargs.get('subcategory')
         
         return skill
     return _create
@@ -169,10 +169,11 @@ def mock_category():
 @pytest.fixture
 def mock_subcategory():
     """Factory to create mock SkillSubcategory objects."""
-    def _create(subcategory_id=1, subcategory_name="Backend Development"):
+    def _create(subcategory_id=1, subcategory_name="Backend Development", category=None):
         subcategory = Mock()
         subcategory.subcategory_id = subcategory_id
         subcategory.subcategory_name = subcategory_name
+        subcategory.category = category
         return subcategory
     return _create
 

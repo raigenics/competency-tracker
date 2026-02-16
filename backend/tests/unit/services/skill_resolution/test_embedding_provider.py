@@ -241,12 +241,22 @@ class TestCreateEmbeddingProvider:
     @patch('app.services.skill_resolution.embedding_provider.AzureOpenAI')
     def test_create_default_provider(self, mock_azure_class):
         """Should default to azure_openai when provider_type not specified."""
-        with patch.dict(os.environ, {
-            "AZURE_OPENAI_API_KEY": "test-key",
-            "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com"
-        }):
-            provider = create_embedding_provider()
-            assert isinstance(provider, AzureOpenAIEmbeddingProvider)
+        # Need to clear EMBEDDING_PROVIDER env var to test default behavior
+        import os
+        env_backup = os.environ.copy()
+        # Clear any existing EMBEDDING_PROVIDER setting
+        if 'EMBEDDING_PROVIDER' in os.environ:
+            del os.environ['EMBEDDING_PROVIDER']
+        try:
+            with patch.dict(os.environ, {
+                "AZURE_OPENAI_API_KEY": "test-key",
+                "AZURE_OPENAI_ENDPOINT": "https://test.openai.azure.com"
+            }, clear=False):
+                provider = create_embedding_provider()
+                assert isinstance(provider, AzureOpenAIEmbeddingProvider)
+        finally:
+            os.environ.clear()
+            os.environ.update(env_backup)
     
     def test_create_unknown_provider_raises_error(self):
         """Should raise ValueError for unknown provider type."""

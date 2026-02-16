@@ -20,13 +20,15 @@ class TestGetAllRoles:
         mock_role1 = Mock()
         mock_role1.role_id = 1
         mock_role1.role_name = "Developer"
+        mock_role1.role_description = "Developer role"
         
         mock_role2 = Mock()
         mock_role2.role_id = 2
         mock_role2.role_name = "Manager"
+        mock_role2.role_description = "Manager role"
         
-        # Set up the query chain: query().order_by().all()
-        mock_db.query.return_value.order_by.return_value.all.return_value = [mock_role1, mock_role2]
+        # Set up the query chain: query().filter().order_by().all()
+        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = [mock_role1, mock_role2]
         
         # Act
         result = get_all_roles(mock_db)
@@ -41,7 +43,7 @@ class TestGetAllRoles:
     def test_returns_empty_list_when_no_roles(self, mock_db):
         """Should return empty list when no roles exist."""
         # Arrange
-        mock_db.query.return_value.order_by.return_value.all.return_value = []
+        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = []
         
         # Act
         result = get_all_roles(mock_db)
@@ -52,13 +54,13 @@ class TestGetAllRoles:
     def test_returns_ordered_by_role_name(self, mock_db):
         """Should call order_by on query."""
         # Arrange
-        mock_db.query.return_value.order_by.return_value.all.return_value = []
+        mock_db.query.return_value.filter.return_value.order_by.return_value.all.return_value = []
         
         # Act
         result = get_all_roles(mock_db)
         
         # Assert - verify order_by was called
-        mock_db.query.return_value.order_by.assert_called_once()
+        mock_db.query.return_value.filter.return_value.order_by.assert_called_once()
 
 
 class TestGetRoleById:
@@ -70,7 +72,9 @@ class TestGetRoleById:
         mock_role = Mock()
         mock_role.role_id = 5
         mock_role.role_name = "Tech Lead"
-        mock_db.query.return_value.filter.return_value.first.return_value = mock_role
+        mock_role.role_description = "Tech Lead role"
+        # Chain: query().filter().filter().first()
+        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = mock_role
         
         # Act
         result = get_role_by_id(mock_db, 5)
@@ -83,7 +87,7 @@ class TestGetRoleById:
     def test_returns_none_when_not_found(self, mock_db):
         """Should return None when role_id doesn't exist."""
         # Arrange
-        mock_db.query.return_value.filter.return_value.first.return_value = None
+        mock_db.query.return_value.filter.return_value.filter.return_value.first.return_value = None
         
         # Act
         result = get_role_by_id(mock_db, 999)

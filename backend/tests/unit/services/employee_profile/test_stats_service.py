@@ -76,8 +76,11 @@ class TestQueryTotalEmployees:
     
     def test_returns_total_count(self, mock_db):
         """Should return count of all employees."""
-        # Arrange
-        mock_db.query.return_value.scalar.return_value = 150
+        # Arrange - chain: query().filter().scalar()
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.scalar.return_value = 150
         
         # Act
         result = stats_service._query_total_employees(mock_db)
@@ -87,8 +90,11 @@ class TestQueryTotalEmployees:
     
     def test_returns_zero_when_no_employees(self, mock_db):
         """Should return 0 when no employees exist."""
-        # Arrange
-        mock_db.query.return_value.scalar.return_value = 0
+        # Arrange - chain: query().filter().scalar()
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.scalar.return_value = 0
         
         # Act
         result = stats_service._query_total_employees(mock_db)
@@ -102,10 +108,11 @@ class TestQueryEmployeesBySubSegment:
     
     def test_returns_sub_segment_counts_dict(self, mock_db):
         """Should return dictionary of sub-segment names to counts."""
-        # Arrange
+        # Arrange - chain: query().join().filter().group_by().all()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
         mock_query.join.return_value = mock_query
+        mock_query.filter.return_value = mock_query
         mock_query.group_by.return_value = mock_query
         mock_query.all.return_value = [
             ("Engineering", 50),
@@ -122,10 +129,11 @@ class TestQueryEmployeesBySubSegment:
     
     def test_returns_empty_dict_when_no_employees(self, mock_db):
         """Should return empty dict when no employees exist."""
-        # Arrange
+        # Arrange - chain: query().join().filter().group_by().all()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
         mock_query.join.return_value = mock_query
+        mock_query.filter.return_value = mock_query
         mock_query.group_by.return_value = mock_query
         mock_query.all.return_value = []
         
@@ -141,10 +149,11 @@ class TestQueryEmployeesByProject:
     
     def test_returns_project_counts_dict(self, mock_db):
         """Should return dictionary of project names to counts."""
-        # Arrange
+        # Arrange - chain: query().join().filter().group_by().all()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
         mock_query.join.return_value = mock_query
+        mock_query.filter.return_value = mock_query
         mock_query.group_by.return_value = mock_query
         mock_query.all.return_value = [
             ("Project A", 40),
@@ -165,10 +174,11 @@ class TestQueryEmployeesByTeam:
     
     def test_returns_team_counts_dict(self, mock_db):
         """Should return dictionary of team names to counts."""
-        # Arrange
+        # Arrange - chain: query().join().filter().group_by().all()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
         mock_query.join.return_value = mock_query
+        mock_query.filter.return_value = mock_query
         mock_query.group_by.return_value = mock_query
         mock_query.all.return_value = [
             ("Team X", 20),
@@ -189,8 +199,11 @@ class TestQueryAverageSkillsPerEmployee:
     
     def test_returns_average_skills_count(self, mock_db):
         """Should return average number of skills per employee."""
-        # Arrange
-        mock_db.query.return_value.scalar.return_value = 12.75
+        # Arrange - chain: query().filter().scalar()
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.scalar.return_value = 12.75
         
         # Act
         result = stats_service._query_average_skills_per_employee(mock_db)
@@ -200,8 +213,11 @@ class TestQueryAverageSkillsPerEmployee:
     
     def test_returns_zero_when_no_employees(self, mock_db):
         """Should return 0 when no employees exist."""
-        # Arrange
-        mock_db.query.return_value.scalar.return_value = None
+        # Arrange - chain: query().filter().scalar()
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.scalar.return_value = None
         
         # Act
         result = stats_service._query_average_skills_per_employee(mock_db)
@@ -209,16 +225,19 @@ class TestQueryAverageSkillsPerEmployee:
         # Assert
         assert result == 0.0
     
-    def test_rounds_average_to_two_decimals(self, mock_db):
-        """Should return average rounded to 2 decimal places."""
-        # Arrange
-        mock_db.query.return_value.scalar.return_value = 12.123456
+    def test_returns_exact_average_from_db(self, mock_db):
+        """Should return exact average from database query."""
+        # Arrange - chain: query().filter().scalar()
+        mock_query = MagicMock()
+        mock_db.query.return_value = mock_query
+        mock_query.filter.return_value = mock_query
+        mock_query.scalar.return_value = 12.123456
         
         # Act
         result = stats_service._query_average_skills_per_employee(mock_db)
         
-        # Assert
-        assert result == 12.12  # Rounded
+        # Assert - implementation returns raw value, rounding done at response layer
+        assert result == 12.123456
 
 
 class TestBuildStatsResponse:

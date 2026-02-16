@@ -426,15 +426,15 @@ class TestUpdateCategory:
         
         assert response.status_code == 422
     
-    def test_update_invalid_id_returns_404(self):
-        """Should return 404 when ID doesn't exist (including 0)."""
-        # The service doesn't validate ID format - it just queries and returns not found
+    def test_update_invalid_id_returns_422(self):
+        """Should return 422 when ID is invalid (0 or negative) - path validation."""
+        # Route now validates path ID >= 1
         response = client.patch(
             '/master-data/skill-taxonomy/categories/0',
             json={"category_name": "Test"}
         )
         
-        assert response.status_code == 404
+        assert response.status_code == 422
 
 
 # ============================================================================
@@ -864,17 +864,17 @@ class TestEdgeCases:
     """Test edge cases and error handling."""
     
     def test_invalid_path_id_zero(self):
-        """Should return 404 for ID=0 (treated as not found)."""
+        """Should return 422 for ID=0 (path validation, ID must be >= 1)."""
         response = client.patch(
             '/master-data/skill-taxonomy/categories/0',
             json={"category_name": "Test"}
         )
-        assert response.status_code == 404
+        assert response.status_code == 422
     
     def test_invalid_path_id_negative(self):
-        """Should return 404 for negative ID."""
+        """Should return 422 for negative ID (path validation, ID must be >= 1)."""
         response = client.delete('/master-data/skill-taxonomy/skills/-1')
-        assert response.status_code == 404
+        assert response.status_code == 422
     
     def test_search_query_max_length(self, sample_taxonomy_response):
         """Should accept search query up to max length."""

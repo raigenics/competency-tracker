@@ -13,9 +13,9 @@ Test Strategy:
 """
 import pytest
 from unittest.mock import Mock, MagicMock, patch
-from backend.app.services.imports.employee_import.skill_resolver import SkillResolver
-from backend.app.models.skill import Skill
-from backend.app.models.skill_alias import SkillAlias
+from app.services.imports.employee_import.skill_resolver import SkillResolver
+from app.models.skill import Skill
+from app.models.skill_alias import SkillAlias
 
 
 class TestSkillResolverInit:
@@ -84,8 +84,8 @@ class TestResolveSkillExactMatch:
         # Execute
         result = resolver.resolve_skill("Python")
         
-        # Verify
-        assert result == 42
+        # Verify - returns (skill_id, resolution_method, confidence)
+        assert result == (42, "exact", None)
         assert stats['skills_resolved_exact'] == 1
         assert stats['skills_resolved_alias'] == 0
         assert stats['skills_unresolved'] == 0
@@ -102,7 +102,7 @@ class TestResolveSkillExactMatch:
         
         result = resolver.resolve_skill("  Java  ")
         
-        assert result == 99
+        assert result == (99, "exact", None)
         assert stats['skills_resolved_exact'] == 1
     
     def test_exact_match_increments_stats(self, resolver, mock_db, stats):
@@ -185,8 +185,8 @@ class TestResolveSkillAliasMatch:
         # Execute
         result = resolver.resolve_skill("JS")
         
-        # Verify
-        assert result == 55
+        # Verify - returns (skill_id, resolution_method, confidence)
+        assert result == (55, "alias", None)
         assert stats['skills_resolved_exact'] == 0
         assert stats['skills_resolved_alias'] == 1
         assert stats['skills_unresolved'] == 0
@@ -208,7 +208,7 @@ class TestResolveSkillAliasMatch:
         
         result = resolver.resolve_skill("JAVASCRIPT")
         
-        assert result == 33
+        assert result == (33, "alias", None)
         assert stats['skills_resolved_alias'] == 1
     
     def test_alias_match_increments_stats(self, resolver, mock_db, stats):
@@ -287,7 +287,7 @@ class TestResolveSkillUnresolved:
         
         result = resolver.resolve_skill("UnknownSkill")
         
-        assert result is None
+        assert result == (None, None, None)
         assert stats['skills_unresolved'] == 1
     
     def test_tracks_unresolved_skill_name(self, resolver, mock_db, stats):
@@ -377,7 +377,7 @@ class TestResolveSkillWithNormalizer:
         result = resolver.resolve_skill("  PYTHON  ")
         
         # Should still resolve using default lower+strip
-        assert result == 1
+        assert result == (1, "exact", None)
 
 
 class TestResolveSkillResolutionPriority:
@@ -421,7 +421,7 @@ class TestResolveSkillResolutionPriority:
         result = resolver.resolve_skill("Python")
         
         # Should return exact match ID, not alias ID
-        assert result == 100
+        assert result == (100, "exact", None)
         assert stats['skills_resolved_exact'] == 1
         assert stats['skills_resolved_alias'] == 0
 
@@ -486,10 +486,10 @@ class TestResolveSkillMultipleResolutions:
         result2 = resolver.resolve_skill("JS")
         result3 = resolver.resolve_skill("UnknownSkill")
         
-        # Verify
-        assert result1 == 1
-        assert result2 == 2
-        assert result3 is None
+        # Verify - returns (skill_id, resolution_method, confidence)
+        assert result1 == (1, "exact", None)
+        assert result2 == (2, "alias", None)
+        assert result3 == (None, None, None)
         
         assert stats['skills_resolved_exact'] == 1
         assert stats['skills_resolved_alias'] == 1
