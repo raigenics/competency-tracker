@@ -383,10 +383,10 @@ describe('SkillTaxonomyPage', () => {
       fireEvent.click(screen.getByText('Programming'));
       await vi.advanceTimersByTimeAsync(100);
 
-      // Assert - subcategories should be visible
+      // Assert - subcategories should be visible (use getAllByText since they appear in tree and details table)
       await waitFor(() => {
-        expect(screen.getByText('Languages')).toBeInTheDocument();
-        expect(screen.getByText('Frameworks')).toBeInTheDocument();
+        expect(screen.getAllByText('Languages').length).toBeGreaterThan(0);
+        expect(screen.getAllByText('Frameworks').length).toBeGreaterThan(0);
       });
     });
 
@@ -403,11 +403,13 @@ describe('SkillTaxonomyPage', () => {
       fireEvent.click(screen.getByText('Programming'));
       await vi.advanceTimersByTimeAsync(100);
 
-      // Select Languages subcategory
+      // Select Languages subcategory (appears in tree and details table, so use getAllByText)
       await waitFor(() => {
-        expect(screen.getByText('Languages')).toBeInTheDocument();
+        expect(screen.getAllByText('Languages').length).toBeGreaterThan(0);
       });
-      fireEvent.click(screen.getByText('Languages'));
+      const languagesElements = screen.getAllByText('Languages');
+      const languagesInTree = languagesElements.find(el => el.closest('.tree-panel'));
+      fireEvent.click(languagesInTree || languagesElements[0]);
       await vi.advanceTimersByTimeAsync(100);
 
       // Assert - Skills should be displayed (Python, JavaScript)
@@ -495,6 +497,140 @@ describe('SkillTaxonomyPage', () => {
 
       // API function should be mocked and ready
       expect(createCategory).not.toHaveBeenCalled();
+    });
+
+    it('should show error inside modal when API returns 409 duplicate', async () => {
+      // Arrange - mock API to return 409 conflict
+      const duplicateError = new Error("Category with name 'Test Category' already exists");
+      duplicateError.status = 409;
+      duplicateError.data = { detail: "Category with name 'Test Category' already exists" };
+      createCategory.mockRejectedValue(duplicateError);
+
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      // Wait for tree to load
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      // Click "+ Category" button in tree header
+      const addCategoryButton = screen.getByRole('button', { name: /\+ Category/i });
+      fireEvent.click(addCategoryButton);
+
+      // Wait for modal to appear
+      await waitFor(() => {
+        expect(screen.getByText('Add Category')).toBeInTheDocument();
+      });
+
+      // Find the name input and enter a duplicate name
+      const nameInput = screen.getByPlaceholderText('Enter name');
+      fireEvent.change(nameInput, { target: { value: 'Test Category' } });
+
+      // Click Save
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      fireEvent.click(saveButton);
+
+      // Verify error is shown inside the modal
+      await waitFor(() => {
+        expect(screen.getByText("Category with name 'Test Category' already exists")).toBeInTheDocument();
+      });
+
+      // Verify modal is still open (Save button still visible)
+      expect(screen.getByRole('button', { name: /save/i })).toBeInTheDocument();
+
+      // Verify page-level error "Failed to Load Taxonomy" is NOT shown
+      expect(screen.queryByText(/Failed to Load Taxonomy/i)).not.toBeInTheDocument();
+    });
+
+    it('should close modal on successful category creation', async () => {
+      // Arrange - mock API to return success
+      createCategory.mockResolvedValue({
+        id: 4,
+        name: 'New Unique Category',
+        created_at: '2024-01-15T10:00:00Z',
+        created_by: 'admin',
+        message: 'Created'
+      });
+
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      // Wait for tree to load
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      // Click "+ Category" button
+      const addCategoryButton = screen.getByRole('button', { name: /\+ Category/i });
+      fireEvent.click(addCategoryButton);
+
+      // Wait for modal to appear
+      await waitFor(() => {
+        expect(screen.getByText('Add Category')).toBeInTheDocument();
+      });
+
+      // Enter name and save
+      const nameInput = screen.getByPlaceholderText('Enter name');
+      fireEvent.change(nameInput, { target: { value: 'New Unique Category' } });
+
+      const saveButton = screen.getByRole('button', { name: /save/i });
+      fireEvent.click(saveButton);
+
+      // Wait for modal to close
+      await waitFor(() => {
+        expect(screen.queryByText('Add Category')).not.toBeInTheDocument();
+      });
+
+      // Verify createCategory was called
+      expect(createCategory).toHaveBeenCalledWith('New Unique Category');
+    });
+
+    it('should clear error when modal is closed via Cancel', async () => {
+      // Arrange - mock 409 for first call
+      const duplicateError = new Error("Category with name 'Test' already exists");
+      duplicateError.status = 409;
+      duplicateError.data = { detail: "Category with name 'Test' already exists" };
+      createCategory.mockRejectedValueOnce(duplicateError);
+
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      // Open modal
+      fireEvent.click(screen.getByRole('button', { name: /\+ Category/i }));
+      await waitFor(() => {
+        expect(screen.getByText('Add Category')).toBeInTheDocument();
+      });
+
+      // Enter name and save (will fail with 409)
+      fireEvent.change(screen.getByPlaceholderText('Enter name'), { target: { value: 'Test' } });
+      fireEvent.click(screen.getByRole('button', { name: /save/i }));
+
+      // Verify error is shown
+      await waitFor(() => {
+        expect(screen.getByText("Category with name 'Test' already exists")).toBeInTheDocument();
+      });
+
+      // Click Cancel to close modal
+      fireEvent.click(screen.getByRole('button', { name: /cancel/i }));
+
+      // Verify modal is closed
+      await waitFor(() => {
+        expect(screen.queryByText('Add Category')).not.toBeInTheDocument();
+      });
+
+      // Reopen modal and verify error is cleared
+      fireEvent.click(screen.getByRole('button', { name: /\+ Category/i }));
+      await waitFor(() => {
+        expect(screen.getByText('Add Category')).toBeInTheDocument();
+      });
+
+      // Error message should not be visible
+      expect(screen.queryByText("Category with name 'Test' already exists")).not.toBeInTheDocument();
     });
   });
 
@@ -689,10 +825,13 @@ describe('SkillTaxonomyPage', () => {
       fireEvent.click(screen.getByText('Programming'));
       await vi.advanceTimersByTimeAsync(100);
 
+      // Languages appears in tree and details table, so use getAllByText
       await waitFor(() => {
-        expect(screen.getByText('Languages')).toBeInTheDocument();
+        expect(screen.getAllByText('Languages').length).toBeGreaterThan(0);
       });
-      fireEvent.click(screen.getByText('Languages'));
+      const languagesElements = screen.getAllByText('Languages');
+      const languagesInTree = languagesElements.find(el => el.closest('.tree-panel'));
+      fireEvent.click(languagesInTree || languagesElements[0]);
       await vi.advanceTimersByTimeAsync(100);
 
       // Assert - skills should appear
@@ -714,10 +853,14 @@ describe('SkillTaxonomyPage', () => {
       fireEvent.click(screen.getByText('Database'));
       await vi.advanceTimersByTimeAsync(100);
 
+      // SQL appears in tree - click on the node-label (first match is tree)
       await waitFor(() => {
-        expect(screen.getByText('SQL')).toBeInTheDocument();
+        expect(screen.getAllByText('SQL').length).toBeGreaterThan(0);
       });
-      fireEvent.click(screen.getByText('SQL'));
+      // Click the one in the tree panel (has class node-label)
+      const sqlElements = screen.getAllByText('SQL');
+      const sqlInTree = sqlElements.find(el => el.closest('.tree-panel'));
+      fireEvent.click(sqlInTree || sqlElements[0]);
       await vi.advanceTimersByTimeAsync(100);
 
       // Empty state or "no skills" message
@@ -741,10 +884,14 @@ describe('SkillTaxonomyPage', () => {
       fireEvent.click(screen.getByText('Programming'));
       await vi.advanceTimersByTimeAsync(50);
 
+      // Languages appears in both tree and details panel table
+      // Click the one in the tree panel
       await waitFor(() => {
-        expect(screen.getByText('Languages')).toBeInTheDocument();
+        expect(screen.getAllByText('Languages').length).toBeGreaterThan(0);
       });
-      fireEvent.click(screen.getByText('Languages'));
+      const languagesElements = screen.getAllByText('Languages');
+      const languagesInTree = languagesElements.find(el => el.closest('.tree-panel'));
+      fireEvent.click(languagesInTree || languagesElements[0]);
       await vi.advanceTimersByTimeAsync(100);
 
       // Both skills should be visible initially
@@ -846,10 +993,14 @@ describe('SkillTaxonomyPage', () => {
       fireEvent.click(screen.getByText('Programming'));
       await vi.advanceTimersByTimeAsync(50);
 
+      // Frameworks appears in both tree and details panel table
+      // Click the one in the tree panel
       await waitFor(() => {
-        expect(screen.getByText('Frameworks')).toBeInTheDocument();
+        expect(screen.getAllByText('Frameworks').length).toBeGreaterThan(0);
       });
-      fireEvent.click(screen.getByText('Frameworks'));
+      const frameworksElements = screen.getAllByText('Frameworks');
+      const frameworksInTree = frameworksElements.find(el => el.closest('.tree-panel'));
+      fireEvent.click(frameworksInTree || frameworksElements[0]);
       await vi.advanceTimersByTimeAsync(100);
 
       // Assert - React skill should be displayed

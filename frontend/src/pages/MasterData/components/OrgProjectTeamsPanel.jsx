@@ -43,6 +43,7 @@ const OrgProjectTeamsPanel = ({
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [addName, setAddName] = useState('');
   const [isAddingSaving, setIsAddingSaving] = useState(false);
+  const [addError, setAddError] = useState(null);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -209,6 +210,7 @@ const OrgProjectTeamsPanel = ({
   const handleAddCancel = useCallback(() => {
     setIsAddingNew(false);
     setAddName('');
+    setAddError(null);
   }, []);
   
   const handleAddSave = useCallback(async () => {
@@ -221,6 +223,7 @@ const OrgProjectTeamsPanel = ({
     }
     
     setIsAddingSaving(true);
+    setAddError(null);
     try {
       if (onCreateTeam) {
         await onCreateTeam(trimmedName);
@@ -228,8 +231,16 @@ const OrgProjectTeamsPanel = ({
       // Success - exit add mode
       setIsAddingNew(false);
       setAddName('');
+      setAddError(null);
     } catch (error) {
-      // Keep add mode open on error so user can retry
+      // Handle 409 duplicate error with user-friendly message
+      if (error.status === 409) {
+        const errorMessage = error.message || `'${trimmedName}' team already exists.`;
+        setAddError(errorMessage);
+      } else {
+        // For other errors, show generic message
+        setAddError(error.message || 'Failed to create team');
+      }
       console.error('Failed to create team:', error);
     } finally {
       setIsAddingSaving(false);
@@ -417,23 +428,39 @@ const OrgProjectTeamsPanel = ({
                   {/* Empty checkbox cell for alignment */}
                 </td>
                 <td>
-                  <input
-                    ref={addInputRef}
-                    type="text"
-                    className="inline-edit-input"
-                    value={addName}
-                    onChange={(e) => setAddName(e.target.value)}
-                    onKeyDown={handleAddKeyDown}
-                    disabled={isAddingSaving}
-                    placeholder="Enter team name"
-                    style={{
-                      width: '100%',
-                      padding: '4px 8px',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '4px',
-                      fontSize: 'inherit',
-                    }}
-                  />
+                  <div>
+                    <input
+                      ref={addInputRef}
+                      type="text"
+                      className={`inline-edit-input${addError ? ' input-error' : ''}`}
+                      value={addName}
+                      onChange={(e) => {
+                        setAddName(e.target.value);
+                        if (addError) setAddError(null);
+                      }}
+                      onKeyDown={handleAddKeyDown}
+                      disabled={isAddingSaving}
+                      placeholder="Enter team name"
+                      style={{
+                        width: '100%',
+                        padding: '4px 8px',
+                        border: addError ? '1px solid #dc2626' : '1px solid var(--border-color)',
+                        borderRadius: '4px',
+                        fontSize: 'inherit',
+                        backgroundColor: addError ? '#fef2f2' : undefined,
+                      }}
+                    />
+                    {addError && (
+                      <div style={{
+                        color: '#dc2626',
+                        fontSize: '12px',
+                        marginTop: '4px',
+                        lineHeight: '1.4'
+                      }}>
+                        {addError}
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td style={{ textAlign: 'right', paddingRight: '16px' }}>
                   <div className="row-actions">

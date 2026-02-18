@@ -1,15 +1,15 @@
 /**
- * OrgSubSegmentProjectsPanel - Displays projects table when a Sub-Segment is selected
- * Matches the wireframe from projects_in_subsegment.html
+ * TaxonomyCategorySubCategoriesPanel - Displays sub-categories table when a Category is selected
+ * Mirrors OrgSegmentSubSegmentsPanel but for managing sub-categories under a taxonomy category
  * 
  * Features:
- * - Table with columns: Checkbox | Project Name | Actions (Edit, Delete)
+ * - Table with columns: Checkbox | Sub-Category Name | Actions (Edit, Delete)
  * - Bulk selection with select-all checkbox (indeterminate support)
  * - Bulk action bar when selection > 0
  * - Header trash icon when selection > 0
- * - "+ Add Project" button in header
+ * - "+ Add Sub-category" button in header
  * - INLINE EDIT: click Edit → input field → Save/Cancel
- * - INLINE ADD: click "+ Add Project" → new row at top with input → Save/Cancel
+ * - INLINE ADD: click "+ Add Sub-category" → new row at top with input → Save/Cancel
  */
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Trash2, Pencil, Check, X, Search } from 'lucide-react';
@@ -17,13 +17,14 @@ import BulkActionBar from './BulkActionBar';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import DeleteSelectedModal from './DeleteSelectedModal';
 
-const OrgSubSegmentProjectsPanel = ({
-  projects = [],
-  subSegmentName = '',
-  onCreateProject,
-  onEditProject,
-  onDeleteProject,
-  onBulkDeleteProjects,
+const TaxonomyCategorySubCategoriesPanel = ({
+  subCategories = [],
+  categoryName = '',
+  onCreateSubCategory,
+  onEditSubCategory,
+  onDeleteSubCategory,
+  onBulkDeleteSubCategories,
+  onSubCategoryClick,
   disabled = false,
 }) => {
   // Selection state
@@ -52,20 +53,20 @@ const OrgSubSegmentProjectsPanel = ({
   const nameInputRef = useRef(null);
   const addInputRef = useRef(null);
 
-  // Clean up stale selections when projects list changes
+  // Clean up stale selections when subCategories list changes
   useEffect(() => {
-    const projectIdSet = new Set(projects.map(p => p.id));
-    const hasStale = Array.from(selectedIds).some(id => !projectIdSet.has(id));
+    const subCategoryIdSet = new Set(subCategories.map(s => s.id));
+    const hasStale = Array.from(selectedIds).some(id => !subCategoryIdSet.has(id));
     if (hasStale) {
       const newSelection = new Set();
       selectedIds.forEach(id => {
-        if (projectIdSet.has(id)) {
+        if (subCategoryIdSet.has(id)) {
           newSelection.add(id);
         }
       });
       setSelectedIds(newSelection);
     }
-  }, [projects]);
+  }, [subCategories]);
   
   // Focus input when entering edit mode
   useEffect(() => {
@@ -82,41 +83,41 @@ const OrgSubSegmentProjectsPanel = ({
     }
   }, [isAddingNew]);
 
-  // Filter projects by search query
-  const filteredProjects = useMemo(() => {
-    if (!searchQuery.trim()) return projects;
+  // Filter sub-categories by search query
+  const filteredSubCategories = useMemo(() => {
+    if (!searchQuery.trim()) return subCategories;
     const query = searchQuery.toLowerCase();
-    return projects.filter(project => 
-      project.name.toLowerCase().includes(query)
+    return subCategories.filter(subCategory => 
+      subCategory.name.toLowerCase().includes(query)
     );
-  }, [projects, searchQuery]);
+  }, [subCategories, searchQuery]);
 
   // Update select-all checkbox indeterminate state
   useEffect(() => {
     if (selectAllRef.current) {
-      const visibleCount = filteredProjects.length;
+      const visibleCount = filteredSubCategories.length;
       const selectedCount = selectedIds.size;
       selectAllRef.current.indeterminate = selectedCount > 0 && selectedCount < visibleCount;
     }
-  }, [selectedIds, filteredProjects.length]);
+  }, [selectedIds, filteredSubCategories.length]);
 
   // Compute selection state for header checkbox
   const selectionState = useMemo(() => {
-    const visibleCount = filteredProjects.length;
+    const visibleCount = filteredSubCategories.length;
     const selectedCount = selectedIds.size;
     if (selectedCount === 0) return 'none';
     if (selectedCount === visibleCount && visibleCount > 0) return 'all';
     return 'some';
-  }, [selectedIds, filteredProjects.length]);
+  }, [selectedIds, filteredSubCategories.length]);
 
   // Selection handlers
   const handleSelectAll = useCallback((e) => {
     if (e.target.checked) {
-      setSelectedIds(new Set(filteredProjects.map(p => p.id)));
+      setSelectedIds(new Set(filteredSubCategories.map(s => s.id)));
     } else {
       setSelectedIds(new Set());
     }
-  }, [filteredProjects]);
+  }, [filteredSubCategories]);
 
   const handleSelectRow = useCallback((id, checked) => {
     setSelectedIds(prev => {
@@ -135,9 +136,9 @@ const OrgSubSegmentProjectsPanel = ({
   }, []);
   
   // Inline edit handlers
-  const handleEdit = useCallback((project) => {
-    setEditingId(project.id);
-    setEditName(project.name);
+  const handleEdit = useCallback((subCategory) => {
+    setEditingId(subCategory.id);
+    setEditName(subCategory.name);
   }, []);
   
   const handleCancel = useCallback(() => {
@@ -154,32 +155,32 @@ const OrgSubSegmentProjectsPanel = ({
       return;
     }
     
-    // Find the project being edited
-    const project = projects.find(p => p.id === editingId);
-    if (!project) {
+    // Find the sub-category being edited
+    const subCategory = subCategories.find(s => s.id === editingId);
+    if (!subCategory) {
       handleCancel();
       return;
     }
     
     // Skip save if name unchanged
-    if (trimmedName === project.name) {
+    if (trimmedName === subCategory.name) {
       handleCancel();
       return;
     }
     
     setIsSaving(true);
     try {
-      if (onEditProject) {
-        await onEditProject({ ...project, newName: trimmedName });
+      if (onEditSubCategory) {
+        await onEditSubCategory({ ...subCategory, newName: trimmedName });
       }
       handleCancel();
     } catch (error) {
       // Keep edit mode open on error so user can retry
-      console.error('Failed to save project name:', error);
+      console.error('Failed to save sub-category name:', error);
     } finally {
       setIsSaving(false);
     }
-  }, [editingId, editName, isSaving, projects, onEditProject, handleCancel]);
+  }, [editingId, editName, isSaving, subCategories, onEditSubCategory, handleCancel]);
   
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
@@ -225,8 +226,8 @@ const OrgSubSegmentProjectsPanel = ({
     setIsAddingSaving(true);
     setAddError(null);
     try {
-      if (onCreateProject) {
-        await onCreateProject(trimmedName);
+      if (onCreateSubCategory) {
+        await onCreateSubCategory(trimmedName);
       }
       // Success - exit add mode
       setIsAddingNew(false);
@@ -235,17 +236,17 @@ const OrgSubSegmentProjectsPanel = ({
     } catch (error) {
       // Handle 409 duplicate error with user-friendly message
       if (error.status === 409) {
-        const errorMessage = error.message || `'${trimmedName}' project already exists.`;
+        const errorMessage = error.message || `'${trimmedName}' sub-category already exists.`;
         setAddError(errorMessage);
       } else {
         // For other errors, show generic message
-        setAddError(error.message || 'Failed to create project');
+        setAddError(error.message || 'Failed to create sub-category');
       }
-      console.error('Failed to create project:', error);
+      console.error('Failed to create sub-category:', error);
     } finally {
       setIsAddingSaving(false);
     }
-  }, [addName, isAddingSaving, onCreateProject]);
+  }, [addName, isAddingSaving, onCreateSubCategory]);
   
   const handleAddKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
@@ -256,79 +257,103 @@ const OrgSubSegmentProjectsPanel = ({
       handleAddCancel();
     }
   }, [handleAddSave, handleAddCancel]);
-
-  // Single delete handlers
-  const handleDeleteRequest = useCallback((project) => {
-    setItemToDelete(project);
+  
+  // Delete handlers
+  const handleDeleteRequest = useCallback((subCategory) => {
+    setItemToDelete(subCategory);
     setDeleteModalOpen(true);
   }, []);
-
-  const handleConfirmDelete = useCallback(async () => {
-    if (itemToDelete && onDeleteProject) {
-      await onDeleteProject(itemToDelete);
-    }
-    setDeleteModalOpen(false);
-    setItemToDelete(null);
-  }, [itemToDelete, onDeleteProject]);
-
+  
   const handleCancelDelete = useCallback(() => {
     setDeleteModalOpen(false);
     setItemToDelete(null);
   }, []);
-
+  
+  const handleConfirmDelete = useCallback(async () => {
+    if (!itemToDelete) return;
+    
+    try {
+      if (onDeleteSubCategory) {
+        await onDeleteSubCategory(itemToDelete);
+      }
+    } catch (error) {
+      console.error('Failed to delete sub-category:', error);
+    } finally {
+      setDeleteModalOpen(false);
+      setItemToDelete(null);
+    }
+  }, [itemToDelete, onDeleteSubCategory]);
+  
   // Bulk delete handlers
   const handleBulkDeleteRequest = useCallback(() => {
     if (selectedIds.size > 0) {
       setBulkDeleteModalOpen(true);
     }
-  }, [selectedIds.size]);
-
-  const handleConfirmBulkDelete = useCallback(async () => {
-    if (selectedIds.size === 0) return;
-
-    const projectsToDelete = projects.filter(p => selectedIds.has(p.id));
-    
-    if (onBulkDeleteProjects) {
-      await onBulkDeleteProjects(projectsToDelete);
-    } else if (onDeleteProject) {
-      // Fall back to deleting one by one
-      for (const project of projectsToDelete) {
-        await onDeleteProject(project);
-      }
-    }
-    
-    setSelectedIds(new Set());
-    setBulkDeleteModalOpen(false);
-  }, [selectedIds, projects, onBulkDeleteProjects, onDeleteProject]);
-
+  }, [selectedIds]);
+  
   const handleCancelBulkDelete = useCallback(() => {
     setBulkDeleteModalOpen(false);
   }, []);
+  
+  const handleConfirmBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    
+    const itemsToDelete = subCategories.filter(s => selectedIds.has(s.id));
+    
+    try {
+      if (onBulkDeleteSubCategories) {
+        await onBulkDeleteSubCategories(itemsToDelete);
+      }
+      setSelectedIds(new Set());
+    } catch (error) {
+      console.error('Failed to bulk delete sub-categories:', error);
+    } finally {
+      setBulkDeleteModalOpen(false);
+    }
+  }, [selectedIds, subCategories, onBulkDeleteSubCategories]);
 
-  // Empty state - but show table if adding
-  if ((!projects || projects.length === 0) && !isAddingNew) {
+  // Row click handler for navigation
+  const handleRowClick = useCallback((subCategory, e) => {
+    // Only navigate if not clicking on checkbox, actions, or in edit mode
+    if (e.target.closest('input[type="checkbox"]') || 
+        e.target.closest('.row-actions') || 
+        editingId === subCategory.id) {
+      return;
+    }
+    if (onSubCategoryClick) {
+      onSubCategoryClick(subCategory);
+    }
+  }, [onSubCategoryClick, editingId]);
+
+  // Empty state
+  if (subCategories.length === 0 && !isAddingNew) {
     return (
       <div className="info-section">
-        <div className="info-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-          <div className="info-section-title" style={{ margin: 0 }}>PROJECTS IN THIS SUB-SEGMENT</div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-            {!disabled && onCreateProject && (
-              <button className="btn btn-primary btn-sm" onClick={handleStartAdd}>
-                + Add Project
-              </button>
-            )}
-          </div>
-        </div>
-        <div className="skills-empty-state">
-          <div className="empty-icon">📋</div>
-          <p>No projects in this sub-segment yet</p>
-          {!disabled && onCreateProject && (
+        <div className="info-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <div className="info-section-title" style={{ margin: 0 }}>SUB-CATEGORIES IN THIS CATEGORY</div>
+          {!disabled && onCreateSubCategory && (
             <button 
               className="btn btn-primary btn-sm" 
               onClick={handleStartAdd}
-              style={{ marginTop: '16px' }}
             >
-              + Add First Project
+              + Add Sub-category
+            </button>
+          )}
+        </div>
+        <div className="empty-state" style={{ 
+          textAlign: 'center', 
+          padding: '40px 20px', 
+          color: 'var(--text-muted)',
+          backgroundColor: 'var(--background-secondary, #f8f9fa)',
+          borderRadius: '8px'
+        }}>
+          <div style={{ marginBottom: '12px' }}>No sub-categories in this category</div>
+          {!disabled && onCreateSubCategory && (
+            <button 
+              className="btn btn-primary btn-sm" 
+              onClick={handleStartAdd}
+            >
+              + Add First Sub-category
             </button>
           )}
         </div>
@@ -340,10 +365,10 @@ const OrgSubSegmentProjectsPanel = ({
     <div className="info-section">
       {/* Section Header */}
       <div className="info-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-        <div className="info-section-title" style={{ margin: 0 }}>PROJECTS IN THIS SUB-SEGMENT</div>
+        <div className="info-section-title" style={{ margin: 0 }}>SUB-CATEGORIES IN THIS CATEGORY</div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Search box - only show if projects exist */}
-          {projects.length > 0 && (
+          {/* Search box - only show if sub-categories exist */}
+          {subCategories.length > 0 && (
             <div className="search-box" style={{ position: 'relative' }}>
               <Search 
                 size={16} 
@@ -357,7 +382,7 @@ const OrgSubSegmentProjectsPanel = ({
               />
               <input
                 type="text"
-                placeholder="Search projects..."
+                placeholder="Search sub-categories..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 style={{
@@ -376,18 +401,18 @@ const OrgSubSegmentProjectsPanel = ({
             <button 
               className="btn btn-danger btn-sm"
               onClick={handleBulkDeleteRequest}
-              title={`Delete ${selectedIds.size} selected project(s)`}
+              title={`Delete ${selectedIds.size} selected sub-category(ies)`}
             >
               <Trash2 size={14} />
             </button>
           )}
-          {!disabled && onCreateProject && (
+          {!disabled && onCreateSubCategory && (
             <button 
               className="btn btn-primary btn-sm" 
               onClick={handleStartAdd}
               disabled={isAddingSaving}
             >
-              {isAddingSaving ? 'Adding...' : '+ Add Project'}
+              {isAddingSaving ? 'Adding...' : '+ Add Sub-category'}
             </button>
           )}
         </div>
@@ -398,10 +423,10 @@ const OrgSubSegmentProjectsPanel = ({
         selectedCount={selectedIds.size}
         onDeleteSelected={handleBulkDeleteRequest}
         onClearSelection={handleClearSelection}
-        itemLabel="project"
+        itemLabel="sub-category"
       />
 
-      {/* Projects Table */}
+      {/* Sub-Categories Table */}
       <div className="skills-table-container">
         <table className="skills-table">
           <thead>
@@ -412,11 +437,11 @@ const OrgSubSegmentProjectsPanel = ({
                   type="checkbox"
                   checked={selectionState === 'all'}
                   onChange={handleSelectAll}
-                  disabled={filteredProjects.length === 0}
+                  disabled={filteredSubCategories.length === 0}
                   title={selectionState === 'all' ? 'Deselect all' : 'Select all'}
                 />
               </th>
-              <th>PROJECT</th>
+              <th>SUB-CATEGORY</th>
               <th style={{ width: '140px', textAlign: 'right', paddingRight: '16px' }}>ACTIONS</th>
             </tr>
           </thead>
@@ -440,7 +465,7 @@ const OrgSubSegmentProjectsPanel = ({
                       }}
                       onKeyDown={handleAddKeyDown}
                       disabled={isAddingSaving}
-                      placeholder="Enter project name"
+                      placeholder="Enter sub-category name"
                       style={{
                         width: '100%',
                         padding: '4px 8px',
@@ -486,16 +511,21 @@ const OrgSubSegmentProjectsPanel = ({
                 </td>
               </tr>
             )}
-            {filteredProjects.map((project) => {
-              const isEditing = editingId === project.id;
+            {filteredSubCategories.map((subCategory) => {
+              const isEditing = editingId === subCategory.id;
               
               return (
-                <tr key={project.id} className={selectedIds.has(project.id) ? 'selected' : ''}>
+                <tr 
+                  key={subCategory.id} 
+                  className={selectedIds.has(subCategory.id) ? 'selected' : ''}
+                  onClick={(e) => handleRowClick(subCategory, e)}
+                  style={{ cursor: onSubCategoryClick && !isEditing ? 'pointer' : 'default' }}
+                >
                   <td style={{ textAlign: 'center' }}>
                     <input
                       type="checkbox"
-                      checked={selectedIds.has(project.id)}
-                      onChange={(e) => handleSelectRow(project.id, e.target.checked)}
+                      checked={selectedIds.has(subCategory.id)}
+                      onChange={(e) => handleSelectRow(subCategory.id, e.target.checked)}
                       disabled={isEditing}
                     />
                   </td>
@@ -518,7 +548,7 @@ const OrgSubSegmentProjectsPanel = ({
                         }}
                       />
                     ) : (
-                      project.name
+                      subCategory.name
                     )}
                   </td>
                   <td style={{ textAlign: 'right', paddingRight: '16px' }}>
@@ -546,21 +576,27 @@ const OrgSubSegmentProjectsPanel = ({
                         </>
                       ) : (
                         <>
-                          {onEditProject && (
+                          {onEditSubCategory && (
                             <button 
                               className="action-link"
-                              onClick={() => handleEdit(project)}
-                              title="Edit project"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEdit(subCategory);
+                              }}
+                              title="Edit sub-category"
                             >
                               <Pencil size={14} />
                               <span>Edit</span>
                             </button>
                           )}
-                          {onDeleteProject && (
+                          {onDeleteSubCategory && (
                             <button 
                               className="action-link danger"
-                              onClick={() => handleDeleteRequest(project)}
-                              title="Delete project"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteRequest(subCategory);
+                              }}
+                              title="Delete sub-category"
                             >
                               <Trash2 size={14} />
                               <span>Delete</span>
@@ -582,7 +618,7 @@ const OrgSubSegmentProjectsPanel = ({
         isOpen={deleteModalOpen}
         onClose={handleCancelDelete}
         onConfirm={handleConfirmDelete}
-        itemName={itemToDelete?.name || 'this project'}
+        itemName={itemToDelete?.name || 'this sub-category'}
       />
 
       {/* Bulk Delete Modal */}
@@ -591,10 +627,10 @@ const OrgSubSegmentProjectsPanel = ({
         onClose={handleCancelBulkDelete}
         onConfirm={handleConfirmBulkDelete}
         selectedCount={selectedIds.size}
-        itemLabel="project"
+        itemLabel="sub-category"
       />
     </div>
   );
 };
 
-export default OrgSubSegmentProjectsPanel;
+export default TaxonomyCategorySubCategoriesPanel;

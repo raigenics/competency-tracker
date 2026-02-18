@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.models import Employee, SubSegment, Project, Team, Role
 from .allocation_writer import parse_allocation_pct, upsert_active_project_allocation
+from .master_data_validator import MasterDataValidator
 
 logger = logging.getLogger(__name__)
 
@@ -24,6 +25,8 @@ class EmployeePersister:
         self.date_parser = date_parser
         self.field_sanitizer = field_sanitizer
         self.progress_callback = progress_callback  # Optional callback for progress reporting
+        # Master data validator for per-row validation
+        self.master_data_validator = MasterDataValidator(db)
     
     @staticmethod
     def _is_empty(value) -> bool:
@@ -81,6 +84,49 @@ class EmployeePersister:
             full_name = str(row.get('full_name', ''))
 
             try:
+                # ----------------------------------------------------------
+                # MASTER DATA VALIDATION (before any DB operations)
+                # ----------------------------------------------------------
+                sub_segment_name = row.get('sub_segment', '')
+                project_name = row.get('project', '')
+                team_name = row.get('team', '')
+                role_name = row.get('role', '')
+                
+                validation_result = self.master_data_validator.validate_row(
+                    sub_segment_name=sub_segment_name,
+                    project_name=project_name,
+                    team_name=team_name,
+                    role_name=role_name if role_name else None,
+                    zid=zid,
+                    row_number=row_number
+                )
+                
+                if not validation_result.is_valid:
+                    # Record validation failure and skip this row
+                    logger.warning(
+                        f"Validation failed for row {row_number} (ZID: {zid}): "
+                        f"{validation_result.error_message}"
+                    )
+                    failed_employee = {
+                        'sheet': 'Employee',
+                        'excel_row_number': row_number,
+                        'row_number': row_number,
+                        'sub_segment': sub_segment_name if sub_segment_name else None,
+                        'zid': zid if zid else None,
+                        'full_name': full_name if full_name else None,
+                        'employee_name': full_name if full_name else None,
+                        'skill_name': None,
+                        'error_code': validation_result.error_code,
+                        'message': validation_result.error_message
+                    }
+                    failed_employees.append(failed_employee)
+                    self.stats['failed_rows'].append(failed_employee)
+                    continue  # Skip to next row
+                
+                # ----------------------------------------------------------
+                # EMPLOYEE UPSERT (validation passed)
+                # ----------------------------------------------------------
+                
                 # Check if employee exists
                 existing_employee = self.db.query(Employee).filter(Employee.zid == zid).first()
                 
@@ -133,6 +179,7 @@ class EmployeePersister:
                     'sheet': 'Employee',
                     'excel_row_number': row_number,
                     'row_number': row_number,  # Legacy field
+                    'sub_segment': sub_segment_name if sub_segment_name else None,
                     'zid': zid if zid else None,
                     'full_name': full_name if full_name else None,
                     'employee_name': full_name if full_name else None,  # For consistency

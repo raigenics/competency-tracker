@@ -10,18 +10,35 @@ import httpClient from './httpClient.js';
  * @typedef {Object} Role
  * @property {number} role_id - Role ID
  * @property {string} role_name - Role name
+ * @property {string|null} role_alias - Role alias (comma-separated)
  * @property {string|null} role_description - Role description
  */
 
 /**
  * @typedef {Object} RoleCreate
  * @property {string} role_name - Role name
+ * @property {string} [role_alias] - Optional role alias (comma-separated)
  * @property {string} [role_description] - Optional role description
  */
 
 /**
  * @typedef {Object} BulkDeleteResponse
  * @property {number} deleted_count - Number of roles deleted
+ */
+
+/**
+ * @typedef {Object} ImportFailure
+ * @property {number} row_number - Excel row number
+ * @property {string} role_name - Role name from the row
+ * @property {string} reason - Reason for failure
+ */
+
+/**
+ * @typedef {Object} ImportRolesResponse
+ * @property {number} total_rows - Total data rows in Excel
+ * @property {number} success_count - Number imported successfully
+ * @property {number} failure_count - Number that failed
+ * @property {ImportFailure[]} failures - Details of failed rows
  */
 
 export const rolesApi = {
@@ -105,6 +122,24 @@ export const rolesApi = {
       return await httpClient.delete('/roles/', { role_ids: roleIds });
     } catch (error) {
       console.error('Failed to bulk delete roles:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Import roles from Excel file.
+   * 
+   * @param {File} file - Excel file (.xlsx or .xls) with columns: Role Name, Alias, Role Description
+   * @returns {Promise<ImportRolesResponse>} Import result with counts and failures
+   * @throws {Error} 400 if file invalid, 500 on server error
+   */
+  async importRoles(file) {
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      return await httpClient.post('/roles/import', formData);
+    } catch (error) {
+      console.error('Failed to import roles:', error);
       throw error;
     }
   }

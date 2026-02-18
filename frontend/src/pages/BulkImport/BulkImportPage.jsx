@@ -541,6 +541,7 @@ const BulkImportPage = () => {
                               <tr className="bg-[#f8fafc] border-b-2 border-[#e2e8f0]">
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Sheet</th>
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Excel Row</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Segment</th>
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">ZID</th>
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Employee Name</th>
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Skill</th>
@@ -562,6 +563,9 @@ const BulkImportPage = () => {
                                   </td>
                                   <td className="px-4 py-3 text-[13px] text-[#475569] whitespace-nowrap">
                                     {row.excel_row_number || row.row_number || '-'}
+                                  </td>
+                                  <td className="px-4 py-3 text-[13px] text-[#475569] whitespace-nowrap">
+                                    {row.sub_segment || '-'}
                                   </td>
                                   <td className="px-4 py-3 text-[13px] text-[#475569] whitespace-nowrap">
                                     {row.zid || '-'}

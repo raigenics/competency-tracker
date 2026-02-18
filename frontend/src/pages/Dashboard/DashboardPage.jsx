@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import EmployeesInScopeCard from './components/EmployeesInScopeCard.jsx';
 import SkillDistributionTable from './components/SkillDistributionTable.jsx';
 import SkillUpdateActivity from './components/SkillUpdateActivity.jsx';
-import OrgCoverageTable from './components/OrgCoverageTable.jsx';
+import RoleDistribution from './components/RoleDistribution';
 import LoadingState from '../../components/LoadingState.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { dashboardApi } from '../../services/api/dashboardApi.js';
@@ -37,7 +37,6 @@ const DashboardPage = () => {
   // Data state
   const [metrics, setMetrics] = useState({});
   const [skillDistribution, setSkillDistribution] = useState([]);
-  const [orgCoverage, setOrgCoverage] = useState([]);
   const [updateActivity, setUpdateActivity] = useState({});
   const [activityDays, setActivityDays] = useState(90);
   const [activityLoading, setActivityLoading] = useState(false);// Load sub-segments on component mount
@@ -45,10 +44,7 @@ const DashboardPage = () => {
     const initializeDashboard = async () => {
       setLoading(true);
       try {
-        await Promise.all([
-          loadSubSegments(),
-          loadOrganizationCoverage()
-        ]);
+        await loadSubSegments();
         // Load initial dashboard data
         await loadDashboardData();
         await loadSkillUpdateActivity();
@@ -138,16 +134,6 @@ const DashboardPage = () => {
     }
   };
 
-  // Load organization coverage data (once on mount, ignores filters)
-  const loadOrganizationCoverage = async () => {
-    try {
-      const coverageData = await dashboardApi.getOrgCoverage();
-      setOrgCoverage(coverageData);
-    } catch (error) {
-      console.error('Failed to load organization coverage:', error);
-    }
-  };
-
   // Load skill update activity data
   const loadSkillUpdateActivity = async (days = activityDays) => {
     setActivityLoading(true);
@@ -199,10 +185,6 @@ const DashboardPage = () => {
   const topSkillsCount = scopeLevel === 'team' ? 5 : 10;
 
   const filteredScope = getFilteredScope();
-
-  const handleSegmentSelect = (segment) => {
-    setDashboardFilters({ ...dashboardFilters, subSegment: segment, project: '', team: '' });
-  };
 
   const handleAdvancedQueryClick = () => {
     navigate('/query');
@@ -407,10 +389,10 @@ const DashboardPage = () => {
           onDaysChange={handleActivityDaysChange}
         />
 
-        {/* Organizational Skill Coverage Table */}
-        <OrgCoverageTable
-          coverageData={orgCoverage}
-          onSegmentSelect={handleSegmentSelect}
+        {/* Role Distribution Section */}
+        <RoleDistribution
+          dashboardFilters={dashboardFilters}
+          dropdownData={dropdownData}
         />
         </div>
       </div>

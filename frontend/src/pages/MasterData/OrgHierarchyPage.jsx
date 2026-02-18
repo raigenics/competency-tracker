@@ -24,7 +24,8 @@ import {
   EmptyState,
   InlineEditableTitle,
   OrgSubSegmentProjectsPanel,
-  OrgProjectTeamsPanel
+  OrgProjectTeamsPanel,
+  OrgSegmentSubSegmentsPanel
 } from './components';
 
 // Helper to find item by ID in nested structure
@@ -625,52 +626,106 @@ const OrgHierarchyPage = () => {
     if (selectedItem.type === 'segment') {
       return (
         <>
-          {/* Metadata */}
+          {/* Details */}
           <InfoSection title="Details">
-            <InfoGrid>
-              <InfoItem label="Name" value={selectedItem.name} />
-              <InfoItem label="Type" value={getTypeLabel(selectedItem.type)} />
-            </InfoGrid>
-            {selectedItem.description && (
-              <InfoBox style={{ marginTop: '12px' }}>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
-                  {selectedItem.description}
-                </p>
-              </InfoBox>
-            )}
+            <InfoBox>
+              <InfoItem label="Description" value={selectedItem.description || '-'} style={{ marginBottom: '16px' }} />
+              <InfoItem label="Parent Segment" value={selectedItem.name} />
+            </InfoBox>
           </InfoSection>
 
-          {/* Statistics */}
-          <InfoSection title="Statistics">
-            <StatsGrid>
-              <StatCard label="Sub-Segments" value={selectedItem.subSegmentCount || 0} />
-              <StatCard label="Projects" value={selectedItem.projectCount || 0} />
-              <StatCard label="Teams" value={selectedItem.teamCount || 0} />
-              <StatCard label="Employees" value={selectedItem.employeeCount || 0} />
-            </StatsGrid>
-          </InfoSection>
-
-          {/* Audit Info */}
-          <InfoSection title="Audit Trail">
-            <InfoGrid>
-              <InfoItem label="Created At" value={selectedItem.createdAt || '-'} />
-              <InfoItem label="Created By" value={selectedItem.createdBy || '-'} />
-            </InfoGrid>
-            <button
-              className="btn btn-ghost"
-              style={{ marginTop: '12px', fontSize: '13px' }}
-              onClick={handleViewAudit}
-            >
-              📋 View Full History
-            </button>
-          </InfoSection>
-
-          {/* Warnings */}
-          {selectedItem.employeeCount > 30 && (
-            <Alert type="warning">
-              This segment has {selectedItem.employeeCount} employees. Changes may affect many team members.
-            </Alert>
-          )}
+          {/* Sub-Segments Table */}
+          <OrgSegmentSubSegmentsPanel
+            subSegments={selectedItem.children || []}
+            segmentName={selectedItem.name}
+            onCreateSubSegment={async (subSegmentName) => {
+              // Call API to create sub-segment using selectedItem.rawId as parent segment
+              try {
+                await createSubSegment(selectedItem.rawId, subSegmentName);
+                // Refresh hierarchy to show new sub-segment
+                await loadHierarchy();
+              } catch (err) {
+                console.error('Failed to create sub-segment:', err);
+                throw err; // Re-throw so the panel keeps add mode open
+              }
+            }}
+            onEditSubSegment={async (subSegmentWithNewName) => {
+              const { id, newName } = subSegmentWithNewName;
+              // Extract raw ID (remove prefix like 'subseg-')
+              const rawId = typeof id === 'string' && id.includes('-') ? parseInt(id.split('-').pop(), 10) : id;
+              
+              try {
+                await updateSubSegmentName(rawId, newName);
+                // Update tree data
+                setTreeData(prev => {
+                  const updateSubSegmentInTree = (nodes) => {
+                    return nodes.map(node => {
+                      if (node.id === id) {
+                        return { ...node, name: newName };
+                      }
+                      if (node.children) {
+                        return { ...node, children: updateSubSegmentInTree(node.children) };
+                      }
+                      return node;
+                    });
+                  };
+                  return updateSubSegmentInTree(prev);
+                });
+              } catch (err) {
+                console.error('Failed to update sub-segment name:', err);
+                throw err; // Re-throw so the panel keeps edit mode open
+              }
+            }}
+            onDeleteSubSegment={async (subSegment) => {
+              // Extract raw ID (remove prefix like 'subseg-')
+              const rawId = typeof subSegment.id === 'string' && subSegment.id.includes('-') 
+                ? parseInt(subSegment.id.split('-').pop(), 10) 
+                : subSegment.id;
+              
+              try {
+                // First check for dependencies
+                const checkResult = await checkCanDeleteSubSegment(rawId);
+                if (!checkResult.canDelete) {
+                  // Has dependencies - show warning
+                  alert(`Cannot delete "${subSegment.name}": it has ${checkResult.conflict.dependencies.projects} project(s). Delete the projects first.`);
+                  return;
+                }
+                
+                // No dependencies - delete
+                await deleteSubSegment(rawId);
+                // Refresh hierarchy
+                await loadHierarchy();
+              } catch (err) {
+                console.error('Failed to delete sub-segment:', err);
+                alert('Failed to delete sub-segment');
+              }
+            }}
+            onBulkDeleteSubSegments={async (subSegmentsToDelete) => {
+              try {
+                // Delete each sub-segment in sequence
+                for (const subSegment of subSegmentsToDelete) {
+                  const rawId = typeof subSegment.id === 'string' && subSegment.id.includes('-') 
+                    ? parseInt(subSegment.id.split('-').pop(), 10) 
+                    : subSegment.id;
+                  
+                  // Check for dependencies first
+                  const checkResult = await checkCanDeleteSubSegment(rawId);
+                  if (!checkResult.canDelete) {
+                    // Skip this sub-segment - has dependencies
+                    alert(`Cannot delete "${subSegment.name}": it has ${checkResult.conflict.dependencies.projects} project(s). Skipping.`);
+                    continue;
+                  }
+                  
+                  await deleteSubSegment(rawId);
+                }
+                // Refresh hierarchy
+                await loadHierarchy();
+              } catch (err) {
+                console.error('Failed to bulk delete sub-segments:', err);
+                alert('Failed to delete some sub-segments');
+              }
+            }}
+          />
         </>
       );
     }
@@ -683,7 +738,7 @@ const OrgHierarchyPage = () => {
           <InfoSection title="Details">
             <InfoBox>
               <InfoItem label="Description" value={selectedItem.description || '-'} style={{ marginBottom: '16px' }} />
-              <InfoItem label="Parent Segment" value={findItemById(treeData, selectedItem.parentId)?.name || '-'} />
+              <InfoItem label="Parent Sub-Segment" value={selectedItem.name} />
             </InfoBox>
           </InfoSection>
 

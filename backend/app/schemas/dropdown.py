@@ -35,9 +35,11 @@ class TeamDropdown(DropdownItem):
 
 
 class RoleDropdown(BaseModel):
-    """Schema for role dropdown items (uses role_id, role_name)."""
+    """Schema for role dropdown items (uses role_id, role_name, role_alias, role_description)."""
     role_id: int
     role_name: str
+    role_alias: Optional[str] = None
+    role_description: Optional[str] = None
 
     class Config:
         from_attributes = True

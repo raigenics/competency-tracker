@@ -19,8 +19,18 @@ def mock_db():
     """
     Mock SQLAlchemy database session for unit tests.
     Use this to avoid real database connections.
+    
+    Includes support for begin_nested() context manager (SAVEPOINT pattern).
     """
     db = MagicMock(spec=Session)
+    
+    # Setup begin_nested() to return a context manager that does nothing
+    # This allows `with db.begin_nested():` syntax to work in tests
+    nested_context = MagicMock()
+    nested_context.__enter__ = MagicMock(return_value=None)
+    nested_context.__exit__ = MagicMock(return_value=False)
+    db.begin_nested.return_value = nested_context
+    
     return db
 
 

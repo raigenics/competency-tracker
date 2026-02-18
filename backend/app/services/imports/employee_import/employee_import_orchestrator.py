@@ -145,11 +145,14 @@ class EmployeeImportOrchestrator:
             # self._clear_fact_tables()
 
             # Step 5: Process org master data (SubSegment/Project/Team/Role only)
+            # NOTE: create_missing=False means we do NOT create missing master data.
+            # Instead, per-row validation in EmployeePersister will fail rows with 
+            # missing SubSegment/Project/Team/Role references.
             if self.job_service and self.job_id:
                 self.job_service.update_job(
-                    self.job_id, percent=20, message="Processing organization structure..."
+                    self.job_id, percent=20, message="Validating organization structure..."
                 )
-            org_processor = OrgMasterDataProcessor(self.db, self.import_stats)
+            org_processor = OrgMasterDataProcessor(self.db, self.import_stats, create_missing=False)
             org_processor.process_all(master_data)
 
             # Step 6: Import employees FIRST

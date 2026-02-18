@@ -29,7 +29,8 @@ import {
   EmptyState,
   InlineEditableTitle,
   SkillsTable,
-  ImportBlockingOverlay
+  ImportBlockingOverlay,
+  TaxonomyCategorySubCategoriesPanel
 } from './components';
 import { 
   fetchSkillTaxonomy, 
@@ -233,6 +234,7 @@ const SkillTaxonomyPage = () => {
   
   // Modal states
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalError, setCreateModalError] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [dependencyModalOpen, setDependencyModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -614,12 +616,14 @@ const SkillTaxonomyPage = () => {
   const handleAddChild = () => {
     if (selectedItem?.type === 'category') {
       setCreateType('subcategory');
+      setCreateModalError(null);
       setCreateModalOpen(true);
     } else if (selectedItem?.type === 'subcategory') {
       // For skills, use inline add instead of modal
       setIsAddingSkill(true);
     } else {
       setCreateType('category');
+      setCreateModalError(null);
       setCreateModalOpen(true);
     }
   };
@@ -929,12 +933,21 @@ const SkillTaxonomyPage = () => {
         console.log('Skill creation not implemented yet');
       }
       
+      // Success - close modal and clear error
+      setCreateModalOpen(false);
+      setCreateModalError(null);
+      
     } catch (err) {
       const message = err.data?.detail || err.message || `Failed to create ${createType}`;
-      setError(message);
+      // On 409 duplicate, show error in modal and keep it open
+      if (err.status === 409) {
+        setCreateModalError(message);
+      } else {
+        // For other errors, close modal and show page-level error
+        setCreateModalOpen(false);
+        setError(message);
+      }
       console.error(`Error creating ${createType}:`, err);
-    } finally {
-      setCreateModalOpen(false);
     }
   };
 
@@ -1109,14 +1122,7 @@ const SkillTaxonomyPage = () => {
         >
           {isImporting ? '⏳ Importing...' : '📤 Import Skills'}
         </button>
-        {selectedItem?.type === 'category' && (
-          <button 
-            className="btn btn-primary" 
-            onClick={handleAddChild}
-          >
-            + Add Sub-Category
-          </button>
-        )}
+        
       </>
     );
   };
@@ -1136,6 +1142,7 @@ const SkillTaxonomyPage = () => {
         <EmptyState
           onAddRoot={() => {
             setCreateType('category');
+            setCreateModalError(null);
             setCreateModalOpen(true);
           }}
           addButtonLabel="➕ Add New Category"
@@ -1147,27 +1154,136 @@ const SkillTaxonomyPage = () => {
     if (selectedItem.type === 'category') {
       return (
         <>
+          {/* Details section - same as Org Hierarchy */}
           <InfoSection title="Details">
             <InfoBox>
               <InfoItem label="Description" value={selectedItem.description || '-'} style={{ marginBottom: '16px' }} />
+              <InfoItem label="Parent Category" value="-" />
             </InfoBox>
           </InfoSection>
 
-          <InfoSection title="Statistics">
-            <StatsGrid>
-              <StatCard label="Sub-Categories" value={selectedItem.subcategoryCount || 0} />
-              <StatCard label="Total Skills" value={selectedItem.skillCount || 0} />
-            </StatsGrid>
-          </InfoSection>
-
-          <InfoSection title="Audit Information">
-            <InfoBox>
-              <InfoGrid>
-                <InfoItem label="Created" value={selectedItem.createdAt || '-'} />
-                <InfoItem label="Created By" value={selectedItem.createdBy || '-'} />
-              </InfoGrid>
-            </InfoBox>
-          </InfoSection>
+          {/* Sub-Categories Table - same UX as Org Hierarchy sub-segments table */}
+          <TaxonomyCategorySubCategoriesPanel
+            subCategories={selectedItem.children || []}
+            categoryName={selectedItem.name}
+            onCreateSubCategory={async (subCategoryName) => {
+              // Call API to create sub-category using selectedItem.rawId as parent category
+              try {
+                const response = await createSubcategory(selectedItem.rawId, subCategoryName);
+                
+                // Create new subcategory node
+                const newSubcategoryNode = {
+                  id: `subcat-${response.id}`,
+                  rawId: response.id,
+                  type: 'subcategory',
+                  name: response.name,
+                  description: null,
+                  parentId: selectedItem.id,
+                  categoryName: selectedItem.name,
+                  createdAt: response.created_at ? formatDate(response.created_at) : null,
+                  createdBy: response.created_by,
+                  children: [],
+                  skillCount: 0,
+                  employeeCount: 0,
+                };
+                
+                // Update tree data - add to parent category's children sorted by name
+                setTreeData(prevTree => {
+                  return prevTree.map(category => {
+                    if (category.id === selectedItem.id) {
+                      const updatedChildren = [...category.children, newSubcategoryNode];
+                      updatedChildren.sort((a, b) => a.name.localeCompare(b.name));
+                      return {
+                        ...category,
+                        children: updatedChildren,
+                        subcategoryCount: category.subcategoryCount + 1,
+                      };
+                    }
+                    return category;
+                  });
+                });
+                
+                // Update lookup maps
+                setLookupMaps(prev => {
+                  const newSubcategoriesById = new Map(prev.subcategoriesById);
+                  const newSkillsBySubcategory = new Map(prev.skillsBySubcategory);
+                  newSubcategoriesById.set(newSubcategoryNode.id, newSubcategoryNode);
+                  newSkillsBySubcategory.set(newSubcategoryNode.id, []); // Empty skills array
+                  return { 
+                    ...prev, 
+                    subcategoriesById: newSubcategoriesById,
+                    skillsBySubcategory: newSkillsBySubcategory,
+                  };
+                });
+              } catch (err) {
+                console.error('Failed to create sub-category:', err);
+                throw err; // Re-throw so the panel keeps add mode open
+              }
+            }}
+            onEditSubCategory={async (subCategoryWithNewName) => {
+              const { rawId, newName } = subCategoryWithNewName;
+              
+              try {
+                await updateSubcategoryName(rawId, newName);
+                // Update tree data
+                setTreeData(prev => {
+                  return prev.map(category => {
+                    if (category.id === selectedItem.id) {
+                      return {
+                        ...category,
+                        children: category.children.map(child =>
+                          child.rawId === rawId ? { ...child, name: newName } : child
+                        ),
+                      };
+                    }
+                    return category;
+                  });
+                });
+              } catch (err) {
+                console.error('Failed to update sub-category name:', err);
+                throw err; // Re-throw so the panel keeps edit mode open
+              }
+            }}
+            onDeleteSubCategory={async (subCategory) => {
+              try {
+                await deleteSubcategory(subCategory.rawId);
+                
+                // Remove from tree data
+                setTreeData(prev => {
+                  return prev.map(category => {
+                    if (category.id === selectedItem.id) {
+                      return {
+                        ...category,
+                        children: category.children.filter(child => child.id !== subCategory.id),
+                        subcategoryCount: Math.max(0, category.subcategoryCount - 1),
+                      };
+                    }
+                    return category;
+                  });
+                });
+                
+                // Remove from lookup maps
+                setLookupMaps(prev => {
+                  const newSubcategoriesById = new Map(prev.subcategoriesById);
+                  const newSkillsBySubcategory = new Map(prev.skillsBySubcategory);
+                  newSubcategoriesById.delete(subCategory.id);
+                  newSkillsBySubcategory.delete(subCategory.id);
+                  return { 
+                    ...prev, 
+                    subcategoriesById: newSubcategoriesById,
+                    skillsBySubcategory: newSkillsBySubcategory,
+                  };
+                });
+              } catch (err) {
+                console.error('Failed to delete sub-category:', err);
+                throw err;
+              }
+            }}
+            onSubCategoryClick={(subCategory) => {
+              // Navigate to the subcategory
+              setSelectedNodeId(subCategory.id);
+            }}
+          />
         </>
       );
     }
@@ -1270,6 +1386,7 @@ const SkillTaxonomyPage = () => {
           searchPlaceholder="Search categories..."
           onAddRoot={() => {
             setCreateType('category');
+            setCreateModalError(null);
             setCreateModalOpen(true);
           }}
           addRootLabel="+ Category"
@@ -1292,7 +1409,10 @@ const SkillTaxonomyPage = () => {
       {/* Modals */}
       <CreateEditModal
         isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
+        onClose={() => {
+          setCreateModalOpen(false);
+          setCreateModalError(null);
+        }}
         mode="create"
         itemType={createType}
         onSubmit={handleCreate}
@@ -1300,6 +1420,7 @@ const SkillTaxonomyPage = () => {
                        createType === 'skill' ? Array.from(lookupMaps.subcategoriesById.values()).map(s => ({ id: s.id, name: s.name })) : 
                        []}
         defaultParentId={selectedItem?.id}
+        error={createModalError}
       />
 
       <DeleteConfirmModal
