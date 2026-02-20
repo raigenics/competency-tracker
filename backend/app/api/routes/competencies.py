@@ -17,6 +17,7 @@ from app.schemas.competency import (
     CompetencyInsights, CompetencySearchFilters, EmployeeSkillResponse,
     ProficiencyLevelResponse
 )
+from app.schemas.role import RoleResponse
 from app.schemas.common import PaginationParams
 from app.services.skill_history_service import SkillHistoryService
 from app.models.skill_history import ChangeSource, ChangeAction, EmployeeSkillHistory
@@ -28,6 +29,45 @@ from app.schemas.skill_history import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/competencies", tags=["competencies"])
+
+
+def _build_role_response(role) -> Optional[RoleResponse]:
+    """
+    Build RoleResponse from role object with safe attribute extraction.
+    
+    Handles ORM objects and Mock objects by extracting attributes safely.
+    Returns None if role is None or missing required fields.
+    """
+    if role is None:
+        return None
+    
+    # Safely extract attributes
+    role_id = getattr(role, 'role_id', None)
+    role_name = getattr(role, 'role_name', None)
+    
+    # Required fields must be valid
+    if role_id is None or role_name is None:
+        return None
+    
+    # Ensure role_name is a string (not a Mock)
+    if not isinstance(role_name, str):
+        return None
+    
+    # Optional fields - extract safely, default to None if not a string
+    role_alias = getattr(role, 'role_alias', None)
+    if role_alias is not None and not isinstance(role_alias, str):
+        role_alias = None
+    
+    role_description = getattr(role, 'role_description', None)
+    if role_description is not None and not isinstance(role_description, str):
+        role_description = None
+    
+    return RoleResponse(
+        role_id=role_id,
+        role_name=role_name,
+        role_alias=role_alias,
+        role_description=role_description
+    )
 
 
 @router.get("/employee/{employee_id}/profile", response_model=EmployeeCompetencyProfile)
@@ -106,11 +146,11 @@ async def get_employee_competency_profile(
         return EmployeeCompetencyProfile(
             employee_id=employee.employee_id,
             employee_name=employee.full_name,
-            role=employee.role,
+            role=_build_role_response(employee.role),
             organization={
-                "sub_segment": employee.sub_segment.sub_segment_name,
-                "project": employee.project.project_name,
-                "team": employee.team.team_name
+                "sub_segment": employee.sub_segment.sub_segment_name if employee.sub_segment else "",
+                "project": employee.project.project_name if employee.project else "",
+                "team": employee.team.team_name if employee.team else ""
             },
             skills=skills,
             competency_summary=competency_summary,

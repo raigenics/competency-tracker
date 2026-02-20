@@ -16,7 +16,7 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock, patch, MagicMock
 from io import BytesIO
-from backend.app.services.imports.master_import.excel_parser import ExcelParser, MasterSkillRow
+from app.services.imports.master_import.excel_parser import ExcelParser, MasterSkillRow
 
 
 class TestExcelParserInit:
@@ -38,16 +38,25 @@ class TestReadExcelFile:
         """Create ExcelParser instance."""
         return ExcelParser()
     
+    def _create_workbook_mock(self, rows_data):
+        """Helper to create a mock workbook with given rows data."""
+        mock_ws = MagicMock()
+        mock_ws.iter_rows.return_value = iter(rows_data)
+        mock_wb = MagicMock()
+        mock_wb.active = mock_ws
+        return mock_wb
+    
     def test_reads_excel_file_successfully(self, parser):
         """Should read Excel file into DataFrame."""
-        mock_df = pd.DataFrame({
-            'Category': ['Programming'],
-            'SubCategory': ['Languages'],
-            'Skill Name': ['Python'],
-            'Alias': ['py']
-        })
+        # Rows data: first row is header, subsequent rows are data
+        rows_data = [
+            ('Category', 'SubCategory', 'Skill Name', 'Alias'),
+            ('Programming', 'Languages', 'Python', 'py'),
+        ]
         
-        with patch('pandas.read_excel', return_value=mock_df):
+        mock_wb = self._create_workbook_mock(rows_data)
+        
+        with patch('app.services.imports.master_import.excel_parser.load_workbook', return_value=mock_wb):
             result = parser._read_excel_file(b'fake_content')
         
         assert len(result) == 1
@@ -57,14 +66,13 @@ class TestReadExcelFile:
         """Should log detected columns."""
         import logging
         
-        mock_df = pd.DataFrame({
-            'Category': [],
-            'SubCategory': [],
-            'Skill Name': [],
-            'Alias': []
-        })
+        rows_data = [
+            ('Category', 'SubCategory', 'Skill Name', 'Alias'),
+        ]
         
-        with patch('pandas.read_excel', return_value=mock_df):
+        mock_wb = self._create_workbook_mock(rows_data)
+        
+        with patch('app.services.imports.master_import.excel_parser.load_workbook', return_value=mock_wb):
             with caplog.at_level(logging.INFO):
                 parser._read_excel_file(b'content')
         
@@ -73,7 +81,7 @@ class TestReadExcelFile:
     
     def test_raises_on_excel_parsing_error(self, parser):
         """Should raise ValueError when Excel parsing fails."""
-        with patch('pandas.read_excel', side_effect=Exception("Invalid Excel")):
+        with patch('app.services.imports.master_import.excel_parser.load_workbook', side_effect=Exception("Invalid Excel")):
             with pytest.raises(ValueError, match="Failed to parse Excel file"):
                 parser._read_excel_file(b'bad_content')
 
@@ -137,7 +145,7 @@ class TestValidateColumns:
         """Should raise ValueError when required columns are missing."""
         df = pd.DataFrame(columns=['Category', 'SubCategory'])  # Missing Skill Name and Alias
         
-        with pytest.raises(ValueError, match="Missing required columns"):
+        with pytest.raises(ValueError, match="must have at least 4 columns"):
             parser._validate_columns(df)
     
     def test_raises_on_too_few_columns(self, parser):
@@ -151,7 +159,7 @@ class TestValidateColumns:
         """Should list available columns in error message."""
         df = pd.DataFrame(columns=['Category', 'SubCategory'])
         
-        with pytest.raises(ValueError, match="Available columns: Category, SubCategory"):
+        with pytest.raises(ValueError, match="Category, SubCategory"):
             parser._validate_columns(df)
     
     def test_logs_successful_mapping(self, parser, caplog):
@@ -201,72 +209,8 @@ class TestParseAliases:
         assert result == ["py", "python"]
 
 
-class TestIsEmptyRow:
-    """Test _is_empty_row method."""
-    
-    @pytest.fixture
-    def parser(self):
-        """Create ExcelParser instance."""
-        return ExcelParser()
-    
-    def test_identifies_empty_row(self, parser):
-        """Should identify completely empty row."""
-        assert parser._is_empty_row("", "", "") is True
-        assert parser._is_empty_row("nan", "nan", "nan") is True
-        assert parser._is_empty_row("None", "None", "None") is True
-    
-    def test_identifies_non_empty_row(self, parser):
-        """Should identify non-empty row."""
-        assert parser._is_empty_row("Category", "", "") is False
-        assert parser._is_empty_row("", "SubCat", "") is False
-        assert parser._is_empty_row("", "", "Skill") is False
-
-
-class TestValidateRowFields:
-    """Test _validate_row_fields method."""
-    
-    @pytest.fixture
-    def parser(self):
-        """Create ExcelParser instance."""
-        return ExcelParser()
-    
-    def test_validates_complete_row(self, parser):
-        """Should return True for valid row with all fields."""
-        result = parser._validate_row_fields(2, "Programming", "Languages", "Python")
-        assert result is True
-        assert len(parser.errors) == 0
-    
-    def test_rejects_missing_category(self, parser):
-        """Should return False and log error for missing category."""
-        result = parser._validate_row_fields(2, "", "Languages", "Python")
-        
-        assert result is False
-        assert len(parser.errors) == 1
-        assert parser.errors[0]['error_type'] == 'VALIDATION_ERROR'
-        assert "Category is required" in parser.errors[0]['message']
-    
-    def test_rejects_missing_subcategory(self, parser):
-        """Should return False and log error for missing subcategory."""
-        result = parser._validate_row_fields(2, "Programming", "nan", "Python")
-        
-        assert result is False
-        assert len(parser.errors) == 1
-        assert "SubCategory is required" in parser.errors[0]['message']
-    
-    def test_rejects_missing_skill_name(self, parser):
-        """Should return False and log error for missing skill name."""
-        result = parser._validate_row_fields(2, "Programming", "Languages", "None")
-        
-        assert result is False
-        assert len(parser.errors) == 1
-        assert "Skill Name is required" in parser.errors[0]['message']
-    
-    def test_includes_context_in_errors(self, parser):
-        """Should include context (category, subcategory) in error records."""
-        parser._validate_row_fields(5, "Programming", "nan", "Python")
-        
-        assert parser.errors[0]['row_number'] == 5
-        assert parser.errors[0]['category'] == "Programming"
+# NOTE: TestIsEmptyRow and TestValidateRowFields removed
+# These methods were inlined into _parse_single_row during refactoring
 
 
 class TestParseSingleRow:
@@ -455,15 +399,26 @@ class TestParseExcel:
         """Create ExcelParser instance."""
         return ExcelParser()
     
+    def _create_workbook_mock(self, rows_data):
+        """Helper to create a mock workbook with given rows data."""
+        mock_ws = MagicMock()
+        mock_ws.iter_rows.return_value = iter(rows_data)
+        mock_wb = MagicMock()
+        mock_wb.active = mock_ws
+        return mock_wb
+    
     def test_parses_valid_excel_file(self, parser):
         """Should parse valid Excel file end-to-end."""
-        mock_df = pd.DataFrame([
-            {'Category': 'Programming', 'SubCategory': 'Languages', 'Skill Name': 'Python', 'Alias': 'py'},
-            {'Category': 'Programming', 'SubCategory': 'Languages', 'Skill Name': 'Java', 'Alias': 'jv, java8'}
-        ])
+        rows_data = [
+            ('Category', 'SubCategory', 'Skill Name', 'Alias'),
+            ('Programming', 'Languages', 'Python', 'py'),
+            ('Programming', 'Languages', 'Java', 'jv, java8'),
+        ]
         
-        with patch('pandas.read_excel', return_value=mock_df):
-            with patch('backend.app.services.imports.master_import.excel_parser.normalize_key', lambda x: x.lower().strip()):
+        mock_wb = self._create_workbook_mock(rows_data)
+        
+        with patch('app.services.imports.master_import.excel_parser.load_workbook', return_value=mock_wb):
+            with patch('app.utils.normalization.normalize_key', lambda x: x.lower().strip()):
                 result = parser.parse_excel(b'fake_content')
         
         assert len(result) == 2
@@ -474,12 +429,15 @@ class TestParseExcel:
         """Should reset errors list for each new parse."""
         parser.errors = [{'old': 'error'}]
         
-        mock_df = pd.DataFrame([
-            {'Category': 'Prog', 'SubCategory': 'Lang', 'Skill Name': 'Python', 'Alias': ''}
-        ])
+        rows_data = [
+            ('Category', 'SubCategory', 'Skill Name', 'Alias'),
+            ('Prog', 'Lang', 'Python', ''),
+        ]
         
-        with patch('pandas.read_excel', return_value=mock_df):
-            with patch('backend.app.services.imports.master_import.excel_parser.normalize_key', lambda x: x.lower()):
+        mock_wb = self._create_workbook_mock(rows_data)
+        
+        with patch('app.services.imports.master_import.excel_parser.load_workbook', return_value=mock_wb):
+            with patch('app.utils.normalization.normalize_key', lambda x: x.lower()):
                 parser.parse_excel(b'content')
         
         # Old errors should be cleared
@@ -489,12 +447,15 @@ class TestParseExcel:
         """Should log summary of parsing results."""
         import logging
         
-        mock_df = pd.DataFrame([
-            {'Category': 'Prog', 'SubCategory': 'Lang', 'Skill Name': 'Python', 'Alias': ''}
-        ])
+        rows_data = [
+            ('Category', 'SubCategory', 'Skill Name', 'Alias'),
+            ('Prog', 'Lang', 'Python', ''),
+        ]
         
-        with patch('pandas.read_excel', return_value=mock_df):
-            with patch('backend.app.services.imports.master_import.excel_parser.normalize_key', lambda x: x.lower()):
+        mock_wb = self._create_workbook_mock(rows_data)
+        
+        with patch('app.services.imports.master_import.excel_parser.load_workbook', return_value=mock_wb):
+            with patch('app.utils.normalization.normalize_key', lambda x: x.lower()):
                 with caplog.at_level(logging.INFO):
                     parser.parse_excel(b'content')
         

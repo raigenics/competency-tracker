@@ -1,7 +1,7 @@
 """
 Schemas for dropdown data responses.
 """
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel
 
 
@@ -35,9 +35,11 @@ class TeamDropdown(DropdownItem):
 
 
 class RoleDropdown(BaseModel):
-    """Schema for role dropdown items (uses role_id, role_name)."""
+    """Schema for role dropdown items (uses role_id, role_name, role_alias, role_description)."""
     role_id: int
     role_name: str
+    role_alias: Optional[str] = None
+    role_description: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -61,3 +63,20 @@ class ProjectListResponse(BaseModel):
 class TeamListResponse(BaseModel):
     """Response schema for teams list."""
     teams: List[TeamDropdown]
+
+
+class ProficiencyLevelDropdown(BaseModel):
+    """Schema for proficiency level dropdown items."""
+    proficiency_level_id: int
+    level_name: str
+    level_description: Optional[str] = None
+    # Frontend-compatible value (e.g., 'NOVICE', 'ADVANCED_BEGINNER')
+    value: str
+
+    class Config:
+        from_attributes = True
+
+
+class ProficiencyLevelListResponse(BaseModel):
+    """Response schema for proficiency levels list."""
+    proficiency_levels: List[ProficiencyLevelDropdown]

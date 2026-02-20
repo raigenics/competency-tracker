@@ -5,7 +5,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 
-const MasterDataModuleNav = ({ currentModule }) => {
+const MasterDataModuleNav = ({ currentModule: _currentModule }) => {
   const navigate = useNavigate();
   const location = useLocation();
 

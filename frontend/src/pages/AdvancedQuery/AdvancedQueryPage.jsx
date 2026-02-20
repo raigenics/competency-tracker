@@ -76,12 +76,6 @@ const AdvancedQueryPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };  const handleSaveQuery = () => {
-    const queryName = prompt("Enter a name for this query:");
-    if (queryName) {
-      // Query saving logic can be implemented here if needed
-      console.log("Query saved:", queryName, currentQuery);
-    }
   };
 
   const handleSelectionChange = (newSelection) => {

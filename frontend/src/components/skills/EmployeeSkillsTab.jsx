@@ -6,91 +6,38 @@
  * 
  * NOTE: This is UI only - does NOT save to backend.
  */
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import { SkillRowEditor } from './SkillRowEditor.jsx';
+import { ProficiencyInfoTooltip } from './ProficiencyInfoTooltip.jsx';
 import { useSkillSuggestions } from '../../hooks/useSkillSuggestions.js';
+import { useProficiencyLevels } from '../../hooks/useProficiencyLevels.js';
 import { SUPER_ADMIN_EMAIL } from '../../config/constants.js';
-
-/**
- * Proficiency options for skill level dropdown
- */
-const PROFICIENCY_OPTIONS = [
-  { value: 'NOVICE', label: 'Novice' },
-  { value: 'ADVANCED_BEGINNER', label: 'Advanced Beginner' },
-  { value: 'COMPETENT', label: 'Competent' },
-  { value: 'PROFICIENT', label: 'Proficient' },
-  { value: 'EXPERT', label: 'Expert' }
-];
-
-/**
- * Create an empty skill row
- * FIX: Restored lastUsed and startedFrom fields that were accidentally removed.
- * Only the "Comment" field should be removed per requirements.
- * NOTE: lastUsed is now split into lastUsedMonth and lastUsedYear per designer spec.
- */
-const createEmptySkill = () => ({
-  id: Date.now() + Math.random(),
-  skill_id: null,
-  skillName: '',
-  proficiency: '',
-  yearsExperience: '',
-  lastUsedMonth: '',      // Month dropdown (01-12) per designer spec
-  lastUsedYear: '',       // Year input (YYYY) per designer spec  
-  startedFrom: '',        // Date field - restored (was accidentally removed)
-  certification: ''
-});
-
-/**
- * Validate a single skill row
- * @param {Object} skill 
- * @returns {Object} Errors object (empty if valid)
- */
-const validateSkillRow = (skill) => {
-  const errors = {};
-  
-  // Skill must be selected from suggestions (has skill_id)
-  if (!skill.skill_id) {
-    errors.skillName = 'Please select a skill from the list';
-  }
-  
-  // Proficiency is required
-  if (!skill.proficiency) {
-    errors.proficiency = 'Proficiency is required';
-  }
-  
-  // Experience is required
-  if (!skill.yearsExperience && skill.yearsExperience !== 0) {
-    errors.yearsExperience = 'Experience is required';
-  } else if (skill.yearsExperience < 0) {
-    errors.yearsExperience = 'Invalid experience';
-  }
-  
-  // Certification is optional - no validation needed
-  
-  return errors;
-};
+import { createEmptySkill } from './skillHelpers.js';
 
 /**
  * @param {Object} props
  * @param {Array} props.skills - Current skills state
  * @param {Function} props.onSkillsChange - Callback when skills change
  * @param {Object} props.errors - Validation errors by skill id
- * @param {Function} props.onValidate - Callback to trigger validation
  */
 export function EmployeeSkillsTab({
   skills = [],
   onSkillsChange,
-  errors = {},
-  onValidate
+  errors = {}
 }) {
   // Use skill suggestions hook
   const {
     suggestions,
     loading: skillsLoading,
     error: skillsError,
-    search: searchSkills,
-    getSuggestions
+    search: searchSkills
   } = useSkillSuggestions();
+
+  // Use proficiency levels hook (fetches from DB)
+  const {
+    levels: proficiencyLevels,
+    options: proficiencyOptions
+  } = useProficiencyLevels();
 
   // Current search query per row (for managing separate autocomplete states)
   const [currentSearchRowId, setCurrentSearchRowId] = useState(null);
@@ -156,33 +103,6 @@ export function EmployeeSkillsTab({
     onSkillsChange(updatedSkills);
   }, [skills, onSkillsChange]);
 
-  /**
-   * Validate all skills and return errors
-   */
-  const validateAllSkills = useCallback(() => {
-    const allErrors = {};
-    let hasErrors = false;
-
-    skills.forEach(skill => {
-      // Skip completely empty rows
-      if (!skill.skill_id && !skill.skillName && !skill.proficiency && !skill.yearsExperience) {
-        return;
-      }
-      
-      const rowErrors = validateSkillRow(skill);
-      if (Object.keys(rowErrors).length > 0) {
-        allErrors[skill.id] = rowErrors;
-        hasErrors = true;
-      }
-    });
-
-    if (onValidate) {
-      onValidate(allErrors, !hasErrors);
-    }
-
-    return { errors: allErrors, isValid: !hasErrors };
-  }, [skills, onValidate]);
-
   // Check if skill row can be deleted
   const canDeleteRow = skills.length > 1;
 
@@ -222,7 +142,10 @@ export function EmployeeSkillsTab({
           <thead>
             <tr>
               <th style={{ width: '36%' }}>Skill Name *</th>
-              <th style={{ width: '11%' }}>Proficiency *</th>
+              <th style={{ width: '11%' }}>
+                Proficiency *{' '}
+                <ProficiencyInfoTooltip levels={proficiencyLevels} />
+              </th>
               <th style={{ width: '8%' }}>Exp (Yrs) *</th>
               <th style={{ width: '13%' }}>Last Used</th>
               <th style={{ width: '11%' }}>Started From</th>
@@ -241,7 +164,7 @@ export function EmployeeSkillsTab({
                 suggestions={currentSearchRowId === skill.id ? suggestions : []}
                 onSearch={(query) => handleSearch(skill.id, query)}
                 loading={currentSearchRowId === skill.id && skillsLoading}
-                proficiencies={PROFICIENCY_OPTIONS}
+                proficiencies={proficiencyOptions}
                 errors={errors[skill.id] || {}}
                 canDelete={canDeleteRow}
               />
@@ -261,8 +184,5 @@ export function EmployeeSkillsTab({
     </div>
   );
 }
-
-// Export validation function for parent component use
-export { validateSkillRow, createEmptySkill };
 
 export default EmployeeSkillsTab;

@@ -13,7 +13,7 @@
  * - PROJECT_MANAGER: Segment + Sub-segment + Project locked
  * - TEAM_LEAD: All locked (no selection possible)
  */
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { dropdownApi } from '../services/api/dropdownApi.js';
 import { getRbacContext, RBAC_ROLES } from '../config/featureFlags.js';
 
@@ -76,7 +76,7 @@ export function useOrgAssignment({ isEditMode = false } = {}) {
   const [error, setError] = useState(null);
   
   // Determine which fields are locked based on role
-  const isLocked = {
+  const isLocked = useMemo(() => ({
     segment: role === RBAC_ROLES.SEGMENT_HEAD || 
              role === RBAC_ROLES.SUBSEGMENT_HEAD || 
              role === RBAC_ROLES.PROJECT_MANAGER || 
@@ -87,7 +87,7 @@ export function useOrgAssignment({ isEditMode = false } = {}) {
     project: role === RBAC_ROLES.PROJECT_MANAGER || 
              role === RBAC_ROLES.TEAM_LEAD,
     team: role === RBAC_ROLES.TEAM_LEAD
-  };
+  }), [role]);
   
   // Determine which fields are disabled (locked or no parent selection)
   const isDisabled = {
@@ -113,6 +113,31 @@ export function useOrgAssignment({ isEditMode = false } = {}) {
     loadSegments();
   }, [isEditMode]);
 
+  /**
+   * Apply role-based preselection from user's scope
+   * IMPORTANT: Must be defined BEFORE the useEffect that references it to avoid TDZ error
+   */
+  const applyRoleBasedPreselection = useCallback(() => {
+    if (!scope) return;
+    
+    // For roles with locked fields, preselect from scope
+    if (scope.segment_id && isLocked.segment) {
+      setSelectedSegmentId(scope.segment_id);
+    }
+    
+    if (scope.sub_segment_id && isLocked.subSegment) {
+      setSelectedSubSegmentId(scope.sub_segment_id);
+    }
+    
+    if (scope.project_id && isLocked.project) {
+      setSelectedProjectId(scope.project_id);
+    }
+    
+    if (scope.team_id && isLocked.team) {
+      setSelectedTeamId(scope.team_id);
+    }
+  }, [scope, isLocked]);
+
   // Apply preselection based on role scope
   useEffect(() => {
     ddlLog('PRESELECT', 'useEffect-fired', { role, scope, segmentsCount: segments.length, isEditMode, isLoadingForEdit: isLoadingForEditRef.current });
@@ -124,7 +149,7 @@ export function useOrgAssignment({ isEditMode = false } = {}) {
     }
     
     applyRoleBasedPreselection();
-  }, [role, scope, segments, isEditMode]);
+  }, [role, scope, segments, isEditMode, applyRoleBasedPreselection]);
 
   // Cascade: Load sub-segments when segment changes
   useEffect(() => {
@@ -161,6 +186,7 @@ export function useOrgAssignment({ isEditMode = false } = {}) {
       setSelectedSubSegmentId(null);
       subSegmentsForSegmentIdRef.current = null;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Cascade effect intentionally triggers only on selectedSegmentId change
   }, [selectedSegmentId]);
 
   // Cascade: Load projects when sub-segment changes
@@ -198,6 +224,7 @@ export function useOrgAssignment({ isEditMode = false } = {}) {
       setSelectedProjectId(null);
       projectsForSubSegmentIdRef.current = null;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Cascade effect intentionally triggers only on selectedSubSegmentId change
   }, [selectedSubSegmentId]);
 
   // Cascade: Load teams when project changes
@@ -235,6 +262,7 @@ export function useOrgAssignment({ isEditMode = false } = {}) {
       setSelectedTeamId(null);
       teamsForProjectIdRef.current = null;
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Cascade effect intentionally triggers only on selectedProjectId change
   }, [selectedProjectId]);
 
   /**
@@ -353,30 +381,6 @@ export function useOrgAssignment({ isEditMode = false } = {}) {
       ddlLog('TEAM', 'load-end', { totalDuration: (performance.now() - startTime).toFixed(1) + 'ms' });
     }
   };
-
-  /**
-   * Apply role-based preselection from user's scope
-   */
-  const applyRoleBasedPreselection = useCallback(() => {
-    if (!scope) return;
-    
-    // For roles with locked fields, preselect from scope
-    if (scope.segment_id && isLocked.segment) {
-      setSelectedSegmentId(scope.segment_id);
-    }
-    
-    if (scope.sub_segment_id && isLocked.subSegment) {
-      setSelectedSubSegmentId(scope.sub_segment_id);
-    }
-    
-    if (scope.project_id && isLocked.project) {
-      setSelectedProjectId(scope.project_id);
-    }
-    
-    if (scope.team_id && isLocked.team) {
-      setSelectedTeamId(scope.team_id);
-    }
-  }, [scope, isLocked]);
 
   /**
    * Handle segment selection
@@ -568,6 +572,7 @@ export function useOrgAssignment({ isEditMode = false } = {}) {
       isLoadingForEditRef.current = false;
       ddlLog('EDIT_MODE', 'cascade-suppression-disabled');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectedIds are only used for diagnostic logging, not logic
   }, [segments]);
 
   /**

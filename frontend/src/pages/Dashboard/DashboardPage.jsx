@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, ChevronRight, BarChart3, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import EmployeesInScopeCard from './components/EmployeesInScopeCard.jsx';
 import SkillDistributionTable from './components/SkillDistributionTable.jsx';
 import SkillUpdateActivity from './components/SkillUpdateActivity.jsx';
-import OrgCoverageTable from './components/OrgCoverageTable.jsx';
+import RoleDistribution from './components/RoleDistribution';
 import LoadingState from '../../components/LoadingState.jsx';
 import PageHeader from '../../components/PageHeader.jsx';
 import { dashboardApi } from '../../services/api/dashboardApi.js';
@@ -14,7 +14,7 @@ const DashboardPage = () => {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true); // Initial page load only
-  const [dataLoading, setDataLoading] = useState(false); // For filter-triggered data refresh
+  const [, setDataLoading] = useState(false); // For filter-triggered data refresh
   const [dashboardFilters, setDashboardFilters] = useState({
     subSegment: '',
     project: '',
@@ -37,40 +37,12 @@ const DashboardPage = () => {
   // Data state
   const [metrics, setMetrics] = useState({});
   const [skillDistribution, setSkillDistribution] = useState([]);
-  const [orgCoverage, setOrgCoverage] = useState([]);
   const [updateActivity, setUpdateActivity] = useState({});
   const [activityDays, setActivityDays] = useState(90);
-  const [activityLoading, setActivityLoading] = useState(false);// Load sub-segments on component mount
-  useEffect(() => {
-    const initializeDashboard = async () => {
-      setLoading(true);
-      try {
-        await Promise.all([
-          loadSubSegments(),
-          loadOrganizationCoverage()
-        ]);
-        // Load initial dashboard data
-        await loadDashboardData();
-        await loadSkillUpdateActivity();
-      } catch (error) {
-        console.error('Failed to initialize dashboard:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const [activityLoading, setActivityLoading] = useState(false);
 
-    initializeDashboard();
-  }, []);
-  // Reload dashboard data when filters change (excluding org coverage)
-  useEffect(() => {
-    // Skip on initial mount (handled above)
-    if (loading) return;
-    
-    loadDashboardData();
-    loadSkillUpdateActivity();
-  }, [dashboardFilters]);
-  // Load dashboard data function
-  const loadDashboardData = async () => {
+  // Load dashboard data function - wrapped in useCallback for proper deps
+  const loadDashboardData = useCallback(async () => {
     setDataLoading(true);
     try {
       const [metricsData, skillData] = await Promise.all([
@@ -85,7 +57,48 @@ const DashboardPage = () => {
     } finally {
       setDataLoading(false);
     }
-  };
+  }, [dashboardFilters]);
+
+  // Load skill update activity - wrapped in useCallback for proper deps
+  const loadSkillUpdateActivity = useCallback(async (days) => {
+    const daysToUse = days ?? activityDays;
+    setActivityLoading(true);
+    try {
+      const activityData = await dashboardApi.getSkillUpdateActivity(dashboardFilters, daysToUse);
+      setUpdateActivity(activityData);
+    } catch (error) {
+      console.error('Failed to load skill update activity:', error);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [dashboardFilters, activityDays]);
+
+// Load sub-segments on component mount
+  useEffect(() => {
+    const initializeDashboard = async () => {
+      setLoading(true);
+      try {
+        await loadSubSegments();
+        // Load initial dashboard data
+        await loadDashboardData();
+        await loadSkillUpdateActivity();
+      } catch (error) {
+        console.error('Failed to initialize dashboard:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initializeDashboard();
+  }, [loadDashboardData, loadSkillUpdateActivity]);
+  // Reload dashboard data when filters change (excluding org coverage)
+  useEffect(() => {
+    // Skip on initial mount (handled above)
+    if (loading) return;
+    
+    loadDashboardData();
+    loadSkillUpdateActivity();
+  }, [dashboardFilters, loadDashboardData, loadSkillUpdateActivity]);
 
   // Load sub-segments dropdown data
   const loadSubSegments = async () => {
@@ -138,29 +151,6 @@ const DashboardPage = () => {
     }
   };
 
-  // Load organization coverage data (once on mount, ignores filters)
-  const loadOrganizationCoverage = async () => {
-    try {
-      const coverageData = await dashboardApi.getOrgCoverage();
-      setOrgCoverage(coverageData);
-    } catch (error) {
-      console.error('Failed to load organization coverage:', error);
-    }
-  };
-
-  // Load skill update activity data
-  const loadSkillUpdateActivity = async (days = activityDays) => {
-    setActivityLoading(true);
-    try {
-      const activityData = await dashboardApi.getSkillUpdateActivity(dashboardFilters, days);
-      setUpdateActivity(activityData);
-    } catch (error) {
-      console.error('Failed to load skill update activity:', error);
-    } finally {
-      setActivityLoading(false);
-    }
-  };
-
   // Handle time window change for activity section
   const handleActivityDaysChange = (days) => {
     setActivityDays(days);
@@ -199,10 +189,6 @@ const DashboardPage = () => {
   const topSkillsCount = scopeLevel === 'team' ? 5 : 10;
 
   const filteredScope = getFilteredScope();
-
-  const handleSegmentSelect = (segment) => {
-    setDashboardFilters({ ...dashboardFilters, subSegment: segment, project: '', team: '' });
-  };
 
   const handleAdvancedQueryClick = () => {
     navigate('/query');
@@ -407,10 +393,10 @@ const DashboardPage = () => {
           onDaysChange={handleActivityDaysChange}
         />
 
-        {/* Organizational Skill Coverage Table */}
-        <OrgCoverageTable
-          coverageData={orgCoverage}
-          onSegmentSelect={handleSegmentSelect}
+        {/* Role Distribution Section */}
+        <RoleDistribution
+          dashboardFilters={dashboardFilters}
+          dropdownData={dropdownData}
         />
         </div>
       </div>

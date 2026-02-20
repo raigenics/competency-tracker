@@ -11,7 +11,7 @@
  * 5. Actions column shows View/Edit/Delete based on role permissions
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, act, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { BrowserRouter } from 'react-router-dom';
 
 // RBAC Role constants (duplicated to avoid hoisting issues with vi.mock)

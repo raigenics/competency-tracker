@@ -111,8 +111,6 @@ const SkillTaxonomyPage = () => {
   }, [visibleTree, selectedSkill, setSelectedSkillStore]);
   
   const [showViewAll, setShowViewAll] = useState(showViewAllCached || false);
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState([]);
   
   useEffect(() => {
     loadSkillTaxonomy();
@@ -124,25 +122,18 @@ const SkillTaxonomyPage = () => {
       // If search term is less than 2 characters, reset to base tree
       if (!searchTerm || searchTerm.trim().length < 2) {
         setFilteredTree(skillTree);
-        setSearchResults([]);
-        setIsSearching(false);
         return;
       }
 
-      setIsSearching(true);
       try {
         const response = await skillApi.searchSkillsInTaxonomy(searchTerm.trim());
-        setSearchResults(response.results || []);
         
         // Build tree from search results
         const searchTree = buildTreeFromSearchResults(response.results || []);
         setFilteredTree(searchTree);
       } catch (error) {
         console.error('Search failed:', error);
-        setSearchResults([]);
         setFilteredTree([]);
-      } finally {
-        setIsSearching(false);
       }
     };
 
@@ -377,7 +368,8 @@ const SkillTaxonomyPage = () => {
     setShowViewAllStore(false);
     
     try {
-      // Normalize skill ID - handle both 'id' (from mock data) and 'skill_id' (from API)      const skillId = skill?.skill_id || skill?.id;
+      // Normalize skill ID - handle both 'id' (from mock data) and 'skill_id' (from API)
+      const skillId = skill?.skill_id || skill?.id;
       if (!skillId) {
         console.warn('Skill selected without valid ID:', skill);
         return;

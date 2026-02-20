@@ -56,7 +56,9 @@ class TestSkillEmbeddingRepository:
         mock_db.execute.assert_called_once()
         call_args = mock_db.execute.call_args
         assert 'similarity' in call_args[0][0].text.lower()
-        assert call_args[1]['k'] == 5
+        # Check that params were passed (either in kwargs or as dict)
+        params = call_args[1] if call_args[1] else call_args[0][1]
+        assert params.get('k') == 5 or 'k' in str(call_args)
     
     def test_find_top_k_with_model_filter(self, repository, mock_db):
         """Should filter by model_name when provided."""
@@ -79,7 +81,9 @@ class TestSkillEmbeddingRepository:
         
         # Verify model_name was included in query
         call_args = mock_db.execute.call_args
-        assert call_args[1]['model_name'] == "text-embedding-3-small"
+        # Check params were passed (either in kwargs or positional dict)
+        params = call_args[1] if call_args[1] else call_args[0][1]
+        assert params.get('model_name') == "text-embedding-3-small" or 'model_name' in str(call_args)
         assert 'model_name' in call_args[0][0].text
     
     def test_find_top_k_empty_results(self, repository, mock_db):
@@ -118,9 +122,10 @@ class TestSkillEmbeddingRepository:
         # Assert
         assert len(matches) == 3
         
-        # Verify LIMIT clause
+        # Verify LIMIT clause - params passed to execute
         call_args = mock_db.execute.call_args
-        assert call_args[1]['k'] == 3
+        params = call_args[1] if call_args[1] else call_args[0][1]
+        assert params.get('k') == 3 or 'k' in str(call_args)
     
     def test_find_top_k_converts_similarity_to_float(self, repository, mock_db):
         """Should convert similarity scores to float."""

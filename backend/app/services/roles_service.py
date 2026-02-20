@@ -4,13 +4,70 @@ Roles service for role CRUD operations.
 SRP: Handles all role-related operations.
 Supports soft delete pattern (deleted_at, deleted_by).
 """
-from typing import List, Optional, Dict
+import logging
+from typing import List, Optional, Dict, Tuple
 from datetime import datetime, timezone
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.models.role import Role
 from app.models.employee import Employee
+
+logger = logging.getLogger(__name__)
+
+
+def _check_role_name_duplicate(
+    db: Session, 
+    role_name: str, 
+    exclude_role_id: Optional[int] = None
+) -> Tuple[bool, Optional[str], Optional[str]]:
+    """
+    Check if role_name conflicts with existing role names or alias tokens.
+    
+    Args:
+        db: Database session
+        role_name: Name to check
+        exclude_role_id: Role ID to exclude from check (for updates)
+        
+    Returns:
+        Tuple of (is_duplicate, conflict_message, conflict_role_name)
+        - (False, None, None) if no conflict
+        - (True, message, conflict_role_name) if conflict found
+    """
+    normalized_name = role_name.strip().lower()
+    if not normalized_name:
+        return (False, None, None)
+    
+    # Build base query for active roles
+    query = db.query(Role).filter(Role.deleted_at.is_(None))
+    
+    if exclude_role_id is not None:
+        query = query.filter(Role.role_id != exclude_role_id)
+    
+    # Check 1: role_name matches existing role_name (case-insensitive)
+    existing_by_name = query.filter(
+        func.lower(func.trim(Role.role_name)) == normalized_name
+    ).first()
+    
+    if existing_by_name:
+        return (True, f"Role '{role_name}' already exists", existing_by_name.role_name)
+    
+    # Check 2: role_name matches any alias token
+    # Fetch roles that have non-null aliases and check in Python
+    # This is efficient because we only fetch rows with aliases
+    roles_with_aliases = query.filter(
+        Role.role_alias.isnot(None),
+        Role.role_alias != ''
+    ).all()
+    
+    for role in roles_with_aliases:
+        if role.role_alias:
+            # Split by comma and check each token
+            alias_tokens = [t.strip().lower() for t in role.role_alias.split(',') if t.strip()]
+            if normalized_name in alias_tokens:
+                return (True, f"'{role_name}' conflicts with the existing role '{role.role_name}'", role.role_name)
+    
+    return (False, None, None)
 
 
 def get_all_roles(db: Session) -> List[dict]:
@@ -36,6 +93,7 @@ def get_all_roles(db: Session) -> List[dict]:
         {
             "role_id": role.role_id,
             "role_name": role.role_name,
+            "role_alias": role.role_alias,
             "role_description": role.role_description
         }
         for role in roles
@@ -65,26 +123,42 @@ def get_role_by_id(db: Session, role_id: int) -> dict | None:
     return {
         "role_id": role.role_id,
         "role_name": role.role_name,
+        "role_alias": role.role_alias,
         "role_description": role.role_description
     }
 
 
-def create_role(db: Session, role_name: str, role_description: Optional[str] = None, created_by: str = "system") -> dict:
+def create_role(db: Session, role_name: str, role_alias: Optional[str] = None, role_description: Optional[str] = None, created_by: str = "system") -> dict:
     """
     Create a new role.
     
     Args:
         db: Database session
         role_name: Name of the role
+        role_alias: Optional comma-separated alias names
         role_description: Optional description
         created_by: User creating the role
         
     Returns:
         Created role dict
+        
+    Raises:
+        ValueError: If role_name conflicts with existing role name or alias
     """
+    # Validate name
+    validated_name = role_name.strip()
+    if not validated_name:
+        raise ValueError("Role name cannot be empty")
+    
+    # Check for duplicates
+    is_duplicate, conflict_msg, _ = _check_role_name_duplicate(db, validated_name)
+    if is_duplicate:
+        raise ValueError(conflict_msg)
+    
     new_role = Role(
-        role_name=role_name,
-        role_description=role_description,
+        role_name=validated_name,
+        role_alias=role_alias.strip() if role_alias else None,
+        role_description=role_description.strip() if role_description else None,
         created_at=datetime.now(timezone.utc),
         created_by=created_by
     )
@@ -96,11 +170,12 @@ def create_role(db: Session, role_name: str, role_description: Optional[str] = N
     return {
         "role_id": new_role.role_id,
         "role_name": new_role.role_name,
+        "role_alias": new_role.role_alias,
         "role_description": new_role.role_description
     }
 
 
-def update_role(db: Session, role_id: int, role_name: str, role_description: Optional[str] = None) -> dict | None:
+def update_role(db: Session, role_id: int, role_name: str, role_alias: Optional[str] = None, role_description: Optional[str] = None) -> dict | None:
     """
     Update an existing role.
     
@@ -108,10 +183,14 @@ def update_role(db: Session, role_id: int, role_name: str, role_description: Opt
         db: Database session
         role_id: ID of the role to update
         role_name: New name for the role
+        role_alias: New alias (optional, comma-separated)
         role_description: New description (optional)
         
     Returns:
         Updated role dict or None if not found
+        
+    Raises:
+        ValueError: If role_name conflicts with existing role name or alias
     """
     role = db.query(Role)\
         .filter(Role.role_id == role_id)\
@@ -121,8 +200,19 @@ def update_role(db: Session, role_id: int, role_name: str, role_description: Opt
     if not role:
         return None
     
-    role.role_name = role_name
-    role.role_description = role_description
+    # Validate name
+    validated_name = role_name.strip()
+    if not validated_name:
+        raise ValueError("Role name cannot be empty")
+    
+    # Check for duplicates (excluding self)
+    is_duplicate, conflict_msg, _ = _check_role_name_duplicate(db, validated_name, exclude_role_id=role_id)
+    if is_duplicate:
+        raise ValueError(conflict_msg)
+    
+    role.role_name = validated_name
+    role.role_alias = role_alias.strip() if role_alias else None
+    role.role_description = role_description.strip() if role_description else None
     
     db.commit()
     db.refresh(role)
@@ -130,6 +220,7 @@ def update_role(db: Session, role_id: int, role_name: str, role_description: Opt
     return {
         "role_id": role.role_id,
         "role_name": role.role_name,
+        "role_alias": role.role_alias,
         "role_description": role.role_description
     }
 

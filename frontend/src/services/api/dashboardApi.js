@@ -92,6 +92,57 @@ export const dashboardApi = {
       console.error('Failed to fetch skill update activity:', error);
       throw error;
     }
+  },
+
+  /**
+   * Get role distribution data for the dashboard section.
+   * This endpoint responds to filter changes.
+   * 
+   * Context resolution:
+   * - No sub_segment_id => SEGMENT context (breakdown = sub-segments)
+   * - sub_segment_id only => SUB_SEGMENT context (breakdown = projects)
+   * - sub_segment_id + project_id => PROJECT context (breakdown = teams)
+   * - All provided => TEAM context (single team row)
+   * 
+   * @param {Object} filters - Dashboard filters { subSegment, project, team }
+   * @param {Object} options - Optional settings { segmentId, topN, maxRoles, includeEmpty }
+   * @returns {Promise<RoleDistributionResponse>}
+   */
+  async getRoleDistribution(filters = {}, options = {}) {
+    try {
+      const {
+        segmentId = 1, // Default to DTS segment
+        topN = 3,
+        maxRoles = 10,
+        includeEmpty = true
+      } = options;
+
+      // Build params based on context level
+      const params = {
+        segment_id: segmentId,
+        top_n: topN,
+        max_roles: maxRoles,
+        include_empty: includeEmpty
+      };
+
+      // Only add filter params if they have values (handles "All ..." selections)
+      if (filters.subSegment) {
+        params.sub_segment_id = filters.subSegment;
+        
+        if (filters.project) {
+          params.project_id = filters.project;
+          
+          if (filters.team) {
+            params.team_id = filters.team;
+          }
+        }
+      }
+
+      return await httpClient.get('/dashboard/role-distribution', params);
+    } catch (error) {
+      console.error('Failed to fetch role distribution:', error);
+      throw error;
+    }
   }
 };
 

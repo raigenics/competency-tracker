@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
 import { User, Mail, MapPin, Calendar, Users } from 'lucide-react';
 import SkillsTable from './components/SkillsTable';
@@ -13,16 +13,7 @@ const EmployeeProfilePage = () => {
   const [isLoading, setIsLoading] = useState(!!id); // Only show loading if ID is present
   const [error, setError] = useState(null);
 
-  useEffect(() => {
-    if (id) {
-      loadEmployee();
-    } else {
-      // No ID provided - set loading to false to show search/empty state
-      setIsLoading(false);
-    }
-  }, [id]);
-
-  const loadEmployee = async () => {
+  const loadEmployee = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
@@ -33,7 +24,17 @@ const EmployeeProfilePage = () => {
       setError('Failed to load employee profile');
     } finally {
       setIsLoading(false);
-    }  };
+    }
+  }, [id]);
+
+  useEffect(() => {
+    if (id) {
+      loadEmployee();
+    } else {
+      // No ID provided - set loading to false to show search/empty state
+      setIsLoading(false);
+    }
+  }, [id, loadEmployee]);
   
   if (isLoading) {
     return <LoadingState message="Loading employee profile..." />;

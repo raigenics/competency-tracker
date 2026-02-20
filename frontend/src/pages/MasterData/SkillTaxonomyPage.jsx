@@ -29,7 +29,8 @@ import {
   EmptyState,
   InlineEditableTitle,
   SkillsTable,
-  ImportBlockingOverlay
+  ImportBlockingOverlay,
+  TaxonomyCategorySubCategoriesPanel
 } from './components';
 import { 
   fetchSkillTaxonomy, 
@@ -37,7 +38,6 @@ import {
   updateSubcategoryName, 
   updateSkillName,
   createAlias,
-  updateAliasText,
   deleteAlias,
   deleteCategory,
   deleteSubcategory,
@@ -233,6 +233,7 @@ const SkillTaxonomyPage = () => {
   
   // Modal states
   const [createModalOpen, setCreateModalOpen] = useState(false);
+  const [createModalError, setCreateModalError] = useState(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [dependencyModalOpen, setDependencyModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
@@ -251,6 +252,9 @@ const SkillTaxonomyPage = () => {
 
   // Skill search query (for filtering skills table)
   const [skillSearchQuery, setSkillSearchQuery] = useState('');
+
+  // Tree panel search query (for skill-level search fallback)
+  const [treeSearchQuery, setTreeSearchQuery] = useState('');
 
   // Import loading state
   const [isImporting, setIsImporting] = useState(false);
@@ -356,6 +360,147 @@ const SkillTaxonomyPage = () => {
       return false;
     });
   }, [selectedSubcategorySkills, skillSearchQuery]);
+
+  /**
+   * Whether the user is in global skill search mode.
+   * True when there's a tree search query (2+ chars).
+   */
+  const isSearchMode = useMemo(() => {
+    return treeSearchQuery && treeSearchQuery.trim().length >= 2;
+  }, [treeSearchQuery]);
+
+  /**
+   * Get ranked skill matches across all subcategories.
+   * Ranking (higher rank = better match):
+   *   A) Exact match skill name
+   *   B) Exact match alias
+   *   C) Whole-word match skill name
+   *   D) Whole-word match alias
+   *   E) Prefix match skill name
+   *   F) Prefix match alias
+   *   G) Substring match skill name
+   *   H) Substring match alias
+   * Tie-breaker: alphabetically by skill_name, then skill_id
+   */
+  const getRankedSkillMatches = useCallback((query) => {
+    if (!query || query.trim().length < 2) return [];
+    const lowerQuery = query.toLowerCase().trim();
+    
+    // Regex for whole-word match (word boundary)
+    const wholeWordRegex = new RegExp(`\\b${lowerQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+    
+    const results = [];
+    
+    // Search through all subcategories' skills
+    for (const [subcatId, skills] of lookupMaps.skillsBySubcategory.entries()) {
+      const subcategory = lookupMaps.subcategoriesById.get(subcatId);
+      if (!subcategory) continue;
+      
+      for (const skill of skills) {
+        const lowerSkillName = skill.name.toLowerCase();
+        let rank = 0;
+        let matchType = '';
+        
+        // Check skill name matches (A, C, E, G)
+        if (lowerSkillName === lowerQuery) {
+          rank = 8; // A - Exact match skill name
+          matchType = 'exact-name';
+        } else if (wholeWordRegex.test(skill.name)) {
+          rank = 6; // C - Whole-word match skill name
+          matchType = 'word-name';
+        } else if (lowerSkillName.startsWith(lowerQuery)) {
+          rank = 4; // E - Prefix match skill name
+          matchType = 'prefix-name';
+        } else if (lowerSkillName.includes(lowerQuery)) {
+          rank = 2; // G - Substring match skill name
+          matchType = 'substring-name';
+        }
+        
+        // Check alias matches (B, D, F, H) - only if alias match is better than skill name match
+        if (skill.aliases && skill.aliases.length > 0) {
+          for (const alias of skill.aliases) {
+            if (!alias.text) continue;
+            const lowerAlias = alias.text.toLowerCase();
+            
+            if (lowerAlias === lowerQuery && rank < 7) {
+              rank = 7; // B - Exact match alias
+              matchType = 'exact-alias';
+              break;
+            } else if (wholeWordRegex.test(alias.text) && rank < 5) {
+              rank = 5; // D - Whole-word match alias
+              matchType = 'word-alias';
+            } else if (lowerAlias.startsWith(lowerQuery) && rank < 3) {
+              rank = 3; // F - Prefix match alias
+              matchType = 'prefix-alias';
+            } else if (lowerAlias.includes(lowerQuery) && rank < 1) {
+              rank = 1; // H - Substring match alias
+              matchType = 'substring-alias';
+            }
+          }
+        }
+        
+        if (rank > 0) {
+          results.push({
+            skill,
+            rank,
+            matchType,
+            subcategoryId: subcatId,
+            subcategoryName: subcategory.name,
+            categoryName: subcategory.categoryName || '',
+          });
+        }
+      }
+    }
+    
+    // Sort by rank (descending), then by skill name (ascending), then by skill id
+    results.sort((a, b) => {
+      if (b.rank !== a.rank) return b.rank - a.rank;
+      const nameCompare = a.skill.name.localeCompare(b.skill.name);
+      if (nameCompare !== 0) return nameCompare;
+      return a.skill.id - b.skill.id;
+    });
+    
+    return results;
+  }, [lookupMaps.skillsBySubcategory, lookupMaps.subcategoriesById]);
+
+  /**
+   * Global search results - all matching skills across all subcategories.
+   */
+  const globalSearchResults = useMemo(() => {
+    if (!isSearchMode) return [];
+    return getRankedSkillMatches(treeSearchQuery);
+  }, [isSearchMode, treeSearchQuery, getRankedSkillMatches]);
+
+  /**
+   * Handle tree search change - updates search query state.
+   */
+  const handleTreeSearchChange = useCallback((query) => {
+    setTreeSearchQuery(query);
+    // Clear skill table filter when tree search is cleared
+    if (!query) {
+      setSkillSearchQuery('');
+    }
+  }, []);
+
+  /**
+   * Fallback content for tree panel when in search mode with results.
+   * Shows count of matching skills.
+   */
+  const treeSearchFallbackContent = useMemo(() => {
+    if (!isSearchMode || globalSearchResults.length === 0) return null;
+    
+    return (
+      <div className="empty-state" style={{ padding: '24px', textAlign: 'center' }}>
+        <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔍</div>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+          Found <strong>{globalSearchResults.length} skill{globalSearchResults.length !== 1 ? 's' : ''}</strong> matching "{treeSearchQuery}"
+        </p>
+        <p style={{ color: 'var(--text-tertiary, #94a3b8)', fontSize: '12px', marginTop: '4px' }}>
+          See results in right panel →
+        </p>
+      </div>
+    );
+  }, [isSearchMode, globalSearchResults, treeSearchQuery]);
 
   // Handlers
   const handleNodeSelect = (nodeId) => {
@@ -608,19 +753,6 @@ const SkillTaxonomyPage = () => {
       setDependencyModalOpen(true);
     } else {
       setDeleteModalOpen(true);
-    }
-  };
-
-  const handleAddChild = () => {
-    if (selectedItem?.type === 'category') {
-      setCreateType('subcategory');
-      setCreateModalOpen(true);
-    } else if (selectedItem?.type === 'subcategory') {
-      // For skills, use inline add instead of modal
-      setIsAddingSkill(true);
-    } else {
-      setCreateType('category');
-      setCreateModalOpen(true);
     }
   };
 
@@ -929,12 +1061,21 @@ const SkillTaxonomyPage = () => {
         console.log('Skill creation not implemented yet');
       }
       
+      // Success - close modal and clear error
+      setCreateModalOpen(false);
+      setCreateModalError(null);
+      
     } catch (err) {
       const message = err.data?.detail || err.message || `Failed to create ${createType}`;
-      setError(message);
+      // On 409 duplicate, show error in modal and keep it open
+      if (err.status === 409) {
+        setCreateModalError(message);
+      } else {
+        // For other errors, close modal and show page-level error
+        setCreateModalOpen(false);
+        setError(message);
+      }
       console.error(`Error creating ${createType}:`, err);
-    } finally {
-      setCreateModalOpen(false);
     }
   };
 
@@ -1015,10 +1156,6 @@ const SkillTaxonomyPage = () => {
     }
   };
 
-  const handleViewAudit = () => {
-    setAuditModalOpen(true);
-  };
-
   // Get dependencies for modal
   const getDependencies = () => {
     // If we have skill-specific dependency info from 409 response, use that
@@ -1054,14 +1191,6 @@ const SkillTaxonomyPage = () => {
   const handleCloseDependencyModal = () => {
     setDependencyModalOpen(false);
     setSkillDependencyInfo(null);
-  };
-
-  // Determine what child type can be added
-  const getChildType = () => {
-    if (!selectedItem) return null;
-    if (selectedItem.type === 'category') return 'Sub-Category';
-    if (selectedItem.type === 'subcategory') return 'Skill';
-    return null;
   };
 
   // Render header content with InlineEditableTitle
@@ -1109,14 +1238,7 @@ const SkillTaxonomyPage = () => {
         >
           {isImporting ? '⏳ Importing...' : '📤 Import Skills'}
         </button>
-        {selectedItem?.type === 'category' && (
-          <button 
-            className="btn btn-primary" 
-            onClick={handleAddChild}
-          >
-            + Add Sub-Category
-          </button>
-        )}
+        
       </>
     );
   };
@@ -1130,12 +1252,78 @@ const SkillTaxonomyPage = () => {
     if (error) {
       return <ErrorState error={error} onRetry={loadTaxonomy} />;
     }
+
+    // Search mode - show global search results
+    if (isSearchMode) {
+      if (globalSearchResults.length === 0) {
+        return (
+          <div className="empty-state" style={{ padding: '48px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔍</div>
+            <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>No skills found</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+              No skills match "{treeSearchQuery}". Try a different search term.
+            </p>
+          </div>
+        );
+      }
+
+      return (
+        <InfoSection title={`Search Results (${globalSearchResults.length})`}>
+          <div className="search-results-table">
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Skill Name</th>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Sub-Category</th>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Category</th>
+                </tr>
+              </thead>
+              <tbody>
+                {globalSearchResults.map((result) => (
+                  <tr 
+                    key={result.skill.id}
+                    style={{ 
+                      cursor: 'pointer',
+                      backgroundColor: 'var(--bg-secondary)',
+                    }}
+                    onClick={() => {
+                      // Clear search and navigate to the skill's subcategory
+                      setTreeSearchQuery('');
+                      setSelectedNodeId(result.subcategoryId);
+                      setSkillSearchQuery(result.skill.name);
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                  >
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ fontWeight: 500 }}>{result.skill.name}</div>
+                      {result.matchType.includes('alias') && result.skill.aliases && (
+                        <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
+                          Alias match
+                        </div>
+                      )}
+                    </td>
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                      {result.subcategoryName}
+                    </td>
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                      {result.categoryName}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </InfoSection>
+      );
+    }
     
     if (!selectedItem) {
       return (
         <EmptyState
           onAddRoot={() => {
             setCreateType('category');
+            setCreateModalError(null);
             setCreateModalOpen(true);
           }}
           addButtonLabel="➕ Add New Category"
@@ -1147,27 +1335,136 @@ const SkillTaxonomyPage = () => {
     if (selectedItem.type === 'category') {
       return (
         <>
+          {/* Details section - same as Org Hierarchy */}
           <InfoSection title="Details">
             <InfoBox>
               <InfoItem label="Description" value={selectedItem.description || '-'} style={{ marginBottom: '16px' }} />
+              <InfoItem label="Parent Category" value="-" />
             </InfoBox>
           </InfoSection>
 
-          <InfoSection title="Statistics">
-            <StatsGrid>
-              <StatCard label="Sub-Categories" value={selectedItem.subcategoryCount || 0} />
-              <StatCard label="Total Skills" value={selectedItem.skillCount || 0} />
-            </StatsGrid>
-          </InfoSection>
-
-          <InfoSection title="Audit Information">
-            <InfoBox>
-              <InfoGrid>
-                <InfoItem label="Created" value={selectedItem.createdAt || '-'} />
-                <InfoItem label="Created By" value={selectedItem.createdBy || '-'} />
-              </InfoGrid>
-            </InfoBox>
-          </InfoSection>
+          {/* Sub-Categories Table - same UX as Org Hierarchy sub-segments table */}
+          <TaxonomyCategorySubCategoriesPanel
+            subCategories={selectedItem.children || []}
+            categoryName={selectedItem.name}
+            onCreateSubCategory={async (subCategoryName) => {
+              // Call API to create sub-category using selectedItem.rawId as parent category
+              try {
+                const response = await createSubcategory(selectedItem.rawId, subCategoryName);
+                
+                // Create new subcategory node
+                const newSubcategoryNode = {
+                  id: `subcat-${response.id}`,
+                  rawId: response.id,
+                  type: 'subcategory',
+                  name: response.name,
+                  description: null,
+                  parentId: selectedItem.id,
+                  categoryName: selectedItem.name,
+                  createdAt: response.created_at ? formatDate(response.created_at) : null,
+                  createdBy: response.created_by,
+                  children: [],
+                  skillCount: 0,
+                  employeeCount: 0,
+                };
+                
+                // Update tree data - add to parent category's children sorted by name
+                setTreeData(prevTree => {
+                  return prevTree.map(category => {
+                    if (category.id === selectedItem.id) {
+                      const updatedChildren = [...category.children, newSubcategoryNode];
+                      updatedChildren.sort((a, b) => a.name.localeCompare(b.name));
+                      return {
+                        ...category,
+                        children: updatedChildren,
+                        subcategoryCount: category.subcategoryCount + 1,
+                      };
+                    }
+                    return category;
+                  });
+                });
+                
+                // Update lookup maps
+                setLookupMaps(prev => {
+                  const newSubcategoriesById = new Map(prev.subcategoriesById);
+                  const newSkillsBySubcategory = new Map(prev.skillsBySubcategory);
+                  newSubcategoriesById.set(newSubcategoryNode.id, newSubcategoryNode);
+                  newSkillsBySubcategory.set(newSubcategoryNode.id, []); // Empty skills array
+                  return { 
+                    ...prev, 
+                    subcategoriesById: newSubcategoriesById,
+                    skillsBySubcategory: newSkillsBySubcategory,
+                  };
+                });
+              } catch (err) {
+                console.error('Failed to create sub-category:', err);
+                throw err; // Re-throw so the panel keeps add mode open
+              }
+            }}
+            onEditSubCategory={async (subCategoryWithNewName) => {
+              const { rawId, newName } = subCategoryWithNewName;
+              
+              try {
+                await updateSubcategoryName(rawId, newName);
+                // Update tree data
+                setTreeData(prev => {
+                  return prev.map(category => {
+                    if (category.id === selectedItem.id) {
+                      return {
+                        ...category,
+                        children: category.children.map(child =>
+                          child.rawId === rawId ? { ...child, name: newName } : child
+                        ),
+                      };
+                    }
+                    return category;
+                  });
+                });
+              } catch (err) {
+                console.error('Failed to update sub-category name:', err);
+                throw err; // Re-throw so the panel keeps edit mode open
+              }
+            }}
+            onDeleteSubCategory={async (subCategory) => {
+              try {
+                await deleteSubcategory(subCategory.rawId);
+                
+                // Remove from tree data
+                setTreeData(prev => {
+                  return prev.map(category => {
+                    if (category.id === selectedItem.id) {
+                      return {
+                        ...category,
+                        children: category.children.filter(child => child.id !== subCategory.id),
+                        subcategoryCount: Math.max(0, category.subcategoryCount - 1),
+                      };
+                    }
+                    return category;
+                  });
+                });
+                
+                // Remove from lookup maps
+                setLookupMaps(prev => {
+                  const newSubcategoriesById = new Map(prev.subcategoriesById);
+                  const newSkillsBySubcategory = new Map(prev.skillsBySubcategory);
+                  newSubcategoriesById.delete(subCategory.id);
+                  newSkillsBySubcategory.delete(subCategory.id);
+                  return { 
+                    ...prev, 
+                    subcategoriesById: newSubcategoriesById,
+                    skillsBySubcategory: newSkillsBySubcategory,
+                  };
+                });
+              } catch (err) {
+                console.error('Failed to delete sub-category:', err);
+                throw err;
+              }
+            }}
+            onSubCategoryClick={(subCategory) => {
+              // Navigate to the subcategory
+              setSelectedNodeId(subCategory.id);
+            }}
+          />
         </>
       );
     }
@@ -1267,22 +1564,27 @@ const SkillTaxonomyPage = () => {
           onNodeSelect={handleNodeSelect}
           renderNodeIcon={(node) => getTypeIcon(node.type)}
           getNodeChildren={(node) => node.children || []}
-          searchPlaceholder="Search categories..."
+          searchPlaceholder="Search categories, skills..."
           onAddRoot={() => {
             setCreateType('category');
+            setCreateModalError(null);
             setCreateModalOpen(true);
           }}
           addRootLabel="+ Category"
           isLoading={isLoading && showLoader}
           loadingContent={<LoadingIndicator />}
           errorContent={error ? <ErrorState error={error} onRetry={loadTaxonomy} /> : null}
+          // Skill-level search support
+          onSearchChange={handleTreeSearchChange}
+          searchFallbackContent={treeSearchFallbackContent}
+          hasSearchFallback={isSearchMode && globalSearchResults.length > 0}
         />
         
         <DetailsPanel
-          title={selectedItem ? `${selectedItem.name}` : 'Skill Taxonomy'}
-          subtitle={null}
-          headerContent={selectedItem ? renderHeaderContent() : null}
-          headerActions={renderHeaderActions()}
+          title={isSearchMode ? 'Search Results' : (selectedItem ? `${selectedItem.name}` : 'Skill Taxonomy')}
+          subtitle={isSearchMode ? `Searching for "${treeSearchQuery}"` : null}
+          headerContent={isSearchMode ? null : (selectedItem ? renderHeaderContent() : null)}
+          headerActions={isSearchMode ? null : renderHeaderActions()}
           showActions={false}
         >
           {renderDetailsContent()}
@@ -1292,7 +1594,10 @@ const SkillTaxonomyPage = () => {
       {/* Modals */}
       <CreateEditModal
         isOpen={createModalOpen}
-        onClose={() => setCreateModalOpen(false)}
+        onClose={() => {
+          setCreateModalOpen(false);
+          setCreateModalError(null);
+        }}
         mode="create"
         itemType={createType}
         onSubmit={handleCreate}
@@ -1300,6 +1605,7 @@ const SkillTaxonomyPage = () => {
                        createType === 'skill' ? Array.from(lookupMaps.subcategoriesById.values()).map(s => ({ id: s.id, name: s.name })) : 
                        []}
         defaultParentId={selectedItem?.id}
+        error={createModalError}
       />
 
       <DeleteConfirmModal

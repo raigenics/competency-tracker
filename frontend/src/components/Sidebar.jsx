@@ -15,8 +15,8 @@ const Sidebar = () => {
       title: 'ANALYTICS',
       items: [
         { id: 'dashboard', path: '/', icon: BarChart3, label: 'Dashboard' },
-        { id: 'query', path: '/query', icon: Search, label: 'Capability Finder' },
-        { id: 'taxonomy', path: '/taxonomy', icon: Layers, label: 'Capability Overview' },
+        { id: 'query', path: '/query', icon: Search, label: 'Skill Search' },
+        { id: 'taxonomy', path: '/taxonomy', icon: Layers, label: 'Organizational Skill Map' },
         { id: 'profile', path: '/profile', icon: User, label: 'Employee Profile' }
       ]
     },
@@ -75,7 +75,7 @@ const Sidebar = () => {
 
       {/* Navigation */}
       <nav className="pb-5">
-        {navigationSections.map((section, sectionIndex) => (
+        {navigationSections.map((section, _sectionIndex) => (
           <div key={section.title} className="mb-6">
             {/* Section Header */}
             <div className="px-5 py-2">

@@ -27,6 +27,8 @@ const SkillsTableRow = ({
   const [editName, setEditName] = useState(skill.name);
   const [editAlias, setEditAlias] = useState('');
   const nameInputRef = useRef(null);
+  // Track previous skill for render-time sync
+  const [prevSkill, setPrevSkill] = useState(skill);
 
   // Format aliases for display/edit (extract text from alias objects)
   const formatAliases = useCallback((aliases) => {
@@ -34,11 +36,12 @@ const SkillsTableRow = ({
     return aliases.map(a => typeof a === 'object' ? a.text : a).filter(Boolean).join(', ');
   }, []);
 
-  // Initialize edit values from skill
-  useEffect(() => {
+  // Sync edit values when skill changes externally (React recommended pattern)
+  if (skill !== prevSkill) {
+    setPrevSkill(skill);
     setEditName(skill.name);
     setEditAlias(formatAliases(skill.aliases));
-  }, [skill, formatAliases]);
+  }
 
   // Focus name input when entering edit mode
   useEffect(() => {

@@ -18,5 +18,7 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 filterwarnings = [
     "ignore::UserWarning",
-    "ignore::DeprecationWarning"
+    # Targeted: suppress utcnow() deprecation from skill_embedding_service (production code)
+    # until production code is updated to use datetime.now(datetime.UTC)
+    "ignore::DeprecationWarning:app.services.skill_resolution.skill_embedding_service"
 ]

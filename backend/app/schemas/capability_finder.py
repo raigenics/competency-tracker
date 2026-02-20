@@ -52,6 +52,9 @@ class EmployeeSearchResult(BaseModel):
     team: str
     role: str
     top_skills: List[SkillInfo]
+    # PHASE 1 HYBRID SEARCH: New fields for match quality indication
+    match_type: Optional[str] = Field(None, description="'STRICT' (all skills) or 'PARTIAL' (some skills)")
+    matched_skill_count: Optional[int] = Field(None, description="Number of matched canonical skills")
 
 
 class SearchResponse(BaseModel):

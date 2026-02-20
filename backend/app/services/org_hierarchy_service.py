@@ -252,7 +252,7 @@ def create_sub_segment(
     ).first()
     
     if existing:
-        raise ValueError(f"Sub-segment with name '{validated_name}' already exists")
+        raise ValueError(f"'{validated_name}' sub-segment already exists in Segment '{parent_segment.segment_name}'.")
     
     # Create new sub-segment
     new_sub_segment = SubSegment(
@@ -782,7 +782,7 @@ def create_project(
     ).first()
     
     if existing:
-        raise ValueError(f"Project with name '{validated_name}' already exists in this sub-segment")
+        raise ValueError(f"'{validated_name}' project already exists in Sub-segment '{parent_sub_segment.sub_segment_name}'.")
     
     # Create new project
     new_project = Project(
@@ -856,7 +856,7 @@ def create_team(
     ).first()
     
     if existing:
-        raise ValueError(f"Team with name '{validated_name}' already exists in this project")
+        raise ValueError(f"'{validated_name}' team already exists in Project '{parent_project.project_name}'.")
     
     # Create new team
     new_team = Team(

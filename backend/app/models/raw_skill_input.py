@@ -11,12 +11,19 @@ class RawSkillInput(Base):
     """
     Raw skill input model for tracking skill text from various sources.
     Stores unnormalized skill text and tracks resolution to master skills.
+    
+    Status values:
+    - UNRESOLVED: Skill not yet mapped to master data
+    - RESOLVED: Skill mapped to existing skill via alias
     """
     
     __tablename__ = "raw_skill_inputs"
     
     # Primary key
     raw_skill_id = Column(Integer, primary_key=True, index=True)
+    
+    # Import job linkage (UUID string from ImportJob.job_id)
+    job_id = Column(String(36), nullable=True, index=True)
     
     # Skill text fields
     raw_text = Column(Text, nullable=False)
@@ -32,6 +39,11 @@ class RawSkillInput(Base):
     resolution_method = Column(String(20), nullable=True)
     resolution_confidence = Column(Float, nullable=True)
     
+    # Resolution status and audit
+    status = Column(String(20), nullable=False, default="UNRESOLVED", index=True)
+    resolved_by = Column(String(50), nullable=True)  # User who resolved
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    
     # Audit timestamp
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), default=func.now())
     
@@ -43,6 +55,7 @@ class RawSkillInput(Base):
     # Composite indexes for performance
     __table_args__ = (
         Index('idx_raw_skills_segment_created', 'sub_segment_id', 'created_at'),
+        Index('idx_raw_skills_job_status', 'job_id', 'status'),
         {"mysql_engine": "InnoDB"}
     )
     

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Search, Filter, Download, Save, Clock } from 'lucide-react';
 import QueryBuilderPanel from './components/QueryBuilderPanel';
 import QueryResultsTable from './components/QueryResultsTable';
@@ -17,13 +17,9 @@ const AdvancedQueryPage = () => {
     proficiency: { min: 0, max: 5 },
     experience: { min: 0, max: 20 }
   });
-  const [recentQueries, setRecentQueries] = useState([]);
+  // Initialize with mockRecentQueries directly (lazy initial state pattern)
+  const [recentQueries, setRecentQueries] = useState(mockRecentQueries);
   const [showQueryBuilder, setShowQueryBuilder] = useState(true);
-
-  useEffect(() => {
-    // Load recent queries
-    setRecentQueries(mockRecentQueries);
-  }, []);
 
   const handleSearch = async () => {
     setIsLoading(true);
@@ -36,7 +32,7 @@ const AdvancedQueryPage = () => {
     }, 1000);
   };
 
-  const generateMockResults = (query) => {
+  const generateMockResults = (_query) => {
     // Mock implementation - replace with actual API call
     return [
       {
