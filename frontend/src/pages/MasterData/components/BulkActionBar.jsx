@@ -13,12 +13,9 @@ import { Trash2, X } from 'lucide-react';
 const BulkActionBar = ({
   selectedCount,
   onDeleteSelected,
-  onClearSelection,
-  itemLabel = 'skill'
+  onClearSelection
 }) => {
   if (selectedCount === 0) return null;
-
-  const pluralLabel = selectedCount === 1 ? itemLabel : `${itemLabel}s`;
 
   return (
     <div className="bulk-action-bar">

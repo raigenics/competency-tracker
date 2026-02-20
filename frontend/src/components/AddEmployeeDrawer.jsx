@@ -4,9 +4,9 @@ import { useEmployeeForm } from '../hooks/useEmployeeForm.js';
 import { useRoles } from '../hooks/useRoles.js';
 import { useUniqueEmployeeValidation } from '../hooks/useUniqueEmployeeValidation.js';
 import { RoleAutoSuggestSelect } from './RoleAutoSuggestSelect.jsx';
-import { EmployeeSkillsTab, createEmptySkill } from './skills/EmployeeSkillsTab.jsx';
+import { EmployeeSkillsTab } from './skills/EmployeeSkillsTab.jsx';
+import { createEmptySkill } from './skills/skillHelpers.js';
 import { employeeApi } from '../services/api/employeeApi.js';
-import { dropdownApi } from '../services/api/dropdownApi.js';
 import { validateEmployeeSkills } from '../utils/skillsValidation.js';
 
 // ========== DIAGNOSTIC LOGGING - START ==========
@@ -79,7 +79,7 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
   // Skills-level error (e.g., "at least one skill required")
   const [skillsError, setSkillsError] = useState(null);
   // Skills saving state
-  const [skillsSaveError, setSkillsSaveError] = useState(null);
+  const [, setSkillsSaveError] = useState(null);
 
   /**
    * Wrapper handlers for org assignment that clear validation errors on change
@@ -141,41 +141,6 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
       setSkillsError(null);
     }
   }, [skillsError]);
-  
-  // Static dropdown options for fields not in cascading logic
-  const staticOptions = {
-    employmentTypes: [
-      { value: 'FULL_TIME', label: 'Full Time' },
-      { value: 'CONTRACT', label: 'Contract' },
-      { value: 'INTERN', label: 'Intern' }
-    ],
-    statuses: [
-      { value: 'ACTIVE', label: 'Active' },
-      { value: 'INACTIVE', label: 'Inactive' },
-      { value: 'ON_LEAVE', label: 'On Leave' }
-    ],
-    proficiencies: [
-      { value: 'NOVICE', label: 'Novice' },
-      { value: 'ADVANCED_BEGINNER', label: 'Advanced Beginner' },
-      { value: 'COMPETENT', label: 'Competent' },
-      { value: 'PROFICIENT', label: 'Proficient' },
-      { value: 'EXPERT', label: 'Expert' }
-    ],
-    months: [
-      { value: '01', label: 'Jan' },
-      { value: '02', label: 'Feb' },
-      { value: '03', label: 'Mar' },
-      { value: '04', label: 'Apr' },
-      { value: '05', label: 'May' },
-      { value: '06', label: 'Jun' },
-      { value: '07', label: 'Jul' },
-      { value: '08', label: 'Aug' },
-      { value: '09', label: 'Sep' },
-      { value: '10', label: 'Oct' },
-      { value: '11', label: 'Nov' },
-      { value: '12', label: 'Dec' }
-    ]
-  };
 
   // Note: createEmptySkill is now imported from EmployeeSkillsTab
 
@@ -312,44 +277,6 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
   }, [employeeForm, orgAssignment, uniqueValidation]);
 
   /**
-   * @deprecated No longer needed - backend returns org IDs directly
-   * Fetch org hierarchy from team_id to get all parent IDs.
-   * Uses dropdownApi to traverse the hierarchy.
-   */
-  const fetchOrgHierarchy = async (teamId) => {
-    diagLog('EDIT', 'fetchOrgHierarchy-start', { teamId });
-    const hierarchyStart = performance.now();
-    
-    diagLog('EDIT', 'fetchOrgHierarchy-getTeams-start');
-    const allTeams = await dropdownApi.getTeams(null);
-    diagLog('EDIT', 'fetchOrgHierarchy-getTeams-end', { count: allTeams?.length, duration: (performance.now() - hierarchyStart).toFixed(1) + 'ms' });
-    const team = allTeams.find(t => t.team_id === teamId);
-    if (!team) throw new Error('Team not found');
-    
-    diagLog('EDIT', 'fetchOrgHierarchy-getProjects-start');
-    const projStart = performance.now();
-    const allProjects = await dropdownApi.getProjects(null);
-    diagLog('EDIT', 'fetchOrgHierarchy-getProjects-end', { count: allProjects?.length, duration: (performance.now() - projStart).toFixed(1) + 'ms' });
-    const project = allProjects.find(p => p.project_id === team.project_id);
-    if (!project) throw new Error('Project not found');
-    
-    diagLog('EDIT', 'fetchOrgHierarchy-getSubSegments-start');
-    const subSegStart = performance.now();
-    const allSubSegments = await dropdownApi.getSubSegments(null);
-    diagLog('EDIT', 'fetchOrgHierarchy-getSubSegments-end', { count: allSubSegments?.length, duration: (performance.now() - subSegStart).toFixed(1) + 'ms' });
-    const subSegment = allSubSegments.find(s => s.sub_segment_id === project.sub_segment_id);
-    if (!subSegment) throw new Error('Sub-segment not found');
-    
-    diagLog('EDIT', 'fetchOrgHierarchy-complete', { totalDuration: (performance.now() - hierarchyStart).toFixed(1) + 'ms' });
-    return {
-      segmentId: subSegment.segment_id,
-      subSegmentId: subSegment.sub_segment_id,
-      projectId: project.project_id,
-      teamId: teamId
-    };
-  };
-
-  /**
    * Load skills when Skills tab is clicked (lazy loading).
    */
   const loadSkillsForEdit = useCallback(async () => {
@@ -421,6 +348,7 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
       }
       setActiveTab('details');
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- Hook return objects are not memoized; effect intentionally triggers only on isOpen/mode/employee
   }, [isOpen, mode, employee]);
 
   // Close on Escape key
@@ -551,11 +479,6 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
       // Note: Drawer stays open - user can close manually via X or Cancel
     }
   };
-
-  // Handle skills validation callback
-  const handleSkillsValidate = useCallback((errors, isValid) => {
-    setSkillErrors(errors);
-  }, []);
 
   const isEditMode = mode === 'edit';
   const { formData, errors, handleChange, setRole, isSubmitting, submitError } = employeeForm;
@@ -877,7 +800,6 @@ const AddEmployeeDrawer = ({ isOpen, onClose, onSave, mode = 'add', employee = n
                   skills={skills}
                   onSkillsChange={handleSkillsChange}
                   errors={skillErrors}
-                  onValidate={handleSkillsValidate}
                 />
               </>
             )}

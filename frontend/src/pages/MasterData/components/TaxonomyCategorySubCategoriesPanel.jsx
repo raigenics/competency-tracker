@@ -19,7 +19,7 @@ import DeleteSelectedModal from './DeleteSelectedModal';
 
 const TaxonomyCategorySubCategoriesPanel = ({
   subCategories = [],
-  categoryName = '',
+  categoryName: _categoryName = '',
   onCreateSubCategory,
   onEditSubCategory,
   onDeleteSubCategory,

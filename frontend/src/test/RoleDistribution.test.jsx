@@ -11,12 +11,13 @@
  */
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import RoleDistribution, {
+import RoleDistribution from '@/pages/Dashboard/components/RoleDistribution/RoleDistribution.jsx';
+import {
   getTopRoles,
   getHiddenRoles,
   hasRoleData,
   shouldShowExpand
-} from '@/pages/Dashboard/components/RoleDistribution/RoleDistribution.jsx';
+} from '@/pages/Dashboard/components/RoleDistribution/roleDistributionHelpers.js';
 
 // Mock the useRoleDistribution hook
 vi.mock('@/hooks/useRoleDistribution', () => ({

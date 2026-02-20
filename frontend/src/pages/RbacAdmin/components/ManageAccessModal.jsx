@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { X, Loader2, Plus, Trash2 } from 'lucide-react';
 import { rbacAdminApi } from '../../../services/api/rbacAdminApi.js';
 import { getRoleScopeType, requiresScopeValue } from '../../../utils/rbacRoleHelpers.js';
@@ -32,15 +32,10 @@ const ManageAccessModal = ({ user, onClose, onAccessUpdated }) => {
     scope_id: ''
   });
 
-  // Load user detail and lookup data on mount
-  useEffect(() => {
-    loadData();
-  }, [user.user_id]);
-
   /**
    * Load user detail and lookup data
    */
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     try {
       const [detail, rolesData, scopeTypesData] = await Promise.all([
@@ -59,7 +54,12 @@ const ManageAccessModal = ({ user, onClose, onAccessUpdated }) => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user.user_id, onClose]);
+
+  // Load user detail and lookup data on mount
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   /**
    * Handle role selection - auto-fill scope type
@@ -207,12 +207,6 @@ const ManageAccessModal = ({ user, onClose, onAccessUpdated }) => {
     setNewRoleForm({ role_id: '', role_code: '', scope_type_code: '', scope_type_id: '', scope_id: '' });
     setScopeValues([]);
     setShowNewRoleForm(false);
-  };
-
-  // Get scope type name from ID
-  const getScopeTypeName = (scopeTypeId) => {
-    const scopeType = scopeTypes.find(st => st.scope_type_id === scopeTypeId);
-    return scopeType?.scope_name || '';
   };
 
   if (loading) {

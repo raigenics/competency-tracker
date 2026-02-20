@@ -447,4 +447,113 @@ describe('bulkImportApi', () => {
       await expect(bulkImportApi.importExcel(mockFile)).rejects.toThrow('Network timeout');
     });
   });
+
+  // =========================================================================
+  // getUnresolvedSkills
+  // =========================================================================
+  describe('getUnresolvedSkills', () => {
+    it('should fetch unresolved skills with default options', async () => {
+      // Arrange
+      const mockResponse = {
+        import_run_id: 'job-123',
+        total_count: 2,
+        unresolved_skills: [
+          { raw_skill_id: 1, raw_text: 'Python Dev', suggestions: [] },
+          { raw_skill_id: 2, raw_text: 'JS', suggestions: [] }
+        ]
+      };
+      httpClient.get.mockResolvedValueOnce(mockResponse);
+
+      // Act
+      const result = await bulkImportApi.getUnresolvedSkills('job-123');
+
+      // Assert
+      expect(httpClient.get).toHaveBeenCalledWith(
+        '/import/job-123/unresolved-skills?include_suggestions=true&max_suggestions=5'
+      );
+      expect(result.total_count).toBe(2);
+      expect(result.unresolved_skills).toHaveLength(2);
+    });
+
+    it('should pass custom options to API', async () => {
+      // Arrange
+      httpClient.get.mockResolvedValueOnce({ import_run_id: 'job-456', total_count: 0, unresolved_skills: [] });
+
+      // Act
+      await bulkImportApi.getUnresolvedSkills('job-456', { includeSuggestions: false, maxSuggestions: 3 });
+
+      // Assert
+      expect(httpClient.get).toHaveBeenCalledWith(
+        '/import/job-456/unresolved-skills?include_suggestions=false&max_suggestions=3'
+      );
+    });
+
+    it('should throw on API error', async () => {
+      // Arrange
+      httpClient.get.mockRejectedValueOnce(new Error('Job not found'));
+
+      // Act & Assert
+      await expect(bulkImportApi.getUnresolvedSkills('bad-job')).rejects.toThrow('Job not found');
+    });
+  });
+
+  // =========================================================================
+  // resolveSkill
+  // =========================================================================
+  describe('resolveSkill', () => {
+    it('should resolve skill and create alias', async () => {
+      // Arrange
+      const mockResponse = {
+        raw_skill_id: 1,
+        resolved_skill_id: 100,
+        alias_created: true,
+        alias_text: 'python dev',
+        message: "Skill 'Python Dev' mapped to 'Python'"
+      };
+      httpClient.post.mockResolvedValueOnce(mockResponse);
+
+      // Act
+      const result = await bulkImportApi.resolveSkill('job-123', 1, 100);
+
+      // Assert
+      expect(httpClient.post).toHaveBeenCalledWith(
+        '/import/job-123/unresolved-skills/resolve',
+        { raw_skill_id: 1, target_skill_id: 100 }
+      );
+      expect(result.alias_created).toBe(true);
+      expect(result.resolved_skill_id).toBe(100);
+    });
+
+    it('should handle conflict error (alias exists for different skill)', async () => {
+      // Arrange
+      const conflictError = new Error('Conflict');
+      conflictError.response = {
+        status: 409,
+        data: {
+          detail: {
+            message: "Alias 'python dev' already exists for skill 'Python Development'",
+            existing_skill_id: 200,
+            existing_skill_name: 'Python Development'
+          }
+        }
+      };
+      httpClient.post.mockRejectedValueOnce(conflictError);
+
+      // Act & Assert
+      await expect(bulkImportApi.resolveSkill('job-123', 1, 100)).rejects.toThrow('Conflict');
+    });
+
+    it('should handle already resolved error', async () => {
+      // Arrange
+      const alreadyResolvedError = new Error('Already resolved');
+      alreadyResolvedError.response = {
+        status: 400,
+        data: { detail: 'Raw skill input 1 is already resolved' }
+      };
+      httpClient.post.mockRejectedValueOnce(alreadyResolvedError);
+
+      // Act & Assert
+      await expect(bulkImportApi.resolveSkill('job-123', 1, 100)).rejects.toThrow('Already resolved');
+    });
+  });
 });

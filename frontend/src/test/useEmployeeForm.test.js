@@ -366,9 +366,9 @@ describe('useEmployeeForm', () => {
         result.current.setRole(1, 'Developer');
       });
       
-      let submittingDuringRequest = false;
+      let _submittingDuringRequest = false;
       employeeApi.createEmployee.mockImplementation(async () => {
-        submittingDuringRequest = result.current.isSubmitting;
+        _submittingDuringRequest = result.current.isSubmitting;
         return { employee_id: 1 };
       });
       
@@ -396,7 +396,7 @@ describe('useEmployeeForm', () => {
       await act(async () => {
         try {
           await result.current.submit(validOrgAssignment);
-        } catch (e) {
+        } catch (_e) {
           // Expected error
         }
       });
@@ -422,7 +422,7 @@ describe('useEmployeeForm', () => {
       await act(async () => {
         try {
           await result.current.submit(validOrgAssignment);
-        } catch (e) {
+        } catch (_e) {
           // Expected
         }
       });

@@ -19,7 +19,7 @@ import DeleteSelectedModal from './DeleteSelectedModal';
 
 const OrgSubSegmentProjectsPanel = ({
   projects = [],
-  subSegmentName = '',
+  subSegmentName: _subSegmentName = '',
   onCreateProject,
   onEditProject,
   onDeleteProject,

@@ -7,9 +7,11 @@ import logging
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 import pandas as pd
 
 from app.models import Segment, SubSegment, Project, Team, Role
+from app.utils.normalization import normalize_designation
 
 logger = logging.getLogger(__name__)
 
@@ -140,25 +142,28 @@ class MasterDataValidator:
         )
     
     def _get_sub_segment(self, name: str) -> Optional[SubSegment]:
-        """Get SubSegment by name with caching."""
-        if name in self._sub_segment_cache:
-            return self._sub_segment_cache[name]
+        """Get SubSegment by name with caching (case-insensitive)."""
+        # Use lowercase key for cache
+        cache_key = name.lower() if name else ""
+        if cache_key in self._sub_segment_cache:
+            return self._sub_segment_cache[cache_key]
         
         sub_segment = self.db.query(SubSegment).filter(
-            SubSegment.sub_segment_name == name
+            func.lower(SubSegment.sub_segment_name) == cache_key
         ).first()
         
-        self._sub_segment_cache[name] = sub_segment
+        self._sub_segment_cache[cache_key] = sub_segment
         return sub_segment
     
     def _get_project(self, name: str, sub_segment_id: int) -> Optional[Project]:
-        """Get Project by name AND sub_segment_id with caching."""
-        cache_key = (name, sub_segment_id)
+        """Get Project by name AND sub_segment_id with caching (case-insensitive)."""
+        # Use lowercase name for cache key
+        cache_key = (name.lower() if name else "", sub_segment_id)
         if cache_key in self._project_cache:
             return self._project_cache[cache_key]
         
         project = self.db.query(Project).filter(
-            Project.project_name == name,
+            func.lower(Project.project_name) == cache_key[0],
             Project.sub_segment_id == sub_segment_id
         ).first()
         
@@ -166,13 +171,14 @@ class MasterDataValidator:
         return project
     
     def _get_team(self, name: str, project_id: int) -> Optional[Team]:
-        """Get Team by name AND project_id with caching."""
-        cache_key = (name, project_id)
+        """Get Team by name AND project_id with caching (case-insensitive)."""
+        # Use lowercase name for cache key
+        cache_key = (name.lower() if name else "", project_id)
         if cache_key in self._team_cache:
             return self._team_cache[cache_key]
         
         team = self.db.query(Team).filter(
-            Team.team_name == name,
+            func.lower(Team.team_name) == cache_key[0],
             Team.project_id == project_id
         ).first()
         
@@ -185,6 +191,9 @@ class MasterDataValidator:
         
         Maps normalized tokens (role_name + alias tokens) to Role objects.
         This allows O(1) lookup for role resolution during import.
+        
+        Uses normalize_designation() for key generation to handle
+        whitespace around slashes (e.g., "Scrum Master/ TL" -> "scrum master/tl").
         """
         if self._roles_loaded:
             return
@@ -193,15 +202,15 @@ class MasterDataValidator:
         roles = self.db.query(Role).filter(Role.deleted_at.is_(None)).all()
         
         for role in roles:
-            # Add role_name (normalized, case-insensitive key)
-            role_name_key = self._normalize_string(role.role_name).lower()
+            # Add role_name (normalized with designation normalizer)
+            role_name_key = normalize_designation(role.role_name)
             if role_name_key:
                 self._role_lookup[role_name_key] = role
             
             # Add alias tokens (comma-separated)
             if role.role_alias:
                 for alias_token in role.role_alias.split(','):
-                    alias_key = self._normalize_string(alias_token).lower()
+                    alias_key = normalize_designation(alias_token)
                     if alias_key:
                         # First match wins (don't overwrite existing)
                         if alias_key not in self._role_lookup:
@@ -214,16 +223,19 @@ class MasterDataValidator:
         Get Role by name or alias with preloaded lookup.
         
         Matches against:
-        1. role_name (case-insensitive)
-        2. Any alias token in role_alias (comma-separated, case-insensitive)
+        1. role_name (case-insensitive, slash-normalized)
+        2. Any alias token in role_alias (comma-separated, case-insensitive, slash-normalized)
         
         Only active roles (deleted_at IS NULL) are considered.
+        
+        Uses normalize_designation() to handle whitespace around slashes,
+        so "Scrum Master/ TL" matches alias "Scrum Master/TL".
         """
         # Ensure roles are loaded
         self._load_roles()
         
-        # Normalize and lookup
-        normalized_key = self._normalize_string(name).lower()
+        # Normalize and lookup using designation normalizer
+        normalized_key = normalize_designation(name)
         return self._role_lookup.get(normalized_key)
     
     def clear_cache(self):

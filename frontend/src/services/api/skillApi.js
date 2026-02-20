@@ -2,8 +2,8 @@ import httpClient from './httpClient.js';
 
 // TODO: Replace with actual FastAPI calls
 export const skillApi = {
-  // Get paginated list of skills
-  async getSkills(params = {}) {
+  // Get paginated list of skills (general/mock)
+  async getSkillsPaginated(params = {}) {
     try {
       // TODO: return await httpClient.get('/skills', params);
       console.log('Mock: Fetching skills with params:', params);
@@ -51,7 +51,7 @@ export const skillApi = {
   },
 
   // Get skill progression data
-  async getSkillProgression(skillId, params = {}) {
+  async getSkillProgression(skillId, _params = {}) {
     try {
       // TODO: return await httpClient.get(`/competencies/skill/${skillId}/progression`, params);
       console.log('Mock: Fetching skill progression:', skillId);

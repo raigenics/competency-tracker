@@ -18,7 +18,7 @@ vi.mock('@/services/api/httpClient.js', () => ({
 
 // Mock fetch for export endpoint (uses raw fetch)
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+globalThis.fetch = mockFetch;
 
 describe('capabilityFinderApi', () => {
   beforeEach(() => {
@@ -321,7 +321,7 @@ describe('capabilityFinderApi', () => {
       await capabilityFinderApi.exportMatchingTalent(payload);
 
       // Assert
-      const [url, options] = mockFetch.mock.calls[0];
+      const [, options] = mockFetch.mock.calls[0];
       const body = JSON.parse(options.body);
       expect(body.mode).toBe('selected');
       expect(body.selected_employee_ids).toEqual([1, 2, 3]);

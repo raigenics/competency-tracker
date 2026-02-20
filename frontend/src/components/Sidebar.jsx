@@ -75,7 +75,7 @@ const Sidebar = () => {
 
       {/* Navigation */}
       <nav className="pb-5">
-        {navigationSections.map((section, sectionIndex) => (
+        {navigationSections.map((section, _sectionIndex) => (
           <div key={section.title} className="mb-6">
             {/* Section Header */}
             <div className="px-5 py-2">

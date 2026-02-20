@@ -19,7 +19,7 @@ import DeleteSelectedModal from './DeleteSelectedModal';
 
 const OrgProjectTeamsPanel = ({
   teams = [],
-  projectName = '',
+  projectName: _projectName = '',
   onCreateTeam,
   onEditTeam,
   onDeleteTeam,

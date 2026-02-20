@@ -531,3 +531,382 @@ class TestResponseStructure:
         assert "message" in data
         # Frontend uses these for progress display
         assert data["status"] in ["pending", "processing", "completed", "failed"]
+
+
+# ============================================================================
+# TEST: GET /import/{import_run_id}/unresolved-skills
+# ============================================================================
+
+class TestGetUnresolvedSkills:
+    """Test GET /import/{import_run_id}/unresolved-skills endpoint."""
+    
+    def test_returns_unresolved_skills_for_valid_job(self):
+        """Should return list of unresolved skills with suggestions."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_response = MagicMock()
+        mock_response.import_run_id = "test-job-123"
+        mock_response.total_count = 2
+        mock_response.unresolved_skills = [
+            MagicMock(
+                raw_skill_id=1,
+                raw_text="Python Dev",
+                normalized_text="python dev",
+                employee_name="John Doe",
+                employee_zid="Z001234",
+                suggestions=[]
+            ),
+            MagicMock(
+                raw_skill_id=2,
+                raw_text="JS",
+                normalized_text="js",
+                employee_name="Jane Smith",
+                employee_zid="Z005678",
+                suggestions=[]
+            )
+        ]
+        
+        with patch('app.api.routes.import_excel.get_unresolved_skills', return_value=mock_response), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.get('/import/test-job-123/unresolved-skills')
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["import_run_id"] == "test-job-123"
+        assert data["total_count"] == 2
+        assert len(data["unresolved_skills"]) == 2
+    
+    def test_returns_404_for_nonexistent_job(self):
+        """Should return 404 when import job not found."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        from app.services.imports.unresolved_skills_service import ImportJobNotFoundError
+        
+        with patch('app.api.routes.import_excel.get_unresolved_skills', 
+                   side_effect=ImportJobNotFoundError("nonexistent-job")), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.get('/import/nonexistent-job/unresolved-skills')
+        
+        # Assert
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+    
+    def test_includes_suggestions_by_default(self):
+        """Should include suggestions when include_suggestions=true (default)."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        with patch('app.api.routes.import_excel.get_unresolved_skills') as mock_get, \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            mock_get.return_value = MagicMock(
+                import_run_id="test-123",
+                total_count=0,
+                unresolved_skills=[]
+            )
+            
+            # Act
+            client.get('/import/test-123/unresolved-skills')
+        
+        # Assert
+        mock_get.assert_called_once()
+        _, kwargs = mock_get.call_args
+        assert kwargs.get('include_suggestions', True) is True
+    
+    def test_respects_include_suggestions_false(self):
+        """Should pass include_suggestions=false when specified."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        with patch('app.api.routes.import_excel.get_unresolved_skills') as mock_get, \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            mock_get.return_value = MagicMock(
+                import_run_id="test-123",
+                total_count=0,
+                unresolved_skills=[]
+            )
+            
+            # Act
+            client.get('/import/test-123/unresolved-skills?include_suggestions=false')
+        
+        # Assert
+        mock_get.assert_called_once()
+        _, kwargs = mock_get.call_args
+        assert kwargs.get('include_suggestions') is False
+
+
+# ============================================================================
+# TEST: POST /import/{import_run_id}/unresolved-skills/resolve
+# ============================================================================
+
+class TestResolveSkill:
+    """Test POST /import/{import_run_id}/unresolved-skills/resolve endpoint."""
+    
+    def test_resolves_skill_successfully(self):
+        """Should resolve skill to target and create alias."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_response = MagicMock()
+        mock_response.raw_skill_id = 1
+        mock_response.resolved_skill_id = 100
+        mock_response.alias_created = True
+        mock_response.alias_text = "python dev"
+        mock_response.message = "Skill 'Python Dev' mapped to 'Python'"
+        
+        with patch('app.api.routes.import_excel.resolve_skill', return_value=mock_response), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.post(
+                '/import/test-job-123/unresolved-skills/resolve',
+                json={"raw_skill_id": 1, "target_skill_id": 100}
+            )
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["raw_skill_id"] == 1
+        assert data["resolved_skill_id"] == 100
+        assert data["alias_created"] is True
+    
+    def test_returns_404_for_nonexistent_job(self):
+        """Should return 404 when import job not found."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        from app.services.imports.unresolved_skills_service import ImportJobNotFoundError
+        
+        with patch('app.api.routes.import_excel.resolve_skill',
+                   side_effect=ImportJobNotFoundError("bad-job")), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.post(
+                '/import/bad-job/unresolved-skills/resolve',
+                json={"raw_skill_id": 1, "target_skill_id": 100}
+            )
+        
+        # Assert
+        assert response.status_code == 404
+    
+    def test_returns_404_for_nonexistent_raw_skill(self):
+        """Should return 404 when raw skill input not found."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        from app.services.imports.unresolved_skills_service import RawSkillNotFoundError
+        
+        with patch('app.api.routes.import_excel.resolve_skill',
+                   side_effect=RawSkillNotFoundError(999)), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.post(
+                '/import/test-job/unresolved-skills/resolve',
+                json={"raw_skill_id": 999, "target_skill_id": 100}
+            )
+        
+        # Assert
+        assert response.status_code == 404
+    
+    def test_returns_404_for_nonexistent_target_skill(self):
+        """Should return 404 when target skill not found."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        from app.services.imports.unresolved_skills_service import SkillNotFoundError
+        
+        with patch('app.api.routes.import_excel.resolve_skill',
+                   side_effect=SkillNotFoundError(999)), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.post(
+                '/import/test-job/unresolved-skills/resolve',
+                json={"raw_skill_id": 1, "target_skill_id": 999}
+            )
+        
+        # Assert
+        assert response.status_code == 404
+    
+    def test_returns_400_for_already_resolved(self):
+        """Should return 400 when skill is already resolved."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        from app.services.imports.unresolved_skills_service import AlreadyResolvedError
+        
+        with patch('app.api.routes.import_excel.resolve_skill',
+                   side_effect=AlreadyResolvedError(1)), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.post(
+                '/import/test-job/unresolved-skills/resolve',
+                json={"raw_skill_id": 1, "target_skill_id": 100}
+            )
+        
+        # Assert
+        assert response.status_code == 400
+        assert "already resolved" in response.json()["detail"].lower()
+    
+    def test_returns_409_for_conflicting_alias(self):
+        """Should return 409 when alias maps to different skill."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        from app.services.imports.unresolved_skills_service import AliasAlreadyExistsError
+        
+        with patch('app.api.routes.import_excel.resolve_skill',
+                   side_effect=AliasAlreadyExistsError("python dev", 200, "Python Development")), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.post(
+                '/import/test-job/unresolved-skills/resolve',
+                json={"raw_skill_id": 1, "target_skill_id": 100}
+            )
+        
+        # Assert
+        assert response.status_code == 409
+        data = response.json()["detail"]
+        assert data["existing_skill_id"] == 200
+        assert data["existing_skill_name"] == "Python Development"
+
+
+# ============================================================================
+# TEST: GET /import/{import_run_id}/unresolved-skills/{raw_skill_id}/suggestions
+# ============================================================================
+
+class TestGetSingleSkillSuggestions:
+    """Test GET /import/{run_id}/unresolved-skills/{raw_skill_id}/suggestions endpoint."""
+    
+    def test_returns_suggestions_for_valid_skill(self):
+        """Should return suggestions for a single unresolved skill."""
+        # Arrange
+        mock_db = MagicMock()
+        mock_response = MagicMock()
+        mock_response.raw_skill_id = 42
+        mock_response.raw_text = "Python Dev"
+        mock_response.normalized_text = "python dev"
+        mock_response.employee_name = "John Doe"
+        mock_response.employee_zid = "Z001234"
+        mock_response.suggestions = [
+            MagicMock(
+                skill_id=100,
+                skill_name="Python",
+                category="Programming",
+                subcategory="Languages",
+                match_type="exact",
+                confidence=1.0
+            )
+        ]
+        
+        with patch('app.api.routes.import_excel.get_single_skill_suggestions', 
+                   return_value=mock_response), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.get('/import/test-job-123/unresolved-skills/42/suggestions')
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data["raw_skill_id"] == 42
+        assert data["raw_text"] == "Python Dev"
+        assert len(data["suggestions"]) == 1
+        assert data["suggestions"][0]["skill_name"] == "Python"
+    
+    def test_returns_404_for_nonexistent_job(self):
+        """Should return 404 when import job not found."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        from app.services.imports.unresolved_skills_service import ImportJobNotFoundError
+        
+        with patch('app.api.routes.import_excel.get_single_skill_suggestions', 
+                   side_effect=ImportJobNotFoundError("bad-job")), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.get('/import/bad-job/unresolved-skills/1/suggestions')
+        
+        # Assert
+        assert response.status_code == 404
+        assert "not found" in response.json()["detail"].lower()
+    
+    def test_returns_404_for_nonexistent_raw_skill(self):
+        """Should return 404 when raw_skill_id not found."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        from app.services.imports.unresolved_skills_service import RawSkillNotFoundError
+        
+        with patch('app.api.routes.import_excel.get_single_skill_suggestions', 
+                   side_effect=RawSkillNotFoundError(999)), \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            
+            # Act
+            response = client.get('/import/test-job/unresolved-skills/999/suggestions')
+        
+        # Assert
+        assert response.status_code == 404
+        assert "999" in response.json()["detail"]
+    
+    def test_passes_query_parameters(self):
+        """Should pass max_suggestions and include_embeddings params."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        with patch('app.api.routes.import_excel.get_single_skill_suggestions') as mock_get, \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            mock_get.return_value = MagicMock(
+                raw_skill_id=1,
+                raw_text="Test",
+                normalized_text="test",
+                employee_name=None,
+                employee_zid=None,
+                suggestions=[]
+            )
+            
+            # Act
+            client.get('/import/job-1/unresolved-skills/1/suggestions?max_suggestions=5&include_embeddings=false')
+        
+        # Assert
+        mock_get.assert_called_once()
+        _, kwargs = mock_get.call_args
+        assert kwargs.get('max_suggestions') == 5
+        assert kwargs.get('include_embeddings') is False
+    
+    def test_only_fetches_single_skill(self):
+        """Should call service with specific raw_skill_id (not fetch all skills)."""
+        # Arrange
+        mock_db = MagicMock()
+        
+        with patch('app.api.routes.import_excel.get_single_skill_suggestions') as mock_get, \
+             patch('app.api.routes.import_excel.get_unresolved_skills') as mock_get_all, \
+             patch('app.api.routes.import_excel.get_db', return_value=mock_db):
+            mock_get.return_value = MagicMock(
+                raw_skill_id=42,
+                raw_text="Test",
+                normalized_text="test",
+                employee_name=None,
+                employee_zid=None,
+                suggestions=[]
+            )
+            
+            # Act
+            client.get('/import/job-1/unresolved-skills/42/suggestions')
+        
+        # Assert - single skill endpoint called, NOT the all-skills endpoint
+        mock_get.assert_called_once()
+        mock_get_all.assert_not_called()
+        
+        # Verify raw_skill_id is 42, not all skills
+        _, kwargs = mock_get.call_args
+        assert kwargs.get('raw_skill_id') == 42

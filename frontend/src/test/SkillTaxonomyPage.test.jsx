@@ -14,7 +14,7 @@
  * - Skill search/filter
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import SkillTaxonomyPage from '@/pages/MasterData/SkillTaxonomyPage.jsx';
 
@@ -898,6 +898,273 @@ describe('SkillTaxonomyPage', () => {
       await waitFor(() => {
         expect(screen.getByText('Python')).toBeInTheDocument();
         expect(screen.getByText('JavaScript')).toBeInTheDocument();
+      });
+    });
+  });
+
+  // =========================================================================
+  // Tree-Level Skill Search (Skill Taxonomy specific)
+  // =========================================================================
+  describe('Tree-Level Skill Search', () => {
+    it('should search for existing Category and return it', async () => {
+      // Act
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      // Wait for data to load
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      // Find the tree search input
+      const searchInput = screen.getByPlaceholderText('Search categories, skills...');
+      expect(searchInput).toBeInTheDocument();
+
+      // Search for category
+      fireEvent.change(searchInput, { target: { value: 'Programming' } });
+      await vi.advanceTimersByTimeAsync(400); // Wait for debounce
+
+      // Category should still be visible
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      // Should NOT show "No results found"
+      expect(screen.queryByText(/No results found/)).not.toBeInTheDocument();
+    });
+
+    it('should search for existing Sub-Category and return it', async () => {
+      // Act
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      // Wait for data to load
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      // Expand Programming to see subcategories
+      fireEvent.click(screen.getByText('Programming'));
+      await vi.advanceTimersByTimeAsync(50);
+
+      // Find the tree search input
+      const searchInput = screen.getByPlaceholderText('Search categories, skills...');
+
+      // Search for subcategory
+      fireEvent.change(searchInput, { target: { value: 'Languages' } });
+      await vi.advanceTimersByTimeAsync(400); // Wait for debounce
+
+      // Subcategory should be visible
+      await waitFor(() => {
+        expect(screen.getAllByText('Languages').length).toBeGreaterThan(0);
+      });
+
+      // Should NOT show "No results found"
+      expect(screen.queryByText(/No results found/)).not.toBeInTheDocument();
+    });
+
+    it('should search for Skill name and show global search results in right panel', async () => {
+      // Act
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      // Wait for data to load
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      // Find the tree search input
+      const searchInput = screen.getByPlaceholderText('Search categories, skills...');
+
+      // Search for skill "React" (which is in Frameworks subcategory)
+      fireEvent.change(searchInput, { target: { value: 'React' } });
+      await vi.advanceTimersByTimeAsync(500); // Wait for debounce + state updates
+
+      // The key behavior: when searching for a skill name:
+      // 1. Right panel shows "Search Results" with matching skills
+      // 2. Tree panel shows skill count message
+      // 3. Does NOT auto-select subcategory
+      
+      // Wait for search mode to activate and show results
+      await waitFor(() => {
+        // Should show "Search Results" title in right panel
+        expect(screen.getByText('Search Results')).toBeInTheDocument();
+      });
+
+      // React skill should appear in the search results table
+      await waitFor(() => {
+        const reactElements = screen.queryAllByText('React');
+        expect(reactElements.length).toBeGreaterThan(0);
+      });
+
+      // Should show the skill count in tree panel fallback (text may contain "1 skill")
+      await waitFor(() => {
+        // The fallback content shows result count - look for the count pattern
+        const fallbackContent = screen.getByText((content, element) => {
+          return element?.tagName === 'STRONG' && /\d+\s*skill/.test(content);
+        });
+        expect(fallbackContent).toBeInTheDocument();
+      });
+
+      // Should NOT show the generic "No results found for" message
+      expect(screen.queryByText(/No results found for "React"/)).not.toBeInTheDocument();
+    });
+
+    it('should show "No results found" for non-existing term', async () => {
+      // Act
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      // Wait for data to load
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      // Find the tree search input
+      const searchInput = screen.getByPlaceholderText('Search categories, skills...');
+
+      // Search for non-existing term
+      fireEvent.change(searchInput, { target: { value: 'XYZNonExistent123' } });
+      await vi.advanceTimersByTimeAsync(400); // Wait for debounce
+
+      // Should show "No results found"
+      await waitFor(() => {
+        expect(screen.getByText(/No results found for/)).toBeInTheDocument();
+      });
+    });
+
+    it('should restore normal tree state when clearing search', async () => {
+      // Act
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      // Wait for data to load
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+        expect(screen.getByText('Database')).toBeInTheDocument();
+      });
+
+      // Find the tree search input
+      const searchInput = screen.getByPlaceholderText('Search categories, skills...');
+
+      // Search for something
+      fireEvent.change(searchInput, { target: { value: 'React' } });
+      await vi.advanceTimersByTimeAsync(500); // Wait for debounce + extra buffer
+
+      // Should show search results mode
+      await waitFor(() => {
+        expect(screen.getByText('Search Results')).toBeInTheDocument();
+      });
+
+      // Clear search using the clear button (more reliable than changing value)
+      const clearButton = screen.getByLabelText('Clear search');
+      fireEvent.click(clearButton);
+      await vi.advanceTimersByTimeAsync(500); // Wait for debounce
+
+      // Tree should be restored - categories visible in tree structure
+      // Use queryAllByText to handle cases where text appears in multiple places
+      await waitFor(() => {
+        const programmingElements = screen.queryAllByText('Programming');
+        expect(programmingElements.length).toBeGreaterThan(0);
+      });
+
+      // Search Results panel should be gone (normal mode restored)
+      await waitFor(() => {
+        expect(screen.queryByText('Search Results')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should navigate to subcategory when clicking a search result', async () => {
+      // Act
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      // Wait for data to load
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      // Find the tree search input
+      const searchInput = screen.getByPlaceholderText('Search categories, skills...');
+
+      // Search for skill "React"
+      fireEvent.change(searchInput, { target: { value: 'React' } });
+      await vi.advanceTimersByTimeAsync(500);
+
+      // Wait for search results
+      await waitFor(() => {
+        expect(screen.getByText('Search Results')).toBeInTheDocument();
+      });
+
+      // Find and click on the React row in the results table
+      const reactRow = screen.getByText('React').closest('tr');
+      expect(reactRow).toBeInTheDocument();
+      fireEvent.click(reactRow);
+      await vi.advanceTimersByTimeAsync(100);
+
+      // After clicking, should clear search and navigate to subcategory
+      await waitFor(() => {
+        // Search Results should be hidden (back to normal mode)
+        expect(screen.queryByText('Search Results')).not.toBeInTheDocument();
+      });
+
+      // The Frameworks subcategory should now be selected/visible
+      await waitFor(() => {
+        const frameworksElements = screen.queryAllByText('Frameworks');
+        expect(frameworksElements.length).toBeGreaterThan(0);
+      });
+    });
+
+    it('should show no skills found when search matches nothing', async () => {
+      // Act
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      // Wait for data to load
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      // Find the tree search input
+      const searchInput = screen.getByPlaceholderText('Search categories, skills...');
+
+      // Search for non-existing skill
+      fireEvent.change(searchInput, { target: { value: 'XYZNonExistent123' } });
+      await vi.advanceTimersByTimeAsync(500);
+
+      // Should show Search Results title but with no skills message
+      await waitFor(() => {
+        expect(screen.getByText('Search Results')).toBeInTheDocument();
+      });
+
+      await waitFor(() => {
+        expect(screen.getByText(/No skills found/)).toBeInTheDocument();
+      });
+    });
+
+    it('should display match info in search results (alias match indicator)', async () => {
+      // This test verifies that the search results show relevant match info
+      renderWithRouter(<SkillTaxonomyPage />);
+      await vi.advanceTimersByTimeAsync(100);
+
+      await waitFor(() => {
+        expect(screen.getByText('Programming')).toBeInTheDocument();
+      });
+
+      const searchInput = screen.getByPlaceholderText('Search categories, skills...');
+
+      // Search for a term that matches a skill name
+      fireEvent.change(searchInput, { target: { value: 'React' } });
+      await vi.advanceTimersByTimeAsync(500);
+
+      // Should show Search Results
+      await waitFor(() => {
+        expect(screen.getByText('Search Results')).toBeInTheDocument();
+      });
+
+      // Should show the result count in the InfoSection title
+      await waitFor(() => {
+        expect(screen.getByText(/Search Results \(\d+\)/)).toBeInTheDocument();
       });
     });
   });

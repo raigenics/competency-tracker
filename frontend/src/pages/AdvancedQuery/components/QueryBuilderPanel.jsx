@@ -5,7 +5,7 @@ import EnhancedSkillSelector from './EnhancedSkillSelector';
 import { capabilityFinderApi } from '../../../services/api/capabilityFinderApi';
 import { dropdownApi } from '../../../services/api/dropdownApi';
 
-const QueryBuilderPanel = ({ query, onQueryChange, onSearch, onClearFilters, isLoading, hasSearched }) => {
+const QueryBuilderPanel = ({ query, onQueryChange, onSearch, onClearFilters, isLoading, hasSearched: _hasSearched }) => {
   const [availableRoles, setAvailableRoles] = useState([]);
   const [subSegments, setSubSegments] = useState([]);
   const [teams, setTeams] = useState([]);

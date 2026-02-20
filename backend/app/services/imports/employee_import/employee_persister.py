@@ -8,6 +8,7 @@ from typing import Dict, Optional
 from datetime import datetime
 import pandas as pd
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from app.models import Employee, SubSegment, Project, Team, Role
 from .allocation_writer import parse_allocation_pct, upsert_active_project_allocation
@@ -289,8 +290,13 @@ class EmployeePersister:
         project/sub_segment are derived via team -> project -> sub_segment.
         """
         # Get foreign key IDs - master data should exist from hierarchical processing
+        # Normalize input for case-insensitive matching
+        sub_segment_input = str(row['sub_segment']).strip().lower() if row.get('sub_segment') else ""
+        project_input = str(row['project']).strip().lower() if row.get('project') else ""
+        team_input = str(row['team']).strip().lower() if row.get('team') else ""
+        
         sub_segment = self.db.query(SubSegment).filter(
-            SubSegment.sub_segment_name == row['sub_segment']
+            func.lower(func.trim(SubSegment.sub_segment_name)) == sub_segment_input
         ).first()
 
         if not sub_segment:
@@ -298,7 +304,7 @@ class EmployeePersister:
             raise ImportServiceError(f"Sub-segment not found: {row['sub_segment']}")
 
         project = self.db.query(Project).filter(
-            Project.project_name == row['project'],
+            func.lower(func.trim(Project.project_name)) == project_input,
             Project.sub_segment_id == sub_segment.sub_segment_id
         ).first()
 
@@ -306,8 +312,15 @@ class EmployeePersister:
             from app.services.import_service import ImportServiceError
             raise ImportServiceError(f"Project not found: {row['project']} under sub-segment: {row['sub_segment']}")
 
+        # Debug logging for team lookup
+        logger.debug(f"Team lookup: input='{row.get('team')}' normalized='{team_input}' project_id={project.project_id}")
+        
+        # Get top 5 teams under this project for debugging
+        teams_in_project = self.db.query(Team).filter(Team.project_id == project.project_id).limit(5).all()
+        logger.debug(f"Teams under project {project.project_id}: {[t.team_name for t in teams_in_project]}")
+        
         team = self.db.query(Team).filter(
-            Team.team_name == row['team'],
+            func.lower(func.trim(Team.team_name)) == team_input,
             Team.project_id == project.project_id
         ).first()
 

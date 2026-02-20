@@ -3,7 +3,7 @@
  * 
  * Tests for src/rbac/permissions.js
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 // Use vi.hoisted to create mock state that's available during mock hoisting
 const { mockRbacConfig } = vi.hoisted(() => ({

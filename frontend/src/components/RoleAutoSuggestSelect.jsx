@@ -7,7 +7,7 @@
  * 
  * Uses existing CSS classes from AddEmployeeDrawer styles.
  */
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 
 /**
  * @param {Object} props
@@ -22,47 +22,53 @@ export function RoleAutoSuggestSelect({
   value, 
   onChange, 
   roles = [], 
-  error,
+  error: _error,
   loading = false,
   disabled = false
 }) {
   // Input text (for filtering)
   const [inputValue, setInputValue] = useState('');
+  // Track previous value prop for sync in render
+  const [prevValue, setPrevValue] = useState(value);
   // Whether dropdown is open
   const [isOpen, setIsOpen] = useState(false);
-  // Filtered roles based on input
-  const [filteredRoles, setFilteredRoles] = useState([]);
   // Highlighted index for keyboard nav
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+
+  // Sync inputValue when value prop changes (React recommended pattern)
+  if (value !== prevValue) {
+    setPrevValue(value);
+    if (value && roles.length > 0) {
+      const selectedRole = roles.find(r => r.role_id === value);
+      if (selectedRole && inputValue !== selectedRole.role_name) {
+        setInputValue(selectedRole.role_name);
+      }
+    } else if (!value && inputValue !== '') {
+      setInputValue('');
+    }
+  }
+
+  // Derive filtered roles from inputValue and roles (no useState needed)
+  const filteredRoles = useMemo(() => {
+    if (!inputValue.trim()) {
+      return roles;
+    }
+    const searchTerm = inputValue.toLowerCase();
+    return roles.filter(r => r.role_name.toLowerCase().includes(searchTerm));
+  }, [inputValue, roles]);
+
+  // Track previous filtered roles length for render-time sync
+  const [prevFilteredRolesLength, setPrevFilteredRolesLength] = useState(filteredRoles.length);
+  if (filteredRoles.length !== prevFilteredRolesLength) {
+    setPrevFilteredRolesLength(filteredRoles.length);
+    if (highlightedIndex !== -1) {
+      setHighlightedIndex(-1);
+    }
+  }
   
   const containerRef = useRef(null);
   const inputRef = useRef(null);
   const listRef = useRef(null);
-
-  // Find the selected role's name when value changes
-  useEffect(() => {
-    if (value && roles.length > 0) {
-      const selectedRole = roles.find(r => r.role_id === value);
-      if (selectedRole) {
-        setInputValue(selectedRole.role_name);
-      }
-    } else if (!value) {
-      setInputValue('');
-    }
-  }, [value, roles]);
-
-  // Filter roles when input changes
-  useEffect(() => {
-    if (!inputValue.trim()) {
-      setFilteredRoles(roles);
-    } else {
-      const searchTerm = inputValue.toLowerCase();
-      setFilteredRoles(
-        roles.filter(r => r.role_name.toLowerCase().includes(searchTerm))
-      );
-    }
-    setHighlightedIndex(-1);
-  }, [inputValue, roles]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -93,8 +99,7 @@ export function RoleAutoSuggestSelect({
   // Handle input focus
   const handleFocus = useCallback(() => {
     setIsOpen(true);
-    setFilteredRoles(roles);
-  }, [roles]);
+  }, []);
 
   // Handle selecting a role
   const handleSelect = useCallback((role) => {

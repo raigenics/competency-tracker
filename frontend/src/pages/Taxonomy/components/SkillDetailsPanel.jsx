@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { Info, Users, Award, ArrowRight, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { skillApi } from '../../../services/api/skillApi';
 import { employeeApi } from '../../../services/api/employeeApi';
 import TalentResultsTable from '../../../components/TalentResultsTable';
@@ -15,7 +14,7 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
-  const navigate = useNavigate();  // Fetch skill summary when skill changes
+  // Fetch skill summary when skill changes
   useEffect(() => {
     // Normalize skill ID - handle both 'id' (from mock data) and 'skill_id' (from API)
     const skillId = skill?.skill_id || skill?.id;

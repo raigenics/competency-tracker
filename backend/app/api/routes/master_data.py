@@ -34,7 +34,7 @@ from app.schemas.master_data_update import (
 )
 from app.services.master_data import skill_taxonomy_service
 from app.services.master_data import taxonomy_update_service
-from app.services.master_data.exceptions import NotFoundError, ConflictError, ValidationError
+from app.services.master_data.exceptions import NotFoundError, ConflictError, ValidationError, EmbeddingError
 
 logger = logging.getLogger(__name__)
 
@@ -102,6 +102,12 @@ def _handle_master_data_error(e: Exception) -> HTTPException:
         return HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=e.message
+        )
+    elif isinstance(e, EmbeddingError):
+        logger.error(f"Embedding error: {e.message}", exc_info=True)
+        return HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Embedding generation failed: {e.message}"
         )
     else:
         logger.error(f"Unexpected error: {str(e)}", exc_info=True)

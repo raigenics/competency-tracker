@@ -229,6 +229,153 @@ const OrgHierarchyPage = () => {
     return findItemById(treeData, selectedNodeId);
   }, [selectedNodeId, treeData]);
 
+  // Tree search state (for team fallback search)
+  const [treeSearchQuery, setTreeSearchQuery] = useState('');
+
+  /**
+   * Extract all teams from tree structure with their parent info.
+   * Teams are stored in project.teams array (not in tree children).
+   */
+  const allTeams = useMemo(() => {
+    const teams = [];
+    for (const segment of treeData) {
+      for (const subSegment of segment.children || []) {
+        for (const project of subSegment.children || []) {
+          for (const team of project.teams || []) {
+            teams.push({
+              ...team,
+              projectId: project.id,
+              projectName: project.name,
+              subSegmentId: subSegment.id,
+              subSegmentName: subSegment.name,
+              segmentId: segment.id,
+              segmentName: segment.name,
+            });
+          }
+        }
+      }
+    }
+    return teams;
+  }, [treeData]);
+
+  /**
+   * Check if tree filter has matches for current search query.
+   * Returns true if any segment/subsegment/project name matches.
+   */
+  const hasTreeMatches = useMemo(() => {
+    if (!treeSearchQuery || treeSearchQuery.trim().length < 2) return true; // No search = has matches
+    
+    const lowerQuery = treeSearchQuery.toLowerCase().trim();
+    
+    const matchesNode = (nodes) => {
+      for (const node of nodes) {
+        if (node.name.toLowerCase().includes(lowerQuery)) return true;
+        if (node.children && matchesNode(node.children)) return true;
+      }
+      return false;
+    };
+    
+    return matchesNode(treeData);
+  }, [treeSearchQuery, treeData]);
+
+  /**
+   * Whether user is in team search mode (tree has no matches but we may have team matches).
+   */
+  const isTeamSearchMode = useMemo(() => {
+    return treeSearchQuery.trim().length >= 2 && !hasTreeMatches;
+  }, [treeSearchQuery, hasTreeMatches]);
+
+  /**
+   * Get ranked team matches across all projects.
+   * Ranking (higher rank = better match):
+   *   A) Exact match team name (rank 4)
+   *   B) Whole-word match (rank 3)
+   *   C) Prefix match (rank 2)
+   *   D) Substring match (rank 1)
+   * Tie-breaker: alphabetically by team name
+   */
+  const getRankedTeamMatches = useCallback((query) => {
+    if (!query || query.trim().length < 2) return [];
+    const lowerQuery = query.toLowerCase().trim().replace(/\s+/g, ' ');
+    
+    // Regex for whole-word match (word boundary) - escape special chars
+    const escapedQuery = lowerQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wholeWordRegex = new RegExp(`\\b${escapedQuery}\\b`, 'i');
+    
+    const results = [];
+    
+    for (const team of allTeams) {
+      const lowerTeamName = team.name.toLowerCase().replace(/\s+/g, ' ');
+      let rank = 0;
+      let matchType = '';
+      
+      if (lowerTeamName === lowerQuery) {
+        rank = 4; // A - Exact match
+        matchType = 'exact';
+      } else if (wholeWordRegex.test(team.name)) {
+        rank = 3; // B - Whole-word match
+        matchType = 'word';
+      } else if (lowerTeamName.startsWith(lowerQuery)) {
+        rank = 2; // C - Prefix match
+        matchType = 'prefix';
+      } else if (lowerTeamName.includes(lowerQuery)) {
+        rank = 1; // D - Substring match
+        matchType = 'substring';
+      }
+      
+      if (rank > 0) {
+        results.push({
+          team,
+          rank,
+          matchType,
+        });
+      }
+    }
+    
+    // Sort by rank (descending), then by team name (ascending)
+    results.sort((a, b) => {
+      if (b.rank !== a.rank) return b.rank - a.rank;
+      return a.team.name.localeCompare(b.team.name);
+    });
+    
+    return results;
+  }, [allTeams]);
+
+  /**
+   * Team search results - only computed when in team search mode.
+   */
+  const teamSearchResults = useMemo(() => {
+    if (!isTeamSearchMode) return [];
+    return getRankedTeamMatches(treeSearchQuery);
+  }, [isTeamSearchMode, treeSearchQuery, getRankedTeamMatches]);
+
+  /**
+   * Handle tree search change - updates search query state.
+   */
+  const handleTreeSearchChange = useCallback((query) => {
+    setTreeSearchQuery(query);
+  }, []);
+
+  /**
+   * Fallback content for tree panel when in team search mode with results.
+   * Shows count of matching teams.
+   */
+  const treeSearchFallbackContent = useMemo(() => {
+    if (!isTeamSearchMode || teamSearchResults.length === 0) return null;
+    
+    return (
+      <div className="empty-state" style={{ padding: '24px', textAlign: 'center' }}>
+        <div style={{ fontSize: '32px', marginBottom: '8px' }}>🔍</div>
+        <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+          Found <strong>{teamSearchResults.length} team{teamSearchResults.length !== 1 ? 's' : ''}</strong> matching "{treeSearchQuery}"
+        </p>
+        <p style={{ color: 'var(--text-tertiary, #94a3b8)', fontSize: '12px', marginTop: '4px' }}>
+          See results in right panel →
+        </p>
+      </div>
+    );
+  }, [isTeamSearchMode, teamSearchResults, treeSearchQuery]);
+
   // Handlers
   const handleNodeSelect = (nodeId) => {
     setSelectedNodeId(nodeId);
@@ -272,20 +419,6 @@ const OrgHierarchyPage = () => {
         setDeleteModalOpen(true);
       }
     }
-  };
-
-  const handleAddChild = () => {
-    if (selectedItem?.type === 'segment') {
-      setCreateType('subsegment');
-    } else if (selectedItem?.type === 'subsegment') {
-      setCreateType('project');
-    } else if (selectedItem?.type === 'project') {
-      setCreateType('team');
-    } else {
-      setCreateType('segment');
-    }
-    setCreateError(null);
-    setCreateModalOpen(true);
   };
 
   const handleCreate = async (formData) => {
@@ -393,10 +526,6 @@ const OrgHierarchyPage = () => {
     setImportModalOpen(false);
   };
 
-  const handleViewAudit = () => {
-    setAuditModalOpen(true);
-  };
-
   // Get dependencies for modal
   // Uses API-returned dependencies if available, otherwise falls back to local state
   const getDependencies = () => {
@@ -450,22 +579,6 @@ const OrgHierarchyPage = () => {
   const handleCloseDependencyModal = () => {
     setDependencyModalOpen(false);
     setApiDependencies(null);
-  };
-
-  // Determine what child type can be added
-  const getChildType = () => {
-    if (!selectedItem) return null;
-    if (selectedItem.type === 'segment') return 'Sub-Segment';
-    if (selectedItem.type === 'subsegment') return 'Project';
-    if (selectedItem.type === 'project') return 'Team';
-    return null;
-  };
-
-  // Handler specifically for adding sub-segment when a segment is selected
-  const handleAddSubSegment = () => {
-    setCreateType('subsegment');
-    setCreateError(null);
-    setCreateModalOpen(true);
   };
 
   /**
@@ -578,7 +691,8 @@ const OrgHierarchyPage = () => {
       }
     };
     
-    const childType = getChildTypeLabel();
+    // Reserved for future use when header actions are implemented
+    const _childType = getChildTypeLabel();
     
     
   };
@@ -593,6 +707,69 @@ const OrgHierarchyPage = () => {
     // Show error state
     if (error) {
       return <ErrorState error={error} onRetry={loadHierarchy} />;
+    }
+
+    // Team search mode - show global team search results
+    if (isTeamSearchMode) {
+      if (teamSearchResults.length === 0) {
+        return (
+          <div className="empty-state" style={{ padding: '48px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔍</div>
+            <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>No results found</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+              No teams match "{treeSearchQuery}". Try a different search term.
+            </p>
+          </div>
+        );
+      }
+
+      return (
+        <InfoSection title={`Search Results (${teamSearchResults.length})`}>
+          <div className="search-results-table">
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Team Name</th>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Project</th>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Sub-Segment</th>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Segment</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamSearchResults.map((result) => (
+                  <tr 
+                    key={result.team.id}
+                    style={{ 
+                      cursor: 'pointer',
+                      backgroundColor: 'var(--bg-secondary)',
+                    }}
+                    onClick={() => {
+                      // Clear search and navigate to the team's parent project
+                      setTreeSearchQuery('');
+                      setSelectedNodeId(result.team.projectId);
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                  >
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ fontWeight: 500 }}>{result.team.name}</div>
+                    </td>
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                      {result.team.projectName}
+                    </td>
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                      {result.team.subSegmentName}
+                    </td>
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                      {result.team.segmentName}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </InfoSection>
+      );
     }
     
     // Show empty state when no data or no selection
@@ -1017,13 +1194,17 @@ const OrgHierarchyPage = () => {
             setCreateError(null);
             setCreateModalOpen(true);
           }}
+          // Team search fallback support
+          onSearchChange={handleTreeSearchChange}
+          searchFallbackContent={treeSearchFallbackContent}
+          hasSearchFallback={isTeamSearchMode && teamSearchResults.length > 0}
         />
         
         <DetailsPanel
-          title={selectedItem ? `${selectedItem.name}` : 'Details'}
-          subtitle={null}
-          headerContent={selectedItem ? renderHeaderContent() : null}
-          headerActions={selectedItem ? renderHeaderActions() : null}
+          title={isTeamSearchMode ? 'Search Results' : (selectedItem ? `${selectedItem.name}` : 'Details')}
+          subtitle={isTeamSearchMode ? `Searching for "${treeSearchQuery}"` : null}
+          headerContent={isTeamSearchMode ? null : (selectedItem ? renderHeaderContent() : null)}
+          headerActions={isTeamSearchMode ? null : (selectedItem ? renderHeaderActions() : null)}
           showActions={false}
           onEdit={handleEdit}
           onDelete={handleDelete}

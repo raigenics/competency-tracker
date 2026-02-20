@@ -196,6 +196,7 @@ class EmployeeImportOrchestrator:
             
             unresolved_logger = UnresolvedSkillLogger(self.db)
             unresolved_logger.set_name_normalizer(self.name_normalizer.normalize_name)
+            unresolved_logger.set_job_id(self.job_id)  # Link raw_skill_inputs to this import job
             
             skill_persister = SkillPersister(
                 self.db, self.import_stats,

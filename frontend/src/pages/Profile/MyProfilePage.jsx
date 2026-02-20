@@ -204,7 +204,7 @@ const MyProfilePage = () => {
         setHighlightedIndex((prev) => (prev > 0 ? prev - 1 : -1));
         break;
       
-      case 'Enter':
+      case 'Enter': {
         e.preventDefault();
         // If an item is highlighted, select it; otherwise select the first suggestion
         const indexToSelect = highlightedIndex >= 0 ? highlightedIndex : 0;
@@ -212,6 +212,7 @@ const MyProfilePage = () => {
           handleSelectEmployee(suggestions[indexToSelect]);
         }
         break;
+      }
       
       case 'Escape':
         e.preventDefault();

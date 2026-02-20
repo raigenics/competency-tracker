@@ -12,7 +12,8 @@
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor, within } from '@testing-library/react';
-import { EmployeeSkillsTab, createEmptySkill, validateSkillRow } from '@/components/skills/EmployeeSkillsTab.jsx';
+import { EmployeeSkillsTab } from '@/components/skills/EmployeeSkillsTab.jsx';
+import { createEmptySkill, validateSkillRow } from '@/components/skills/skillHelpers.js';
 import { SUPER_ADMIN_EMAIL } from '@/config/constants.js';
 
 // Mock the useSkillSuggestions hook
@@ -60,7 +61,7 @@ const createMockUseSkillSuggestions = (overrides = {}) => ({
   loading: false,
   error: null,
   search: vi.fn(),
-  getSuggestions: vi.fn((query) => mockSkillsData),
+  getSuggestions: vi.fn((_query) => mockSkillsData),
   getSkillById: vi.fn((id) => mockSkillsData.find(s => s.skill_id === id)),
   clearSuggestions: vi.fn(),
   ...overrides
@@ -94,12 +95,10 @@ const createMockUseProficiencyLevels = (overrides = {}) => ({
 
 describe('EmployeeSkillsTab', () => {
   let mockOnSkillsChange;
-  let mockOnValidate;
 
   beforeEach(() => {
     vi.clearAllMocks();
     mockOnSkillsChange = vi.fn();
-    mockOnValidate = vi.fn();
     useSkillSuggestions.mockReturnValue(createMockUseSkillSuggestions());
     useProficiencyLevels.mockReturnValue(createMockUseProficiencyLevels());
   });

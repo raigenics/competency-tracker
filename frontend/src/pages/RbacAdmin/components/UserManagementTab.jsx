@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, Plus, Settings, Loader2 } from 'lucide-react';
 import { rbacAdminApi } from '../../../services/api/rbacAdminApi.js';
 import AddUserModal from './AddUserModal.jsx';
@@ -28,20 +28,10 @@ const UserManagementTab = () => {
   const [roles, setRoles] = useState([]);
   const [scopeTypes, setScopeTypes] = useState([]);
 
-  // Load users on mount and when filters change
-  useEffect(() => {
-    loadUsers();
-  }, [searchTerm, roleFilter, scopeTypeFilter, statusFilter]);
-
-  // Load lookup data on mount
-  useEffect(() => {
-    loadLookupData();
-  }, []);
-
   /**
    * Load users from API with current filters
    */
-  const loadUsers = async () => {
+  const loadUsers = useCallback(async () => {
     setLoading(true);
     try {
       const params = {};
@@ -58,7 +48,17 @@ const UserManagementTab = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [searchTerm, roleFilter, scopeTypeFilter, statusFilter]);
+
+  // Load users on mount and when filters change
+  useEffect(() => {
+    loadUsers();
+  }, [loadUsers]);
+
+  // Load lookup data on mount
+  useEffect(() => {
+    loadLookupData();
+  }, []);
 
   /**
    * Load roles and scope types for filter dropdowns

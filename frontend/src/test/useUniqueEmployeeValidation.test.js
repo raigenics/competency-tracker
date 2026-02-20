@@ -8,7 +8,7 @@
  * 4. Loading state management
  * 5. excludeEmployeeId for edit mode
  */
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { renderHook, act, waitFor } from '@testing-library/react';
 import { useUniqueEmployeeValidation } from '@/hooks/useUniqueEmployeeValidation.js';
 

@@ -13,7 +13,7 @@ import { useProficiencyLevels } from '@/hooks/useProficiencyLevels.js';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+globalThis.fetch = mockFetch;
 
 // Mock API response data
 const mockApiResponse = {

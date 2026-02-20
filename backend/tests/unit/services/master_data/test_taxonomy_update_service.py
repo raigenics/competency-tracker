@@ -234,7 +234,8 @@ class TestUpdateSubcategoryName:
 class TestUpdateSkillName:
     """Tests for update_skill_name function."""
     
-    def test_success_update(self, mock_db, mock_skill):
+    @patch('app.services.master_data.taxonomy_update_service._update_skill_embedding')
+    def test_success_update(self, mock_update_embedding, mock_db, mock_skill):
         """Should successfully update skill name."""
         # Arrange
         skill = mock_skill(skill_id=1, skill_name="Old Name", subcategory_id=1)
@@ -250,6 +251,7 @@ class TestUpdateSkillName:
         assert result.id == 1
         assert result.name == "New Name"
         mock_db.commit.assert_called_once()
+        mock_update_embedding.assert_called_once()
     
     def test_not_found(self, mock_db):
         """Should raise NotFoundError when skill doesn't exist."""
@@ -295,13 +297,16 @@ class TestUpdateSkillName:
 class TestUpdateAlias:
     """Tests for update_alias function."""
     
-    def test_success_update_text(self, mock_db, mock_alias):
+    @patch('app.services.master_data.taxonomy_update_service._update_skill_embedding')
+    def test_success_update_text(self, mock_update_embedding, mock_db, mock_alias):
         """Should successfully update alias text."""
         # Arrange
         alias = mock_alias(alias_id=1, alias_text="Old Text", skill_id=1)
+        mock_skill = Mock(skill_id=1, skill_name="Test Skill")
         mock_db.query.return_value.filter.return_value.first.side_effect = [
-            alias,  # First call: find alias
-            None    # Second call: check duplicates
+            alias,       # First call: find alias
+            None,        # Second call: check duplicates
+            mock_skill   # Third call: find skill for embedding update
         ]
         
         # Act
@@ -311,6 +316,7 @@ class TestUpdateAlias:
         assert result.id == 1
         assert result.alias_text == "New Text"
         mock_db.commit.assert_called_once()
+        mock_update_embedding.assert_called_once()
     
     def test_not_found(self, mock_db):
         """Should raise NotFoundError when alias doesn't exist."""

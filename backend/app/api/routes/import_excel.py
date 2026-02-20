@@ -15,6 +15,20 @@ from sqlalchemy.orm import Session
 
 from app.services.import_service import ImportService, ImportServiceError
 from app.services.import_job_service import ImportJobService, JobStatusDBError
+from app.services.imports.unresolved_skills_service import (
+    get_unresolved_skills,
+    get_single_skill_suggestions,
+    resolve_skill,
+    UnresolvedSkillsResponse,
+    SingleSkillSuggestionsResponse,
+    ResolveSkillRequest,
+    ResolveSkillResponse,
+    ImportJobNotFoundError,
+    RawSkillNotFoundError,
+    SkillNotFoundError,
+    AlreadyResolvedError,
+    AliasAlreadyExistsError
+)
 from app.db.session import get_db
 
 logger = logging.getLogger(__name__)
@@ -264,3 +278,164 @@ async def get_job_status(job_id: str, db: Session = Depends(get_db)) -> Dict[str
         status_code=status.HTTP_200_OK,
         content=job_status
     )
+
+
+# =============================================================================
+# UNRESOLVED SKILLS ENDPOINTS
+# =============================================================================
+
+@router.get("/{import_run_id}/unresolved-skills", response_model=UnresolvedSkillsResponse)
+async def get_import_unresolved_skills(
+    import_run_id: str,
+    include_suggestions: bool = True,
+    max_suggestions: int = 5,
+    db: Session = Depends(get_db)
+) -> UnresolvedSkillsResponse:
+    """
+    Get all unresolved skills for an import run with optional suggestions.
+    
+    Args:
+        import_run_id: The import job UUID
+        include_suggestions: Whether to include skill match suggestions (default: true)
+        max_suggestions: Maximum number of suggestions per skill (default: 5)
+        db: Database session
+        
+    Returns:
+        UnresolvedSkillsResponse with list of unresolved skills and suggestions
+        
+    Raises:
+        HTTPException 404: If import job not found
+    """
+    try:
+        result = get_unresolved_skills(
+            db=db,
+            import_run_id=import_run_id,
+            include_suggestions=include_suggestions,
+            max_suggestions=max_suggestions
+        )
+        return result
+    except ImportJobNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.post("/{import_run_id}/unresolved-skills/resolve", response_model=ResolveSkillResponse)
+async def resolve_import_skill(
+    import_run_id: str,
+    request: ResolveSkillRequest,
+    db: Session = Depends(get_db)
+) -> ResolveSkillResponse:
+    """
+    Map an unresolved skill to an existing master skill and create alias.
+    
+    This endpoint:
+    1. Validates the import job and raw skill exist
+    2. Creates an alias mapping the raw text to the target skill
+    3. Marks the raw_skill_input as RESOLVED
+    
+    Args:
+        import_run_id: The import job UUID
+        request: ResolveSkillRequest with raw_skill_id and target_skill_id
+        db: Database session
+        
+    Returns:
+        ResolveSkillResponse with resolution details
+        
+    Raises:
+        HTTPException 404: If import job, raw skill, or target skill not found
+        HTTPException 400: If raw skill is already resolved
+        HTTPException 409: If alias already exists for a different skill
+    """
+    try:
+        result = resolve_skill(
+            db=db,
+            import_run_id=import_run_id,
+            raw_skill_id=request.raw_skill_id,
+            target_skill_id=request.target_skill_id,
+            resolved_by=None  # TODO: Get from auth context
+        )
+        return result
+    except ImportJobNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except RawSkillNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except SkillNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except AlreadyResolvedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except AliasAlreadyExistsError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail={
+                "message": str(e),
+                "existing_skill_id": e.existing_skill_id,
+                "existing_skill_name": e.existing_skill_name,
+                "alias_text": e.alias_text
+            }
+        )
+
+
+@router.get(
+    "/{import_run_id}/unresolved-skills/{raw_skill_id}/suggestions",
+    response_model=SingleSkillSuggestionsResponse
+)
+async def get_single_skill_suggestions_endpoint(
+    import_run_id: str,
+    raw_skill_id: int,
+    max_suggestions: int = 10,
+    include_embeddings: bool = True,
+    db: Session = Depends(get_db)
+) -> SingleSkillSuggestionsResponse:
+    """
+    Get suggestions for a single unresolved skill by raw_skill_id.
+    
+    This endpoint is optimized for the skill mapping modal - it fetches
+    suggestions for only ONE skill instead of computing suggestions for
+    all unresolved skills (which can be very slow with 500+ skills).
+    
+    Args:
+        import_run_id: The import job UUID
+        raw_skill_id: ID of the specific raw_skill_input to get suggestions for
+        max_suggestions: Maximum number of suggestions to return (default: 10)
+        include_embeddings: Include embedding-based suggestions (default: true)
+        db: Database session
+        
+    Returns:
+        SingleSkillSuggestionsResponse with suggestions for this one skill
+        
+    Raises:
+        HTTPException 404: If import job or raw skill not found
+    """
+    try:
+        result = get_single_skill_suggestions(
+            db=db,
+            import_run_id=import_run_id,
+            raw_skill_id=raw_skill_id,
+            max_suggestions=max_suggestions,
+            include_embeddings=include_embeddings
+        )
+        return result
+    except ImportJobNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except RawSkillNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )

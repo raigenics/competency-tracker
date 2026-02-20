@@ -415,6 +415,137 @@ class TestValidateRowRoleAlias:
         assert result.is_valid is True
         assert result.role_id == 530
     
+    def test_role_alias_slash_normalized_space_after(self, mock_db, mock_sub_segment, mock_project, mock_team):
+        """Should match role when input has space AFTER slash (Scrum Master/ TL)."""
+        # Arrange - Role with compound designation alias using slash
+        mock_role = MagicMock(spec=Role)
+        mock_role.role_id = 540
+        mock_role.role_name = "Scrum Master/Team Lead"
+        mock_role.role_alias = "Scrum Master/TL, SM/TL"
+        mock_role.deleted_at = None
+        
+        mock_db.first.side_effect = [mock_sub_segment, mock_project, mock_team]
+        mock_db.all.return_value = [mock_role]
+        
+        validator = MasterDataValidator(mock_db)
+        
+        # Act - Input has space AFTER slash
+        result = validator.validate_row(
+            sub_segment_name="Test SubSegment",
+            project_name="Test Project",
+            team_name="Test Team",
+            role_name="Scrum Master/ TL"  # Space after slash
+        )
+        
+        # Assert - Should match normalized alias
+        assert result.is_valid is True
+        assert result.role_id == 540
+    
+    def test_role_alias_slash_normalized_space_before(self, mock_db, mock_sub_segment, mock_project, mock_team):
+        """Should match role when input has space BEFORE slash (Scrum Master /TL)."""
+        # Arrange
+        mock_role = MagicMock(spec=Role)
+        mock_role.role_id = 541
+        mock_role.role_name = "Tech Lead/Manager"
+        mock_role.role_alias = "TL/Manager, Tech Lead/Mgr"
+        mock_role.deleted_at = None
+        
+        mock_db.first.side_effect = [mock_sub_segment, mock_project, mock_team]
+        mock_db.all.return_value = [mock_role]
+        
+        validator = MasterDataValidator(mock_db)
+        
+        # Act - Input has space BEFORE slash
+        result = validator.validate_row(
+            sub_segment_name="Test SubSegment",
+            project_name="Test Project",
+            team_name="Test Team",
+            role_name="TL /Manager"  # Space before slash
+        )
+        
+        # Assert
+        assert result.is_valid is True
+        assert result.role_id == 541
+    
+    def test_role_alias_slash_normalized_both_sides(self, mock_db, mock_sub_segment, mock_project, mock_team):
+        """Should match role when input has spaces on BOTH sides of slash (Scrum Master / TL)."""
+        # Arrange
+        mock_role = MagicMock(spec=Role)
+        mock_role.role_id = 542
+        mock_role.role_name = "Developer/Tester"
+        mock_role.role_alias = "Dev/QA"
+        mock_role.deleted_at = None
+        
+        mock_db.first.side_effect = [mock_sub_segment, mock_project, mock_team]
+        mock_db.all.return_value = [mock_role]
+        
+        validator = MasterDataValidator(mock_db)
+        
+        # Act - Input has spaces on both sides of slash
+        result = validator.validate_row(
+            sub_segment_name="Test SubSegment",
+            project_name="Test Project",
+            team_name="Test Team",
+            role_name="Dev / QA"  # Spaces around slash
+        )
+        
+        # Assert
+        assert result.is_valid is True
+        assert result.role_id == 542
+    
+    def test_role_alias_slash_normalized_role_name_match(self, mock_db, mock_sub_segment, mock_project, mock_team):
+        """Should match role_name itself with slash spacing variations."""
+        # Arrange - Input should match role_name (not alias)
+        mock_role = MagicMock(spec=Role)
+        mock_role.role_id = 543
+        mock_role.role_name = "Solution Architect/Designer"
+        mock_role.role_alias = None
+        mock_role.deleted_at = None
+        
+        mock_db.first.side_effect = [mock_sub_segment, mock_project, mock_team]
+        mock_db.all.return_value = [mock_role]
+        
+        validator = MasterDataValidator(mock_db)
+        
+        # Act - Input with spaces around slash should match role_name
+        result = validator.validate_row(
+            sub_segment_name="Test SubSegment",
+            project_name="Test Project",
+            team_name="Test Team",
+            role_name="Solution Architect / Designer"
+        )
+        
+        # Assert
+        assert result.is_valid is True
+        assert result.role_id == 543
+    
+    def test_role_unrelated_still_fails(self, mock_db, mock_sub_segment, mock_project, mock_team):
+        """Should still fail for roles that don't match even with normalization."""
+        # Arrange
+        mock_role = MagicMock(spec=Role)
+        mock_role.role_id = 550
+        mock_role.role_name = "Scrum Master/TL"
+        mock_role.role_alias = None
+        mock_role.deleted_at = None
+        
+        mock_db.first.side_effect = [mock_sub_segment, mock_project, mock_team]
+        mock_db.all.return_value = [mock_role]
+        
+        validator = MasterDataValidator(mock_db)
+        
+        # Act - Input is completely different role
+        result = validator.validate_row(
+            sub_segment_name="Test SubSegment",
+            project_name="Test Project",
+            team_name="Test Team",
+            role_name="Data Scientist"
+        )
+        
+        # Assert - Should still fail with MISSING_ROLE
+        assert result.is_valid is False
+        assert result.error_code == "MISSING_ROLE"
+        assert "Role/Designation 'Data Scientist' not found" in result.error_message
+    
     def test_skips_role_validation_when_empty_string(
         self, mock_db, validator, mock_sub_segment, mock_project, mock_team
     ):
@@ -534,8 +665,8 @@ class TestValidatorCaching:
         mock_db.first.return_value = mock_sub_segment
         validator._get_sub_segment("Test SubSegment")
         
-        # Verify cache is populated
-        assert "Test SubSegment" in validator._sub_segment_cache
+        # Verify cache is populated (cache keys are lowercase for case-insensitive matching)
+        assert "test subsegment" in validator._sub_segment_cache
         
         # Act
         validator.clear_cache()

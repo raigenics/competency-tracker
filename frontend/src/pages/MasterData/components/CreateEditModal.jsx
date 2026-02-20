@@ -2,7 +2,7 @@
  * CreateEditModal - Modal for creating/editing master data items
  * Matches ContentPage.html modal structure exactly
  */
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 
 const CreateEditModal = ({
   isOpen,
@@ -24,20 +24,35 @@ const CreateEditModal = ({
   const [name, setName] = useState(initialName);
   const [description, setDescription] = useState(initialDescription);
   const [parent, setParent] = useState(selectedParent || defaultParentId);
+  // Track previous props for render-time sync
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+  const [prevInitialName, setPrevInitialName] = useState(initialName);
+  const [prevInitialDescription, setPrevInitialDescription] = useState(initialDescription);
+  const [prevSelectedParent, setPrevSelectedParent] = useState(selectedParent);
+
+  // Sync form values when modal opens or initial values change (React recommended pattern)
+  if (isOpen && (
+    isOpen !== prevIsOpen ||
+    initialName !== prevInitialName ||
+    initialDescription !== prevInitialDescription ||
+    selectedParent !== prevSelectedParent
+  )) {
+    setPrevIsOpen(isOpen);
+    setPrevInitialName(initialName);
+    setPrevInitialDescription(initialDescription);
+    setPrevSelectedParent(selectedParent);
+    setName(initialName);
+    setDescription(initialDescription);
+    setParent(selectedParent || defaultParentId);
+  } else if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+  }
 
   // Resolve the display title
   const displayTitle = title || (itemType ? `${mode === 'edit' ? 'Edit' : 'Add'} ${itemType.charAt(0).toUpperCase() + itemType.slice(1)}` : 'Add Item');
   
   // Use onSubmit or onSave (onSubmit takes precedence)
   const saveHandler = onSubmit || onSave;
-
-  useEffect(() => {
-    if (isOpen) {
-      setName(initialName);
-      setDescription(initialDescription);
-      setParent(selectedParent || defaultParentId);
-    }
-  }, [isOpen, initialName, initialDescription, selectedParent, defaultParentId]);
 
   const handleSave = () => {
     if (saveHandler) {

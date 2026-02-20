@@ -72,6 +72,82 @@ export const bulkImportApi = {  /**
     }
     */
   },
+
+  /**
+   * Get unresolved skills for an import run with suggestions
+   * @param {string} importRunId - The import job UUID
+   * @param {Object} options - Optional parameters
+   * @param {boolean} options.includeSuggestions - Include skill suggestions (default: true)
+   * @param {number} options.maxSuggestions - Max suggestions per skill (default: 5)
+   * @returns {Promise} Unresolved skills with suggestions
+   */
+  async getUnresolvedSkills(importRunId, options = {}) {
+    try {
+      const { includeSuggestions = true, maxSuggestions = 5 } = options;
+      const params = new URLSearchParams({
+        include_suggestions: includeSuggestions,
+        max_suggestions: maxSuggestions
+      });
+      
+      const response = await httpClient.get(
+        `/import/${importRunId}/unresolved-skills?${params}`
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to get unresolved skills:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Resolve an unmatched skill by mapping it to an existing master skill
+   * @param {string} importRunId - The import job UUID
+   * @param {number} rawSkillId - ID of the raw_skill_input to resolve
+   * @param {number} targetSkillId - ID of the master skill to map to
+   * @returns {Promise} Resolution result with alias info
+   */
+  async resolveSkill(importRunId, rawSkillId, targetSkillId) {
+    try {
+      const response = await httpClient.post(
+        `/import/${importRunId}/unresolved-skills/resolve`,
+        {
+          raw_skill_id: rawSkillId,
+          target_skill_id: targetSkillId
+        }
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to resolve skill:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get suggestions for a SINGLE unresolved skill (optimized endpoint)
+   * @param {string} importRunId - The import job UUID
+   * @param {number} rawSkillId - ID of the specific raw_skill_input
+   * @param {Object} options - Optional parameters
+   * @param {number} options.maxSuggestions - Max suggestions to return (default: 10)
+   * @param {boolean} options.includeEmbeddings - Include embedding suggestions (default: true)
+   * @returns {Promise} Single skill with suggestions
+   */
+  async getSingleSkillSuggestions(importRunId, rawSkillId, options = {}) {
+    try {
+      const { maxSuggestions = 10, includeEmbeddings = true } = options;
+      const params = new URLSearchParams({
+        max_suggestions: maxSuggestions,
+        include_embeddings: includeEmbeddings
+      });
+      
+      const response = await httpClient.get(
+        `/import/${importRunId}/unresolved-skills/${rawSkillId}/suggestions?${params}`
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to get single skill suggestions:', error);
+      throw error;
+    }
+  },
 };
 
 export default bulkImportApi;

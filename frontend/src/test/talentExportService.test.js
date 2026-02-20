@@ -23,7 +23,6 @@ describe('talentExportService', () => {
   let mockCreateObjectURL;
   let mockRevokeObjectURL;
   let mockAppendChild;
-  let mockRemoveChild;
   let mockClick;
   let mockLink;
 
@@ -33,8 +32,8 @@ describe('talentExportService', () => {
     // Mock URL methods
     mockCreateObjectURL = vi.fn().mockReturnValue('blob:test-url');
     mockRevokeObjectURL = vi.fn();
-    global.URL.createObjectURL = mockCreateObjectURL;
-    global.URL.revokeObjectURL = mockRevokeObjectURL;
+    globalThis.URL.createObjectURL = mockCreateObjectURL;
+    globalThis.URL.revokeObjectURL = mockRevokeObjectURL;
 
     // Mock document methods and link element
     mockClick = vi.fn();
@@ -46,7 +45,7 @@ describe('talentExportService', () => {
     };
     vi.spyOn(document, 'createElement').mockReturnValue(mockLink);
     mockAppendChild = vi.spyOn(document.body, 'appendChild').mockImplementation(() => {});
-    mockRemoveChild = vi.spyOn(document.body, 'removeChild').mockImplementation(() => {});
+    vi.spyOn(document.body, 'removeChild').mockImplementation(() => {});
   });
 
   afterEach(() => {

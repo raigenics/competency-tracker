@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader.jsx';
 import AddEmployeeDrawer from '../../components/AddEmployeeDrawer.jsx';
 import { employeeApi } from '../../services/api/employeeApi.js';
 import { dropdownApi } from '../../services/api/dropdownApi.js';
-import { canShowAddEmployee, getRowActions, getCurrentRole } from '../../rbac/permissions.js';
+import { canShowAddEmployee, getRowActions } from '../../rbac/permissions.js';
 import { cacheEmployees, getCachedEmployee } from '../../utils/cache.js';
 
 /**
@@ -38,7 +38,6 @@ const EmployeesPage = () => {
   // Diagnostic timing refs
   const mountStartRef = useRef(null);
   const firstRenderDoneRef = useRef(false);
-  const fetchStartRef = useRef(null);
   
   /**
    * PERFORMANCE FIX (2026-02-10):
@@ -99,7 +98,7 @@ const EmployeesPage = () => {
   const [isAddEmployeeOpen, setIsAddEmployeeOpen] = useState(false);
   const [drawerMode, setDrawerMode] = useState('add'); // 'add' or 'edit'
   const [selectedEmployee, setSelectedEmployee] = useState(null);
-  const [editLoading, setEditLoading] = useState(false);
+  const [editLoading] = useState(false);
   
   // Delete confirmation state
   const [deleteConfirm, setDeleteConfirm] = useState({ isOpen: false, employeeId: null, employeeName: '' });
@@ -110,147 +109,9 @@ const EmployeesPage = () => {
   const searchInputRef = useRef(null);
   const suggestionsRef = useRef(null);
   
-  // Load sub-segments on mount only (employees loaded by dependency effect)
-  // FIX: Removed duplicate loadEmployees() call here to prevent double-fetch on mount.
-  // The second useEffect with [currentPage, filters, searchQuery] handles initial + subsequent loads.
-  useEffect(() => {
-    // Diagnostic: record mount time
-    mountStartRef.current = performance.now();
-    if (DEBUG_EMPLOYEES) {
-      console.groupCollapsed('[EMP] page-mount');
-      console.log('timestamp:', new Date().toISOString());
-      console.log('currentPage:', currentPage, 'filters:', filters, 'searchQuery:', searchQuery);
-      console.groupEnd();
-    }
-    loadSubSegments();
-  }, []);
-  
-  // Diagnostic: track time-to-first-row-render
-  useEffect(() => {
-    if (employees.length > 0 && !firstRenderDoneRef.current && mountStartRef.current) {
-      firstRenderDoneRef.current = true;
-      const msSinceMount = performance.now() - mountStartRef.current;
-      if (DEBUG_EMPLOYEES) {
-        console.log(`[EMP] render-data rows=${employees.length} msSinceMount=${msSinceMount.toFixed(1)}`);
-      }
-    }
-  }, [employees]);
-  
-  // Load employees when page, filters, or search query change
-  useEffect(() => {
-    // Abort any inflight request from previous render (StrictMode fix)
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-    abortControllerRef.current = new AbortController();
-    
-    loadEmployees(abortControllerRef.current.signal);
-    
-    // Cleanup: abort on unmount or dependency change
-    return () => {
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, [currentPage, filters, searchQuery, refreshTrigger]);
-  
-  // Debounced autocomplete search
-  useEffect(() => {
-    if (searchDebounceRef.current) {
-      clearTimeout(searchDebounceRef.current);
-    }
-    
-    if (searchTerm.trim().length >= 2) {
-      setIsSearching(true);
-      searchDebounceRef.current = setTimeout(() => {
-        fetchSuggestions(searchTerm);
-      }, 300);
-    } else {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      setIsSearching(false);
-    }
-    
-    return () => {
-      if (searchDebounceRef.current) {
-        clearTimeout(searchDebounceRef.current);
-      }
-    };
-  }, [searchTerm]);
-  
-  // Close suggestions on outside click
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (
-        suggestionsRef.current &&
-        !suggestionsRef.current.contains(event.target) &&
-        searchInputRef.current &&
-        !searchInputRef.current.contains(event.target)
-      ) {
-        setShowSuggestions(false);
-      }
-    };
-    
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
-  
-  // Load sub-segments
-  const loadSubSegments = async () => {
-    setDropdownLoading(prev => ({ ...prev, subSegments: true }));
-    try {
-      const data = await dropdownApi.getSubSegments();
-      setDropdownData(prev => ({ ...prev, subSegments: data }));
-    } catch (error) {
-      console.error('Failed to load sub-segments:', error);
-    } finally {
-      setDropdownLoading(prev => ({ ...prev, subSegments: false }));
-    }
-  };
-  
-  // Load projects based on sub-segment
-  const loadProjects = async (subSegmentId) => {
-    setDropdownLoading(prev => ({ ...prev, projects: true }));
-    try {
-      const data = await dropdownApi.getProjects(subSegmentId);
-      setDropdownData(prev => ({ ...prev, projects: data }));
-    } catch (error) {
-      console.error('Failed to load projects:', error);
-    } finally {
-      setDropdownLoading(prev => ({ ...prev, projects: false }));
-    }
-  };
-  
-  // Load teams based on project
-  const loadTeams = async (projectId) => {
-    setDropdownLoading(prev => ({ ...prev, teams: true }));
-    try {
-      const data = await dropdownApi.getTeams(projectId);
-      setDropdownData(prev => ({ ...prev, teams: data }));
-    } catch (error) {
-      console.error('Failed to load teams:', error);
-    } finally {
-      setDropdownLoading(prev => ({ ...prev, teams: false }));
-    }
-  };
-    // Fetch autocomplete suggestions
-  const fetchSuggestions = async (query) => {
-    try {
-      const data = await employeeApi.getSuggestions(query, 8);
-      // Backend returns array directly, not { suggestions: [...] }
-      const suggestions = Array.isArray(data) ? data : (data.suggestions || []);
-      setSuggestions(suggestions);
-      setShowSuggestions(true);
-      setSelectedSuggestionIndex(-1);
-    } catch (error) {
-      console.error('Failed to fetch suggestions:', error);
-      setSuggestions([]);
-    } finally {
-      setIsSearching(false);
-    }
-  };
   // Load employees with current filters and pagination (with page caching)
-  const loadEmployees = async (signal) => {
+  // IMPORTANT: Must be defined BEFORE the useEffect that references it to avoid TDZ error
+  const loadEmployees = useCallback(async (signal) => {
     setLoading(true);
     const fetchStart = performance.now();
     
@@ -351,14 +212,12 @@ const EmployeesPage = () => {
       // Silently ignore aborted requests (expected during StrictMode cleanup)
       if (error.name === 'AbortError') {
         if (DEBUG_EMPLOYEES) {
-          const fetchEnd = performance.now();
-          console.log(`[EMP] fetch-abort ms=${(fetchEnd - fetchStart).toFixed(1)}`);
+          console.log(`[EMP] fetch-abort`);
         }
         return; // Don't update state or setLoading for aborted requests
       }
       if (DEBUG_EMPLOYEES) {
-        const fetchEnd = performance.now();
-        console.log(`[EMP] fetch-fail ms=${(fetchEnd - fetchStart).toFixed(1)} error="${error.message}"`);
+        console.log(`[EMP] fetch-fail error="${error.message}"`);
       }
       console.error('Failed to load employees:', error);
       setEmployees([]);
@@ -366,14 +225,156 @@ const EmployeesPage = () => {
       setTotalPages(0);
       setLoading(false);
     }
+  }, [currentPage, pageSize, filters, searchQuery]);
+
+  // Load sub-segments on mount only (employees loaded by dependency effect)
+  // FIX: Removed duplicate loadEmployees() call here to prevent double-fetch on mount.
+  // The second useEffect with [currentPage, filters, searchQuery] handles initial + subsequent loads.
+  useEffect(() => {
+    // Diagnostic: record mount time
+    mountStartRef.current = performance.now();
+    if (DEBUG_EMPLOYEES) {
+      console.groupCollapsed('[EMP] page-mount');
+      console.log('timestamp:', new Date().toISOString());
+      // Note: logging initial values only, not reactive tracking
+      console.log('currentPage:', currentPage, 'filters:', filters, 'searchQuery:', searchQuery);
+      console.groupEnd();
+    }
+    loadSubSegments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- mount-only diagnostic logging; values are just logged, not depended on
+  }, []);
+  
+  // Diagnostic: track time-to-first-row-render
+  useEffect(() => {
+    if (employees.length > 0 && !firstRenderDoneRef.current && mountStartRef.current) {
+      firstRenderDoneRef.current = true;
+      const msSinceMount = performance.now() - mountStartRef.current;
+      if (DEBUG_EMPLOYEES) {
+        console.log(`[EMP] render-data rows=${employees.length} msSinceMount=${msSinceMount.toFixed(1)}`);
+      }
+    }
+  }, [employees]);
+  
+  // Load employees when page, filters, or search query change
+  useEffect(() => {
+    // Abort any inflight request from previous render (StrictMode fix)
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+    abortControllerRef.current = new AbortController();
+    
+    loadEmployees(abortControllerRef.current.signal);
+    
+    // Cleanup: abort on unmount or dependency change
+    return () => {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, [currentPage, filters, searchQuery, refreshTrigger, loadEmployees]);
+  
+  // Debounced autocomplete search
+  useEffect(() => {
+    if (searchDebounceRef.current) {
+      clearTimeout(searchDebounceRef.current);
+    }
+    
+    if (searchTerm.trim().length >= 2) {
+      setIsSearching(true);
+      searchDebounceRef.current = setTimeout(() => {
+        fetchSuggestions(searchTerm);
+      }, 300);
+    } else {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      setIsSearching(false);
+    }
+    
+    return () => {
+      if (searchDebounceRef.current) {
+        clearTimeout(searchDebounceRef.current);
+      }
+    };
+  }, [searchTerm]);
+  
+  // Close suggestions on outside click
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (
+        suggestionsRef.current &&
+        !suggestionsRef.current.contains(event.target) &&
+        searchInputRef.current &&
+        !searchInputRef.current.contains(event.target)
+      ) {
+        setShowSuggestions(false);
+      }
+    };
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+  
+  // Load sub-segments
+  const loadSubSegments = async () => {
+    setDropdownLoading(prev => ({ ...prev, subSegments: true }));
+    try {
+      const data = await dropdownApi.getSubSegments();
+      setDropdownData(prev => ({ ...prev, subSegments: data }));
+    } catch (error) {
+      console.error('Failed to load sub-segments:', error);
+    } finally {
+      setDropdownLoading(prev => ({ ...prev, subSegments: false }));
+    }
   };
   
+  // Load projects based on sub-segment
+  const loadProjects = async (subSegmentId) => {
+    setDropdownLoading(prev => ({ ...prev, projects: true }));
+    try {
+      const data = await dropdownApi.getProjects(subSegmentId);
+      setDropdownData(prev => ({ ...prev, projects: data }));
+    } catch (error) {
+      console.error('Failed to load projects:', error);
+    } finally {
+      setDropdownLoading(prev => ({ ...prev, projects: false }));
+    }
+  };
+  
+  // Load teams based on project
+  const loadTeams = async (projectId) => {
+    setDropdownLoading(prev => ({ ...prev, teams: true }));
+    try {
+      const data = await dropdownApi.getTeams(projectId);
+      setDropdownData(prev => ({ ...prev, teams: data }));
+    } catch (error) {
+      console.error('Failed to load teams:', error);
+    } finally {
+      setDropdownLoading(prev => ({ ...prev, teams: false }));
+    }
+  };
+    // Fetch autocomplete suggestions
+  const fetchSuggestions = async (query) => {
+    try {
+      const data = await employeeApi.getSuggestions(query, 8);
+      // Backend returns array directly, not { suggestions: [...] }
+      const suggestions = Array.isArray(data) ? data : (data.suggestions || []);
+      setSuggestions(suggestions);
+      setShowSuggestions(true);
+      setSelectedSuggestionIndex(-1);
+    } catch (error) {
+      console.error('Failed to fetch suggestions:', error);
+      setSuggestions([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
   /**
    * Callback for when a new employee is saved from the Add Employee drawer.
    * Clears the cache and triggers a refresh of the employees list.
    * Keeps drawer open so user can add another employee.
    */
-  const handleEmployeeSaved = (savedEmployee) => {
+  const handleEmployeeSaved = (_savedEmployee) => {
     // Clear cache to force fresh data fetch
     pageCacheRef.current = {};
     filterKeyRef.current = '';

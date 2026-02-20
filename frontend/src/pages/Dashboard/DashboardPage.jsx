@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Search, ChevronRight, BarChart3, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import EmployeesInScopeCard from './components/EmployeesInScopeCard.jsx';
@@ -14,7 +14,7 @@ const DashboardPage = () => {
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(true); // Initial page load only
-  const [dataLoading, setDataLoading] = useState(false); // For filter-triggered data refresh
+  const [, setDataLoading] = useState(false); // For filter-triggered data refresh
   const [dashboardFilters, setDashboardFilters] = useState({
     subSegment: '',
     project: '',
@@ -39,7 +39,41 @@ const DashboardPage = () => {
   const [skillDistribution, setSkillDistribution] = useState([]);
   const [updateActivity, setUpdateActivity] = useState({});
   const [activityDays, setActivityDays] = useState(90);
-  const [activityLoading, setActivityLoading] = useState(false);// Load sub-segments on component mount
+  const [activityLoading, setActivityLoading] = useState(false);
+
+  // Load dashboard data function - wrapped in useCallback for proper deps
+  const loadDashboardData = useCallback(async () => {
+    setDataLoading(true);
+    try {
+      const [metricsData, skillData] = await Promise.all([
+        dashboardApi.getDashboardMetrics(dashboardFilters),
+        dashboardApi.getSkillDistribution(dashboardFilters)
+      ]);
+
+      setMetrics(metricsData);
+      setSkillDistribution(skillData);
+    } catch (error) {
+      console.error('Failed to load dashboard data:', error);
+    } finally {
+      setDataLoading(false);
+    }
+  }, [dashboardFilters]);
+
+  // Load skill update activity - wrapped in useCallback for proper deps
+  const loadSkillUpdateActivity = useCallback(async (days) => {
+    const daysToUse = days ?? activityDays;
+    setActivityLoading(true);
+    try {
+      const activityData = await dashboardApi.getSkillUpdateActivity(dashboardFilters, daysToUse);
+      setUpdateActivity(activityData);
+    } catch (error) {
+      console.error('Failed to load skill update activity:', error);
+    } finally {
+      setActivityLoading(false);
+    }
+  }, [dashboardFilters, activityDays]);
+
+// Load sub-segments on component mount
   useEffect(() => {
     const initializeDashboard = async () => {
       setLoading(true);
@@ -56,7 +90,7 @@ const DashboardPage = () => {
     };
 
     initializeDashboard();
-  }, []);
+  }, [loadDashboardData, loadSkillUpdateActivity]);
   // Reload dashboard data when filters change (excluding org coverage)
   useEffect(() => {
     // Skip on initial mount (handled above)
@@ -64,24 +98,7 @@ const DashboardPage = () => {
     
     loadDashboardData();
     loadSkillUpdateActivity();
-  }, [dashboardFilters]);
-  // Load dashboard data function
-  const loadDashboardData = async () => {
-    setDataLoading(true);
-    try {
-      const [metricsData, skillData] = await Promise.all([
-        dashboardApi.getDashboardMetrics(dashboardFilters),
-        dashboardApi.getSkillDistribution(dashboardFilters)
-      ]);
-
-      setMetrics(metricsData);
-      setSkillDistribution(skillData);
-    } catch (error) {
-      console.error('Failed to load dashboard data:', error);
-    } finally {
-      setDataLoading(false);
-    }
-  };
+  }, [dashboardFilters, loadDashboardData, loadSkillUpdateActivity]);
 
   // Load sub-segments dropdown data
   const loadSubSegments = async () => {
@@ -131,19 +148,6 @@ const DashboardPage = () => {
       setDropdownData(prev => ({ ...prev, teams: [] }));
     } finally {
       setDropdownLoading(prev => ({ ...prev, teams: false }));
-    }
-  };
-
-  // Load skill update activity data
-  const loadSkillUpdateActivity = async (days = activityDays) => {
-    setActivityLoading(true);
-    try {
-      const activityData = await dashboardApi.getSkillUpdateActivity(dashboardFilters, days);
-      setUpdateActivity(activityData);
-    } catch (error) {
-      console.error('Failed to load skill update activity:', error);
-    } finally {
-      setActivityLoading(false);
     }
   };
 

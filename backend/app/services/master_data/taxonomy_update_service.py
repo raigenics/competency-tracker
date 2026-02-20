@@ -33,10 +33,59 @@ from app.schemas.master_data_update import (
     SubcategoryCreateResponse,
     SkillCreateResponse,
 )
-from .exceptions import NotFoundError, ConflictError
+from .exceptions import NotFoundError, ConflictError, EmbeddingError
 from .validators import validate_required_name
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# EMBEDDING HELPER
+# =============================================================================
+
+def _update_skill_embedding(db: Session, skill: Skill) -> None:
+    """
+    Generate and upsert embedding for a skill.
+    
+    Called after skill creation or modification (name/aliases changed).
+    Uses the skill_embedding_service to generate embedding from skill_name + aliases
+    and upserts into skill_embeddings table.
+    
+    Args:
+        db: Database session
+        skill: Skill object with relationships (aliases) loaded
+        
+    Raises:
+        EmbeddingError: If embedding generation or persistence fails
+    """
+    try:
+        from app.services.skill_resolution.embedding_provider import create_embedding_provider
+        from app.services.skill_resolution.skill_embedding_service import SkillEmbeddingService
+        
+        provider = create_embedding_provider()
+        embedding_service = SkillEmbeddingService(
+            db=db,
+            embedding_provider=provider
+        )
+        
+        # Ensure aliases relationship is loaded for embedding text generation
+        # The skill should already have aliases loaded after flush
+        success = embedding_service.ensure_embedding_for_skill(skill)
+        
+        if not success:
+            raise EmbeddingError(
+                f"Failed to generate embedding for skill '{skill.skill_name}' (id={skill.skill_id})"
+            )
+        
+        logger.info(f"Embedding updated for skill_id={skill.skill_id}, skill_name='{skill.skill_name}'")
+        
+    except ImportError as e:
+        # Embedding service not available - raise error for admin workflows
+        raise EmbeddingError(f"Embedding service unavailable: {e}")
+    except EmbeddingError:
+        raise
+    except Exception as e:
+        raise EmbeddingError(f"Embedding generation failed: {type(e).__name__}: {e}")
 
 
 # =============================================================================
@@ -284,6 +333,9 @@ def create_skill(
     db.commit()
     db.refresh(new_skill)
     
+    # Generate and persist embedding for the new skill
+    _update_skill_embedding(db, new_skill)
+    
     logger.info(f"Skill created with id {new_skill.skill_id}: '{validated_name}'" + 
                 (f" with {len(created_aliases)} alias(es)" if created_aliases else ""))
     
@@ -525,6 +577,9 @@ def update_skill_name(
     db.commit()
     db.refresh(skill)
     
+    # Regenerate embedding since skill name changed
+    _update_skill_embedding(db, skill)
+    
     logger.info(f"Skill {skill_id} name updated successfully")
     return _skill_to_response(skill)
 
@@ -581,6 +636,7 @@ def update_alias(
     
     # Track if any changes were made
     changes_made = False
+    alias_text_changed = False
     
     # Update alias_text if provided
     if alias_text is not None:
@@ -605,6 +661,7 @@ def update_alias(
             
             alias.alias_text = validated_text
             changes_made = True
+            alias_text_changed = True
     
     # Update source if provided
     if source is not None:
@@ -620,6 +677,13 @@ def update_alias(
         # TODO: Audit logging
         db.commit()
         db.refresh(alias)
+        
+        # Regenerate embedding if alias text changed
+        if alias_text_changed:
+            skill = db.query(Skill).filter(Skill.skill_id == alias.skill_id).first()
+            if skill:
+                _update_skill_embedding(db, skill)
+        
         logger.info(f"Alias {alias_id} updated successfully")
     
     return _alias_to_response(alias)
@@ -704,6 +768,9 @@ def create_alias(
     db.commit()
     db.refresh(new_alias)
     
+    # Regenerate embedding since aliases changed
+    _update_skill_embedding(db, skill)
+    
     logger.info(f"Alias {new_alias.alias_id} created successfully")
     
     return AliasCreateResponse(
@@ -750,8 +817,15 @@ def delete_alias(
     alias_text = alias.alias_text
     skill_id = alias.skill_id
     
+    # Fetch skill before deleting alias (for embedding update)
+    skill = db.query(Skill).filter(Skill.skill_id == skill_id).first()
+    
     db.delete(alias)
     db.commit()
+    
+    # Regenerate embedding since aliases changed
+    if skill:
+        _update_skill_embedding(db, skill)
     
     logger.info(f"Alias {alias_id} ('{alias_text}') deleted successfully")
     

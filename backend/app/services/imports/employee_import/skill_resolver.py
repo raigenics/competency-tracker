@@ -20,6 +20,7 @@ from sqlalchemy import func
 from app.models.skill import Skill
 from app.models.skill_alias import SkillAlias
 from app.services.imports.employee_import.skill_token_validator import SkillTokenValidator
+from app.utils.normalization import normalize_skill_name
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,11 @@ class SkillResolver:
         self.normalize_name = None  # Will be injected
         self.token_validator = SkillTokenValidator()
         
+        # Normalized lookup cache for bilateral plural matching
+        # Built lazily on first use
+        self._skill_lookup: Optional[Dict[str, int]] = None
+        self._alias_lookup: Optional[Dict[str, int]] = None
+        
         # Initialize embedding provider (optional - graceful degradation)
         self.embedding_provider = None
         self.embedding_enabled = False
@@ -48,6 +54,36 @@ class SkillResolver:
             logger.info("Skill resolution: Embedding-based matching enabled")
         except Exception as e:
             logger.warning(f"Skill resolution: Embedding matching disabled: {type(e).__name__}: {str(e)}")
+    
+    def _build_lookup_cache(self):
+        """
+        Build normalized lookup cache for skills and aliases.
+        
+        Uses normalize_skill_name() for bilateral plural handling:
+        - "RESTful APIs" in input matches "RESTful API" in DB
+        - "RESTful API" in input matches "RESTful APIs" in DB
+        
+        Cache is built once per resolver instance.
+        """
+        if self._skill_lookup is not None:
+            return  # Already built
+        
+        self._skill_lookup = {}
+        self._alias_lookup = {}
+        
+        # Build skill lookup: normalized_name -> skill_id
+        for skill in self.db.query(Skill).all():
+            normalized = normalize_skill_name(skill.skill_name)
+            if normalized and normalized not in self._skill_lookup:
+                self._skill_lookup[normalized] = skill.skill_id
+        
+        # Build alias lookup: normalized_alias -> skill_id
+        for alias in self.db.query(SkillAlias).all():
+            normalized = normalize_skill_name(alias.alias_text)
+            if normalized and normalized not in self._alias_lookup:
+                self._alias_lookup[normalized] = alias.skill_id
+        
+        logger.debug(f"Built skill lookup cache: {len(self._skill_lookup)} skills, {len(self._alias_lookup)} aliases")
     
     def set_name_normalizer(self, normalizer_func):
         """Inject name normalization function."""
@@ -90,28 +126,25 @@ class SkillResolver:
                 self.stats['unresolved_skill_names'].append(skill_name)
             return None, None, None
         
-        # Use cleaned token for resolution
-        skill_name_normalized = self.normalize_name(cleaned_token) if self.normalize_name else cleaned_token.lower().strip()
+        # Build lookup cache on first use (enables bilateral plural matching)
+        self._build_lookup_cache()
         
-        # Step 2: Exact match on skills.skill_name
-        skill = self.db.query(Skill).filter(
-            func.lower(func.trim(Skill.skill_name)) == skill_name_normalized
-        ).first()
+        # Normalize input with plural handling (e.g., "APIs" -> "api")
+        skill_name_normalized = normalize_skill_name(cleaned_token)
         
-        if skill:
-            logger.debug(f"✓ Resolved '{skill_name}' via exact match → skill_id={skill.skill_id}")
+        # Step 2: Exact match on skills.skill_name (via normalized lookup)
+        if skill_name_normalized in self._skill_lookup:
+            skill_id = self._skill_lookup[skill_name_normalized]
+            logger.debug(f"✓ Resolved '{skill_name}' via exact match → skill_id={skill_id}")
             self.stats['skills_resolved_exact'] += 1
-            return skill.skill_id, "exact", None
+            return skill_id, "exact", None
         
-        # Step 3: Alias match on skill_aliases.alias_text
-        alias = self.db.query(SkillAlias).filter(
-            func.lower(func.trim(SkillAlias.alias_text)) == skill_name_normalized
-        ).first()
-        
-        if alias:
-            logger.debug(f"✓ Resolved '{skill_name}' via alias match → skill_id={alias.skill_id}")
+        # Step 3: Alias match on skill_aliases.alias_text (via normalized lookup)
+        if skill_name_normalized in self._alias_lookup:
+            skill_id = self._alias_lookup[skill_name_normalized]
+            logger.debug(f"✓ Resolved '{skill_name}' via alias match → skill_id={skill_id}")
             self.stats['skills_resolved_alias'] += 1
-            return alias.skill_id, "alias", None
+            return skill_id, "alias", None
         
         # Step 4: Embedding match (if enabled)
         if self.embedding_enabled and self.embedding_provider:

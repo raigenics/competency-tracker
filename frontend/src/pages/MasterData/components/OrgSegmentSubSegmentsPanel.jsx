@@ -19,7 +19,7 @@ import DeleteSelectedModal from './DeleteSelectedModal';
 
 const OrgSegmentSubSegmentsPanel = ({
   subSegments = [],
-  segmentName = '',
+  segmentName: _segmentName = '',
   onCreateSubSegment,
   onEditSubSegment,
   onDeleteSubSegment,

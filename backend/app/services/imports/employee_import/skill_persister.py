@@ -1,11 +1,17 @@
 """
 Employee skill database persistence for employee import.
 
-Single Responsibility: Insert employee skill records to database.
+Single Responsibility: Upsert employee skill records to database.
+
+Upsert Behavior:
+    - If (employee_id, skill_id) already exists as an ACTIVE record (deleted_at IS NULL):
+      UPDATE the existing record with new values
+    - If not exists or only soft-deleted records exist: INSERT new record
+    - "Last row wins" when same skill appears multiple times in the same import file
 """
 import logging
 import uuid
-from typing import Dict
+from typing import Dict, Optional, Tuple
 from datetime import datetime
 import pandas as pd
 from sqlalchemy.orm import Session
@@ -114,10 +120,14 @@ class SkillPersister:
                 skills_processed=successful_skill_imports
             )
         
-        self.stats['skills_imported'] = successful_skill_imports
+        # Track import stats
+        skills_inserted = self.stats.get('skills_inserted', 0)
+        skills_updated = self.stats.get('skills_updated', 0)
+        self.stats['skills_imported'] = successful_skill_imports  # Total successful (inserted + updated)
         
         # Log resolution stats
-        logger.info(f"Imported {successful_skill_imports} of {len(skills_df)} employee skill records")
+        logger.info(f"Imported {successful_skill_imports} of {len(skills_df)} employee skill records "
+                   f"(inserted={skills_inserted}, updated={skills_updated})")
         logger.info(f"📊 Resolution stats: exact={self.stats['skills_resolved_exact']}, "
                    f"alias={self.stats['skills_resolved_alias']}, "
                    f"unresolved={self.stats['skills_unresolved']}")
@@ -169,12 +179,13 @@ class SkillPersister:
         employee_skill_records = []
         
         for excel_row, row in skill_rows:
-            skill_record = self._process_single_skill(
+            result = self._process_single_skill(
                 row, excel_row, zid, employee_name, 
                 db_employee_id, sub_segment_id, import_timestamp
             )
-            if skill_record:
-                employee_skill_records.append(skill_record)
+            if result:
+                # result is a tuple: (skill_record, old_skill_record)
+                employee_skill_records.append(result)
         
         # Commit all skills for this employee as a batch
         return self._commit_employee_skills(
@@ -265,24 +276,63 @@ class SkillPersister:
             years_experience = self.field_sanitizer.sanitize_integer_field(row.get('years_experience'), 'years_experience', zid)
             interest_level = self.field_sanitizer.sanitize_integer_field(row.get('interest_level'), 'interest_level', zid)
             
-            # Create employee skill
-            employee_skill = EmployeeSkill(
-                employee_id=db_employee_id,
-                skill_id=skill_id,
-                proficiency_level_id=proficiency.proficiency_level_id,
-                years_experience=years_experience,
-                last_used=last_used,
-                started_learning_from=started_learning_from,
-                certification=row.get('certification'),
-                comment=row.get('comment'),
-                interest_level=interest_level,
-                created_at=import_timestamp
-            )
+            # UPSERT LOGIC: Check for existing active EmployeeSkill
+            existing_skill = self.db.query(EmployeeSkill).filter(
+                EmployeeSkill.employee_id == db_employee_id,
+                EmployeeSkill.skill_id == skill_id,
+                EmployeeSkill.deleted_at.is_(None)  # Only consider active records
+            ).first()
             
-            self.db.add(employee_skill)
-            self.db.flush()  # Get emp_skill_id
+            old_skill_record = None
             
-            return employee_skill
+            if existing_skill:
+                # UPDATE existing record - capture old state for history
+                old_skill_record = {
+                    'proficiency_level_id': existing_skill.proficiency_level_id,
+                    'years_experience': existing_skill.years_experience,
+                    'last_used': existing_skill.last_used,
+                    'started_learning_from': existing_skill.started_learning_from,
+                    'certification': existing_skill.certification,
+                    'comment': existing_skill.comment,
+                    'interest_level': existing_skill.interest_level
+                }
+                
+                # Update existing record with new values
+                existing_skill.proficiency_level_id = proficiency.proficiency_level_id
+                existing_skill.years_experience = years_experience
+                existing_skill.last_used = last_used
+                existing_skill.started_learning_from = started_learning_from
+                existing_skill.certification = row.get('certification')
+                existing_skill.comment = row.get('comment')
+                existing_skill.interest_level = interest_level
+                existing_skill.updated_at = import_timestamp
+                
+                self.db.flush()
+                self.stats['skills_updated'] = self.stats.get('skills_updated', 0) + 1
+                logger.debug(f"Updated existing skill '{skill_name}' for ZID {zid}")
+                
+                return (existing_skill, old_skill_record)
+            else:
+                # INSERT new record
+                employee_skill = EmployeeSkill(
+                    employee_id=db_employee_id,
+                    skill_id=skill_id,
+                    proficiency_level_id=proficiency.proficiency_level_id,
+                    years_experience=years_experience,
+                    last_used=last_used,
+                    started_learning_from=started_learning_from,
+                    certification=row.get('certification'),
+                    comment=row.get('comment'),
+                    interest_level=interest_level,
+                    created_at=import_timestamp
+                )
+                
+                self.db.add(employee_skill)
+                self.db.flush()  # Get emp_skill_id
+                self.stats['skills_inserted'] = self.stats.get('skills_inserted', 0) + 1
+                logger.debug(f"Inserted new skill '{skill_name}' for ZID {zid}")
+                
+                return (employee_skill, None)
             
         except Exception as e:
             # Log the error but don't fail the entire employee batch yet
@@ -308,18 +358,23 @@ class SkillPersister:
     def _commit_employee_skills(self, employee_skill_records: list, zid: str, 
                                employee_name: str, history_service, 
                                import_timestamp: datetime) -> int:
-        """Commit all skills for an employee as a batch."""
+        """Commit all skills for an employee as a batch.
+        
+        Args:
+            employee_skill_records: List of tuples (skill_record, old_skill_record)
+                - old_skill_record is None for INSERT, dict for UPDATE
+        """
         if not employee_skill_records:
             return 0
         
         try:
             # Add history tracking BEFORE commit (so it's in same transaction)
             batch_id = str(uuid.uuid4())[:8]
-            for skill_record in employee_skill_records:
+            for skill_record, old_skill_record in employee_skill_records:
                 history_service.record_skill_change(
                     employee_id=skill_record.employee_id,
                     skill_id=skill_record.skill_id,
-                    old_skill_record=None,
+                    old_skill_record=old_skill_record,
                     new_skill_record=skill_record,
                     change_source=ChangeSource.IMPORT,
                     changed_by="system",
@@ -339,7 +394,7 @@ class SkillPersister:
             self.db.rollback()
             
             # Mark all this employee's skills as failed
-            for skill_record in employee_skill_records:
+            for skill_record, _ in employee_skill_records:
                 self.stats['failed_rows'].append({
                     'sheet': 'Employee_Skills',
                     'excel_row_number': None,
