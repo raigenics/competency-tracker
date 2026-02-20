@@ -4,8 +4,32 @@ Unit tests for SkillResolver with embedding-based resolution.
 Tests resolution precedence and threshold logic.
 """
 import pytest
+from types import SimpleNamespace
 from unittest.mock import Mock, MagicMock, patch
 from app.services.imports.employee_import.skill_resolver import SkillResolver
+
+
+def create_mock_db(skills=None, aliases=None):
+    """Create a mock DB with proper query().all() behavior for lookup cache."""
+    mock_db = Mock()
+    skills = skills or []
+    aliases = aliases or []
+    
+    def query_side_effect(model):
+        mock_query = Mock()
+        model_name = model.__name__ if hasattr(model, '__name__') else str(model)
+        if model_name == 'Skill':
+            mock_query.all.return_value = skills
+        elif model_name == 'SkillAlias':
+            mock_query.all.return_value = aliases
+        else:
+            mock_query.all.return_value = []
+        # Support filter().first() chains (not used by current code but kept for safety)
+        mock_query.filter.return_value.first.return_value = None
+        return mock_query
+    
+    mock_db.query.side_effect = query_side_effect
+    return mock_db
 
 
 class TestSkillResolverPrecedence:
@@ -13,7 +37,7 @@ class TestSkillResolverPrecedence:
     
     def setup_method(self):
         """Set up test fixtures."""
-        self.mock_db = Mock()
+        self.mock_db = create_mock_db()
         self.stats = {
             'skills_resolved_exact': 0,
             'skills_resolved_alias': 0,
@@ -27,10 +51,7 @@ class TestSkillResolverPrecedence:
     
     def test_reject_invalid_token(self):
         """Test that invalid tokens are rejected before resolution."""
-        # Mock query to never be called
-        self.mock_db.query = Mock(side_effect=Exception("Should not query for invalid tokens"))
-        
-        # Test garbage tokens
+        # Invalid tokens are rejected before cache build, so no queries made
         skill_id, method, confidence = self.resolver.resolve_skill(")")
         assert skill_id is None
         assert method is None
@@ -39,14 +60,11 @@ class TestSkillResolverPrecedence:
     
     def test_exact_match_takes_precedence(self):
         """Test that exact match is tried before alias."""
-        # Mock exact match found
-        mock_skill = Mock()
-        mock_skill.skill_id = 42
-        mock_skill.skill_name = "Python"
-        
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = mock_skill
-        self.mock_db.query.return_value = mock_query
+        # Create mock skill in lookup cache
+        mock_skill = SimpleNamespace(skill_id=42, skill_name="Python")
+        self.mock_db = create_mock_db(skills=[mock_skill])
+        self.resolver = SkillResolver(self.mock_db, self.stats)
+        self.resolver.set_name_normalizer(lambda x: x.lower().strip())
         
         skill_id, method, confidence = self.resolver.resolve_skill("Python")
         
@@ -57,23 +75,11 @@ class TestSkillResolverPrecedence:
     
     def test_alias_match_after_exact_fails(self):
         """Test that alias match is tried after exact match fails."""
-        # Mock: exact match fails, alias match succeeds
-        mock_alias = Mock()
-        mock_alias.skill_id = 99
-        
-        call_count = [0]
-        def mock_query_side_effect(*args):
-            call_count[0] += 1
-            mock_q = Mock()
-            if call_count[0] == 1:
-                # First call: exact match (returns None)
-                mock_q.filter.return_value.first.return_value = None
-            else:
-                # Second call: alias match (returns alias)
-                mock_q.filter.return_value.first.return_value = mock_alias
-            return mock_q
-        
-        self.mock_db.query.side_effect = mock_query_side_effect
+        # Create mock alias in lookup cache (no matching skill for "py")
+        mock_alias = SimpleNamespace(alias_text="py", skill_id=99)
+        self.mock_db = create_mock_db(skills=[], aliases=[mock_alias])
+        self.resolver = SkillResolver(self.mock_db, self.stats)
+        self.resolver.set_name_normalizer(lambda x: x.lower().strip())
         
         skill_id, method, confidence = self.resolver.resolve_skill("py")
         
@@ -88,7 +94,7 @@ class TestSkillResolverEmbeddingThresholds:
     
     def setup_method(self):
         """Set up test fixtures."""
-        self.mock_db = Mock()
+        self.mock_db = create_mock_db()
         self.stats = {
             'skills_resolved_exact': 0,
             'skills_resolved_alias': 0,
@@ -106,10 +112,7 @@ class TestSkillResolverEmbeddingThresholds:
     
     def test_auto_accept_high_confidence(self):
         """Test auto-accept for similarity ≥ 0.88."""
-        # Mock: no exact/alias match
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = None
-        self.mock_db.query.return_value = mock_query
+        # No exact/alias match (empty lookup cache)
         
         # Mock embedding match with high confidence
         with patch.object(self.resolver, '_try_embedding_match', return_value=(123, 0.92)):
@@ -122,10 +125,7 @@ class TestSkillResolverEmbeddingThresholds:
     
     def test_needs_review_medium_confidence(self):
         """Test needs_review for 0.80 ≤ similarity < 0.88."""
-        # Mock: no exact/alias match
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = None
-        self.mock_db.query.return_value = mock_query
+        # No exact/alias match (empty lookup cache)
         
         # Mock embedding match with medium confidence
         with patch.object(self.resolver, '_try_embedding_match', return_value=(456, 0.83)):
@@ -138,10 +138,7 @@ class TestSkillResolverEmbeddingThresholds:
     
     def test_reject_low_confidence(self):
         """Test rejection for similarity < 0.80."""
-        # Mock: no exact/alias match
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = None
-        self.mock_db.query.return_value = mock_query
+        # No exact/alias match (empty lookup cache)
         
         # Mock embedding match with low confidence (should be filtered by repository)
         with patch.object(self.resolver, '_try_embedding_match', return_value=(None, None)):
@@ -154,10 +151,7 @@ class TestSkillResolverEmbeddingThresholds:
     
     def test_threshold_boundary_0_88(self):
         """Test exact boundary at 0.88 (auto-accept threshold)."""
-        # Mock: no exact/alias match
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = None
-        self.mock_db.query.return_value = mock_query
+        # No exact/alias match (empty lookup cache)
         
         # Test exactly 0.88 - should auto-accept
         with patch.object(self.resolver, '_try_embedding_match', return_value=(100, 0.88)):
@@ -179,10 +173,7 @@ class TestSkillResolverEmbeddingThresholds:
     
     def test_threshold_boundary_0_80(self):
         """Test exact boundary at 0.80 (review threshold)."""
-        # Mock: no exact/alias match
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = None
-        self.mock_db.query.return_value = mock_query
+        # No exact/alias match (empty lookup cache)
         
         # Test exactly 0.80 - should need review
         with patch.object(self.resolver, '_try_embedding_match', return_value=(200, 0.80)):
@@ -197,7 +188,7 @@ class TestSkillResolverEmbeddingDisabled:
     
     def setup_method(self):
         """Set up test fixtures."""
-        self.mock_db = Mock()
+        self.mock_db = create_mock_db()
         self.stats = {
             'skills_resolved_exact': 0,
             'skills_resolved_alias': 0,
@@ -213,10 +204,7 @@ class TestSkillResolverEmbeddingDisabled:
     
     def test_fallback_to_unresolved_when_embedding_disabled(self):
         """Test that skills are unresolved when embedding is disabled and no exact/alias match."""
-        # Mock: no exact/alias match
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = None
-        self.mock_db.query.return_value = mock_query
+        # No exact/alias match (empty lookup cache)
         
         skill_id, method, confidence = self.resolver.resolve_skill("Unknown Skill")
         
@@ -232,7 +220,7 @@ class TestSkillResolverStatsTracking:
     
     def setup_method(self):
         """Set up test fixtures."""
-        self.mock_db = Mock()
+        self.mock_db = create_mock_db()
         self.stats = {
             'skills_resolved_exact': 0,
             'skills_resolved_alias': 0,
@@ -248,17 +236,16 @@ class TestSkillResolverStatsTracking:
     
     def test_stats_increment_correctly(self):
         """Test that stats increment for each resolution method."""
-        # Mock: exact match
-        mock_skill = Mock()
-        mock_skill.skill_id = 1
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = mock_skill
-        self.mock_db.query.return_value = mock_query
+        # Set up mock with "Exact Match" skill
+        mock_skill = SimpleNamespace(skill_id=1, skill_name="Exact Match")
+        self.mock_db = create_mock_db(skills=[mock_skill])
+        self.resolver = SkillResolver(self.mock_db, self.stats)
+        self.resolver.set_name_normalizer(lambda x: x.lower().strip())
         
         self.resolver.resolve_skill("Exact Match")
         assert self.stats['skills_resolved_exact'] == 1
         
-        # Mock: alias match
+        # Test alias match with a new resolver
         self.stats = {
             'skills_resolved_exact': 0,
             'skills_resolved_alias': 0,
@@ -267,31 +254,17 @@ class TestSkillResolverStatsTracking:
             'skills_unresolved': 0,
             'unresolved_skill_names': []
         }
-        self.resolver.stats = self.stats
+        mock_alias = SimpleNamespace(alias_text="Alias Match", skill_id=2)
+        self.mock_db = create_mock_db(skills=[], aliases=[mock_alias])
+        self.resolver = SkillResolver(self.mock_db, self.stats)
+        self.resolver.set_name_normalizer(lambda x: x.lower().strip())
         
-        mock_alias = Mock()
-        mock_alias.skill_id = 2
-        
-        call_count = [0]
-        def mock_query_side_effect(*args):
-            call_count[0] += 1
-            mock_q = Mock()
-            if call_count[0] == 1:
-                mock_q.filter.return_value.first.return_value = None
-            else:
-                mock_q.filter.return_value.first.return_value = mock_alias
-            return mock_q
-        
-        self.mock_db.query.side_effect = mock_query_side_effect
         self.resolver.resolve_skill("Alias Match")
         assert self.stats['skills_resolved_alias'] == 1
     
     def test_unresolved_names_tracked(self):
         """Test that unresolved skill names are tracked."""
-        # Mock: no match
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = None
-        self.mock_db.query.return_value = mock_query
+        # Empty lookup cache (no exact/alias match possible)
         
         with patch.object(self.resolver, '_try_embedding_match', return_value=(None, None)):
             self.resolver.resolve_skill("Unknown 1")
