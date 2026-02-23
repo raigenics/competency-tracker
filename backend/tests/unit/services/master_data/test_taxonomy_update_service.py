@@ -50,6 +50,7 @@ def mock_subcategory():
         subcategory.subcategory_id = subcategory_id
         subcategory.subcategory_name = subcategory_name
         subcategory.category_id = category_id
+        subcategory.description = kwargs.get('description', '')
         subcategory.created_at = kwargs.get('created_at', datetime(2024, 1, 1))
         subcategory.created_by = kwargs.get('created_by', 'admin')
         return subcategory

@@ -41,7 +41,7 @@ const findItemById = (items, id) => {
 };
 
 // Get type icon
-const getTypeIcon = (type) => {
+const _getTypeIcon = (type) => {
   switch (type) {
     case 'segment': return '🏢';
     case 'subsegment': return '🏬';
@@ -714,7 +714,7 @@ const OrgHierarchyPage = () => {
 
   // Render header content with InlineEditableTitle for Segment/Sub-Segment
   // and category badge matching Skill Taxonomy UI
-  const renderHeaderContent = () => {
+  const _renderHeaderContent = () => {
     if (!selectedItem) return null;
     
     const isEditable = selectedItem.type === 'segment' || selectedItem.type === 'subsegment';
@@ -743,7 +743,7 @@ const OrgHierarchyPage = () => {
   };
 
   // Render header action buttons (Download Template, Import, Add) matching Skill Taxonomy UI
-  const renderHeaderActions = () => {
+  const _renderHeaderActions = () => {
     if (!selectedItem) return null;
     
     // Determine child type based on current selection

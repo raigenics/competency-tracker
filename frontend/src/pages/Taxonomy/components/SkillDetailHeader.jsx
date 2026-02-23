@@ -19,8 +19,8 @@ import '../CapabilityOverview.css';
  * - isDisabled: boolean - Whether the button is disabled
  */
 const SkillDetailHeader = ({
-  categoryName,
-  subCategoryName,
+  _categoryName,
+  _subCategoryName,
   skillName,
   employeeCount,
   onViewEmployees,

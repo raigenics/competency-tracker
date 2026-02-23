@@ -177,7 +177,7 @@ const SkillLibraryPage = () => {
   const [selected, setSelected] = useState({ type: null, catId: null, subId: null });
   const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [treeQuery, setTreeQuery] = useState('');
-  const [listQuery, setListQuery] = useState('');
+  const [_listQuery, setListQuery] = useState('');
 
   // ═══════════════════════════════════════════════════════════════════════════
   // MODAL STATE
@@ -226,7 +226,7 @@ const SkillLibraryPage = () => {
   // IMPORT STATE
   // ═══════════════════════════════════════════════════════════════════════════
   
-  const [isImporting, setIsImporting] = useState(false);
+  const [_isImporting, setIsImporting] = useState(false);
   const [importOverlay, setImportOverlay] = useState({ visible: false, message: '' });
   const importPollingRef = useRef(null);
 
@@ -1383,7 +1383,7 @@ const SkillLibraryPage = () => {
           
           // Still processing
           importPollingRef.current = setTimeout(pollStatus, pollInterval);
-        } catch (pollErr) {
+        } catch (_pollErr) {
           consecutiveErrors++;
           if (consecutiveErrors >= maxErrors) {
             setImportOverlay({ visible: false, message: '' });

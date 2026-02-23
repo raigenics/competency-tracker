@@ -293,7 +293,8 @@ class TestExportMatchingTalentToExcel:
             role='Developer',
             min_proficiency=3,
             min_experience_years=2,
-            selected_employee_ids=selected_ids
+            selected_employee_ids=selected_ids,
+            match_mode=None
         )
     
     def test_returns_bytesio_object(self, mock_db):

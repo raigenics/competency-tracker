@@ -10,8 +10,8 @@
  * 4. Collapsible sections work correctly
  */
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { render, screen, fireEvent, waitFor } from '@testing-library/react';
-import { MemoryRouter, useLocation } from 'react-router-dom';
+import { render, screen, fireEvent } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
 // Use vi.hoisted to create mock state that's available during mock hoisting
 const { mockRbacState } = vi.hoisted(() => ({

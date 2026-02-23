@@ -8,7 +8,7 @@
  * 4. Shows loading skeleton when isLoading is true
  * 5. Handles zero values correctly
  */
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import SkillCapabilitySnapshot from '@/pages/Taxonomy/components/SkillCapabilitySnapshot';
 

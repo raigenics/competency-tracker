@@ -10,10 +10,10 @@ import { useNavigate } from 'react-router-dom';
  * - Proficient uses teal/cyan (--db-proficient: #0ea5b7) - NOT brand blue
  * - Beginner uses slate/grey (--db-beginner: #94a3b8)
  */
-const SkillDistributionTable = ({ skillDistribution, topSkillsCount, scopeLevel }) => {
+const SkillDistributionTable = ({ skillDistribution, _topSkillsCount, _scopeLevel }) => {
   const navigate = useNavigate();
 
-  const handleSkillClick = () => {
+  const _handleSkillClick = () => {
     navigate('/query');
   };
 

@@ -31,8 +31,8 @@ const SkillDetailsPanel = ({
   const [error, setError] = useState(null);
   const [employeeResults, setEmployeeResults] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState(null);
+  const [_isExporting, setIsExporting] = useState(false);
+  const [_exportError, setExportError] = useState(null);
   
   // Drawer state (matches TalentResultsTable pattern)
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -151,7 +151,7 @@ const SkillDetailsPanel = ({
     setSelectedIds(new Set());
   }, [employeeResults]);
 
-  const handleSelectionChange = (newSelection) => {
+  const _handleSelectionChange = (newSelection) => {
     setSelectedIds(newSelection);
   };
 
@@ -178,7 +178,7 @@ const SkillDetailsPanel = ({
     }
   };
 
-  const handleExportSelected = async () => {
+  const _handleExportSelected = async () => {
     setIsExporting(true);
     setExportError(null);
     

@@ -25,7 +25,7 @@ const AdvancedQueryPage = () => {
     experience: { min: 0, max: 20 }
   });
 
-  const [showQueryBuilder, setShowQueryBuilder] = useState(true);
+  const [_showQueryBuilder, _setShowQueryBuilder] = useState(true);
 
   // Clear selection when new search results load
   useEffect(() => {

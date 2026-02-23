@@ -553,7 +553,7 @@ const SkillTaxonomyPage = () => {
   };
 
   // Compute taxonomy counts from visible tree (support lazy-loading)
-  const taxonomyCounts = React.useMemo(() => {
+  const _taxonomyCounts = React.useMemo(() => {
     const categories = visibleTree.length;
     // Sub-Categories: use loaded subcategories if present, else fallback to category.subcategory_count
     let subCategories = 0;

@@ -12,7 +12,7 @@ import MiniProgressBar from './MiniProgressBar.jsx';
 const SkillUpdateActivity = ({ activityData, loading, onDaysChange, employeesInScope = 0 }) => {
   const [selectedDays, setSelectedDays] = useState(90);
 
-  const handleDaysChange = (newDays) => {
+  const _handleDaysChange = (newDays) => {
     setSelectedDays(newDays);
     if (onDaysChange) {
       onDaysChange(newDays);
