@@ -1,0 +1,524 @@
+/*
+ * Employee Profile page styles
+ * Pixel-match to HTML wireframe
+ */
+
+/* === DESIGN TOKENS (scoped via .employee-profile) === */
+.employee-profile {
+  --ep-bg: #f6f8fb;
+  --ep-card: #fff;
+  --ep-line: #e6eaf0;
+  --ep-text: #0f172a;
+  --ep-muted: #64748b;
+  --ep-primary: #2563eb;
+  --ep-primary-soft: #eff6ff;
+  --ep-pill: #ecfdf5;
+  --ep-pill-border: #bbf7d0;
+  --ep-radius: 14px;
+
+  background: var(--ep-bg);
+  min-height: 100vh;
+}
+
+/* === MAIN CONTENT AREA (matches .main in HTML) === */
+.employee-profile .ep-main {
+  padding: 22px;
+}
+
+/* === PAGE HEADER (matches .pagehead in HTML) === */
+.employee-profile .pagehead h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ep-text);
+}
+
+.employee-profile .pagehead p {
+  margin: 6px 0 0;
+  color: var(--ep-muted);
+  font-size: 14px;
+}
+
+/* === CARD (matches .card in HTML) === */
+.employee-profile .card {
+  background: var(--ep-card);
+  border: 1px solid var(--ep-line);
+  border-radius: var(--ep-radius);
+  padding: 14px;
+}
+
+.employee-profile .card + .card {
+  margin-top: 14px;
+}
+
+/* === SEARCH BAR (matches .searchbar in HTML) === */
+.employee-profile .searchbar {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.employee-profile .searchbar .search-input-wrapper {
+  flex: 1;
+  position: relative;
+}
+
+.employee-profile .searchbar input {
+  width: 100%;
+  border: 1px solid var(--ep-line);
+  border-radius: 12px;
+  padding: 11px 12px;
+  font-size: 14px;
+}
+
+.employee-profile .searchbar input:focus {
+  outline: none;
+  border-color: var(--ep-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.employee-profile .btn {
+  border: 1px solid var(--ep-line);
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 0.15s;
+}
+
+.employee-profile .btn:hover {
+  background: #f8fafc;
+}
+
+.employee-profile .btn.primary {
+  background: var(--ep-primary);
+  border-color: var(--ep-primary);
+  color: #fff;
+}
+
+.employee-profile .btn.primary:hover {
+  background: #1d4ed8;
+}
+
+.employee-profile .btn.disabled,
+.employee-profile .btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.employee-profile .help {
+  margin-top: 8px;
+  color: var(--ep-muted);
+  font-size: 12px;
+}
+
+.employee-profile .help code {
+  background: #fff;
+  border: 1px solid var(--ep-line);
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+/* === EMPTY STATE (matches .empty in HTML) === */
+.employee-profile .empty {
+  min-height: 380px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 18px;
+}
+
+.employee-profile .icon {
+  font-size: 44px;
+  color: #94a3b8;
+}
+
+.employee-profile .empty h2 {
+  margin: 10px 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--ep-text);
+}
+
+.employee-profile .empty p {
+  margin: 0;
+  color: var(--ep-muted);
+  max-width: 520px;
+  font-size: 14px;
+}
+
+/* === PROFILE HEADER (matches .profilehead in HTML) === */
+.employee-profile .profilehead {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.employee-profile .name {
+  font-size: 22px;
+  font-weight: 950;
+  margin: 0;
+  color: var(--ep-text);
+}
+
+.employee-profile .idchip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--ep-line);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--ep-muted);
+  font-weight: 800;
+  margin-top: 8px;
+}
+
+.employee-profile .subline {
+  margin-top: 6px;
+  color: var(--ep-muted);
+  font-size: 12px;
+}
+
+/* === META GRID (matches .metaGrid in HTML) === */
+.employee-profile .metaGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.employee-profile .metaItem {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px;
+  border: 1px solid var(--ep-line);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.employee-profile .dot {
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--ep-primary-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #1d4ed8;
+  font-weight: 900;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.employee-profile .metaItem .label {
+  font-size: 12px;
+  color: var(--ep-muted);
+  font-weight: 900;
+  margin: 0;
+}
+
+.employee-profile .metaItem .value {
+  font-size: 13px;
+  font-weight: 900;
+  margin-top: 4px;
+  color: var(--ep-text);
+}
+
+/* === STATS STRIP (matches .statsStrip in HTML) === */
+.employee-profile .statsStrip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  border: 1px solid var(--ep-line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px 12px;
+  margin-top: 12px;
+}
+
+.employee-profile .stat {
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+}
+
+.employee-profile .stat .k {
+  font-size: 12px;
+  color: var(--ep-muted);
+  font-weight: 900;
+}
+
+.employee-profile .stat .v {
+  font-size: 14px;
+  font-weight: 950;
+  color: var(--ep-text);
+}
+
+.employee-profile .sep {
+  width: 1px;
+  height: 16px;
+  background: var(--ep-line);
+}
+
+/* === SECTION TITLE (matches .sectionTitle in HTML) === */
+.employee-profile .sectionTitle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 10px;
+}
+
+.employee-profile .sectionTitle h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ep-text);
+}
+
+/* === PILLS (matches .pill in HTML) === */
+.employee-profile .pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ep-pill-border);
+  background: var(--ep-pill);
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 950;
+  margin: 6px 6px 0 0;
+  color: #166534;
+}
+
+.employee-profile .more {
+  font-size: 12px;
+  color: var(--ep-muted);
+  font-weight: 950;
+  margin-left: 6px;
+}
+
+/* === TABLE TOP (matches .tableTop in HTML) === */
+.employee-profile .tableTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.employee-profile .tableTop .left {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.employee-profile .tableTop input {
+  width: 320px;
+  max-width: 55vw;
+  border: 1px solid var(--ep-line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.employee-profile .tableTop input:focus {
+  outline: none;
+  border-color: var(--ep-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.employee-profile select {
+  border: 1px solid var(--ep-line);
+  border-radius: 12px;
+  padding: 10px 12px;
+  background: #fff;
+  font-weight: 800;
+  color: var(--ep-text);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+/* === TABLE (matches table styles in HTML) === */
+.employee-profile table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+
+.employee-profile thead th {
+  font-size: 12px;
+  color: var(--ep-muted);
+  text-align: left;
+  padding: 0 10px;
+  font-weight: 600;
+}
+
+.employee-profile tbody td {
+  padding: 12px 10px;
+  border-top: 1px solid var(--ep-line);
+  border-bottom: 1px solid var(--ep-line);
+  background: #fff;
+  vertical-align: middle;
+  font-size: 14px;
+}
+
+.employee-profile tbody tr td:first-child {
+  border-left: 1px solid var(--ep-line);
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.employee-profile tbody tr td:last-child {
+  border-right: 1px solid var(--ep-line);
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+/* === BADGE (matches .badge in HTML) === */
+.employee-profile .badge {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--ep-line);
+  background: #f8fafc;
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 900;
+  color: var(--ep-muted);
+}
+
+/* === DROPDOWN (autocomplete) === */
+.employee-profile .dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 8px;
+  background: #fff;
+  border: 1px solid var(--ep-line);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  z-index: 50;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.employee-profile .dropdown-item {
+  padding: 10px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f1f5f9;
+  transition: background-color 0.15s;
+}
+
+.employee-profile .dropdown-item:last-child {
+  border-bottom: none;
+}
+
+.employee-profile .dropdown-item:hover,
+.employee-profile .dropdown-item.highlighted {
+  background: var(--ep-primary-soft);
+}
+
+.employee-profile .dropdown-item .emp-name {
+  font-weight: 700;
+  font-size: 14px;
+  color: var(--ep-text);
+}
+
+.employee-profile .dropdown-item .emp-meta {
+  font-size: 12px;
+  color: var(--ep-muted);
+  margin-top: 2px;
+}
+
+/* === EXPORT DROPDOWN === */
+.employee-profile .export-menu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  margin-top: 8px;
+  background: #fff;
+  border: 1px solid var(--ep-line);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  z-index: 50;
+  min-width: 180px;
+}
+
+.employee-profile .export-menu button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--ep-text);
+  background: none;
+  border: none;
+  cursor: pointer;
+  transition: background-color 0.15s;
+}
+
+.employee-profile .export-menu button:hover {
+  background: #f8fafc;
+}
+
+.employee-profile .export-menu button + button {
+  border-top: 1px solid #f1f5f9;
+}
+
+/* === LOADING STATE === */
+.employee-profile .loading-card {
+  min-height: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.employee-profile .loading-card .icon {
+  font-size: 44px;
+  margin-bottom: 12px;
+}
+
+/* === RESPONSIVE === */
+@media (max-width: 768px) {
+  .employee-profile .metaGrid {
+    grid-template-columns: 1fr;
+  }
+  
+  .employee-profile .tableTop {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .employee-profile .tableTop .left {
+    flex-direction: column;
+  }
+  
+  .employee-profile .tableTop input {
+    width: 100%;
+    max-width: none;
+  }
+  
+  .employee-profile .statsStrip {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  
+  .employee-profile .sep {
+    display: none;
+  }
+}

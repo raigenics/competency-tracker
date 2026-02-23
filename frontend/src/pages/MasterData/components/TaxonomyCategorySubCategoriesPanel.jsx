@@ -38,11 +38,13 @@ const TaxonomyCategorySubCategoriesPanel = ({
   // Inline edit state
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState('');
+  const [editDescription, setEditDescription] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   
   // Inline add state
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [addName, setAddName] = useState('');
+  const [addDescription, setAddDescription] = useState('');
   const [isAddingSaving, setIsAddingSaving] = useState(false);
   const [addError, setAddError] = useState(null);
   
@@ -139,11 +141,13 @@ const TaxonomyCategorySubCategoriesPanel = ({
   const handleEdit = useCallback((subCategory) => {
     setEditingId(subCategory.id);
     setEditName(subCategory.name);
+    setEditDescription(subCategory.description || '');
   }, []);
   
   const handleCancel = useCallback(() => {
     setEditingId(null);
     setEditName('');
+    setEditDescription('');
   }, []);
   
   const handleSave = useCallback(async () => {
@@ -162,8 +166,12 @@ const TaxonomyCategorySubCategoriesPanel = ({
       return;
     }
     
-    // Skip save if name unchanged
-    if (trimmedName === subCategory.name) {
+    const trimmedDescription = editDescription.trim() || null;
+    const nameChanged = trimmedName !== subCategory.name;
+    const descriptionChanged = trimmedDescription !== (subCategory.description || null);
+    
+    // Skip save if nothing changed
+    if (!nameChanged && !descriptionChanged) {
       handleCancel();
       return;
     }
@@ -171,16 +179,21 @@ const TaxonomyCategorySubCategoriesPanel = ({
     setIsSaving(true);
     try {
       if (onEditSubCategory) {
-        await onEditSubCategory({ ...subCategory, newName: trimmedName });
+        await onEditSubCategory({ 
+          ...subCategory, 
+          newName: trimmedName, 
+          newDescription: trimmedDescription,
+          descriptionChanged 
+        });
       }
       handleCancel();
     } catch (error) {
       // Keep edit mode open on error so user can retry
-      console.error('Failed to save sub-category name:', error);
+      console.error('Failed to save sub-category:', error);
     } finally {
       setIsSaving(false);
     }
-  }, [editingId, editName, isSaving, subCategories, onEditSubCategory, handleCancel]);
+  }, [editingId, editName, editDescription, isSaving, subCategories, onEditSubCategory, handleCancel]);
   
   const handleKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
@@ -206,11 +219,13 @@ const TaxonomyCategorySubCategoriesPanel = ({
     }
     setIsAddingNew(true);
     setAddName('');
+    setAddDescription('');
   }, [isAddingNew, editingId]);
   
   const handleAddCancel = useCallback(() => {
     setIsAddingNew(false);
     setAddName('');
+    setAddDescription('');
     setAddError(null);
   }, []);
   
@@ -223,15 +238,18 @@ const TaxonomyCategorySubCategoriesPanel = ({
       return;
     }
     
+    const trimmedDescription = addDescription.trim() || null;
+    
     setIsAddingSaving(true);
     setAddError(null);
     try {
       if (onCreateSubCategory) {
-        await onCreateSubCategory(trimmedName);
+        await onCreateSubCategory(trimmedName, trimmedDescription);
       }
       // Success - exit add mode
       setIsAddingNew(false);
       setAddName('');
+      setAddDescription('');
       setAddError(null);
     } catch (error) {
       // Handle 409 duplicate error with user-friendly message
@@ -246,7 +264,7 @@ const TaxonomyCategorySubCategoriesPanel = ({
     } finally {
       setIsAddingSaving(false);
     }
-  }, [addName, isAddingSaving, onCreateSubCategory]);
+  }, [addName, addDescription, isAddingSaving, onCreateSubCategory]);
   
   const handleAddKeyDown = useCallback((e) => {
     if (e.key === 'Enter') {
@@ -333,7 +351,7 @@ const TaxonomyCategorySubCategoriesPanel = ({
           <div className="info-section-title" style={{ margin: 0 }}>SUB-CATEGORIES IN THIS CATEGORY</div>
           {!disabled && onCreateSubCategory && (
             <button 
-              className="btn btn-primary btn-sm" 
+              className="sl-btn subtle" 
               onClick={handleStartAdd}
             >
               + Add Sub-category
@@ -350,7 +368,7 @@ const TaxonomyCategorySubCategoriesPanel = ({
           <div style={{ marginBottom: '12px' }}>No sub-categories in this category</div>
           {!disabled && onCreateSubCategory && (
             <button 
-              className="btn btn-primary btn-sm" 
+              className="sl-btn subtle" 
               onClick={handleStartAdd}
             >
               + Add First Sub-category
@@ -364,35 +382,18 @@ const TaxonomyCategorySubCategoriesPanel = ({
   return (
     <div className="info-section">
       {/* Section Header */}
-      <div className="info-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
+      <div className="info-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '8px' }}>
         <div className="info-section-title" style={{ margin: 0 }}>SUB-CATEGORIES IN THIS CATEGORY</div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Search box - only show if sub-categories exist */}
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* Search box - wireframe miniSearch style */}
           {subCategories.length > 0 && (
-            <div className="search-box" style={{ position: 'relative' }}>
-              <Search 
-                size={16} 
-                style={{ 
-                  position: 'absolute', 
-                  left: '12px', 
-                  top: '50%', 
-                  transform: 'translateY(-50%)', 
-                  color: 'var(--text-muted)' 
-                }} 
-              />
+            <div className="sl-mini-search">
+              <Search size={14} style={{ color: 'var(--sl-sub, #64748b)', flexShrink: 0 }} />
               <input
                 type="text"
                 placeholder="Search sub-categories..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '180px',
-                  padding: '8px 12px 8px 36px',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontFamily: 'inherit'
-                }}
               />
             </div>
           )}
@@ -408,7 +409,7 @@ const TaxonomyCategorySubCategoriesPanel = ({
           )}
           {!disabled && onCreateSubCategory && (
             <button 
-              className="btn btn-primary btn-sm" 
+              className="sl-btn subtle" 
               onClick={handleStartAdd}
               disabled={isAddingSaving}
             >
@@ -441,14 +442,15 @@ const TaxonomyCategorySubCategoriesPanel = ({
                   title={selectionState === 'all' ? 'Deselect all' : 'Select all'}
                 />
               </th>
-              <th>SUB-CATEGORY</th>
+              <th style={{ width: '30%' }}>SUB-CATEGORY</th>
+              <th style={{ width: '40%' }}>DESCRIPTION</th>
               <th style={{ width: '140px', textAlign: 'right', paddingRight: '16px' }}>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {/* Inline Add Row - shown at top when adding */}
             {isAddingNew && (
-              <tr className="add-row" style={{ backgroundColor: 'var(--background-secondary, #f8f9fa)' }}>
+              <tr className="add-row" style={{ backgroundColor: 'var(--sl-bg, var(--background-secondary, #f8f9fa))' }}>
                 <td style={{ textAlign: 'center' }}>
                   {/* Empty checkbox cell for alignment */}
                 </td>
@@ -468,7 +470,7 @@ const TaxonomyCategorySubCategoriesPanel = ({
                       placeholder="Enter sub-category name"
                       style={{
                         width: '100%',
-                        padding: '4px 8px',
+                        padding: '6px 10px',
                         border: addError ? '1px solid #dc2626' : '1px solid var(--border-color)',
                         borderRadius: '4px',
                         fontSize: 'inherit',
@@ -487,19 +489,37 @@ const TaxonomyCategorySubCategoriesPanel = ({
                     )}
                   </div>
                 </td>
+                <td>
+                  <input
+                    type="text"
+                    className="inline-edit-input"
+                    value={addDescription}
+                    onChange={(e) => setAddDescription(e.target.value)}
+                    onKeyDown={handleAddKeyDown}
+                    disabled={isAddingSaving}
+                    placeholder="Optional description"
+                    style={{
+                      width: '100%',
+                      padding: '6px 10px',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '4px',
+                      fontSize: 'inherit',
+                    }}
+                  />
+                </td>
                 <td style={{ textAlign: 'right', paddingRight: '16px' }}>
-                  <div className="row-actions">
+                  <div className="row-actions" style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
                     <button 
-                      className="action-link"
+                      className="sl-inline-btn sl-inline-btn-save"
                       onClick={handleAddSave}
-                      disabled={isAddingSaving}
+                      disabled={isAddingSaving || !addName.trim()}
                       title="Save"
                     >
                       <Check size={14} />
                       <span>Save</span>
                     </button>
                     <button 
-                      className="action-link danger"
+                      className="sl-inline-btn sl-inline-btn-cancel"
                       onClick={handleAddCancel}
                       disabled={isAddingSaving}
                       title="Cancel"
@@ -549,6 +569,28 @@ const TaxonomyCategorySubCategoriesPanel = ({
                       />
                     ) : (
                       subCategory.name
+                    )}
+                  </td>
+                  <td style={{ color: subCategory.description ? 'inherit' : 'var(--text-muted, #6b7280)' }}>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        className="inline-edit-input"
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        disabled={isSaving}
+                        placeholder="Description (optional)"
+                        style={{
+                          width: '100%',
+                          padding: '4px 8px',
+                          border: '1px solid var(--border-color)',
+                          borderRadius: '4px',
+                          fontSize: 'inherit',
+                        }}
+                      />
+                    ) : (
+                      subCategory.description || '—'
                     )}
                   </td>
                   <td style={{ textAlign: 'right', paddingRight: '16px' }}>

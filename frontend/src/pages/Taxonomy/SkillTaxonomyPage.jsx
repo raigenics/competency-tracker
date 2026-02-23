@@ -43,22 +43,72 @@ function filterCapabilityTree(tree) {
     });
 }
 import React, { useState, useEffect, useRef } from 'react';
-import { Search, TreePine, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
 import TaxonomyTree from './components/TaxonomyTree';
 import SkillDetailsPanel from './components/SkillDetailsPanel';
-import LoadingState from '../../components/LoadingState';
 import PageHeader from '../../components/PageHeader.jsx';
 import { skillApi } from '../../services/api/skillApi';
+import { dropdownApi } from '../../services/api/dropdownApi';
 import useCapabilityOverviewStore from './capabilityOverviewStore';
+import './CapabilityOverview.css';
+
+// ─────────────────────────────────────────────────────────────────────────────
+// LOCAL SKELETON COMPONENTS
+// Minimal skeleton placeholders for initial load - keeps shell visible.
+// ─────────────────────────────────────────────────────────────────────────────
+const skeletonStyle = {
+  background: 'linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%)',
+  backgroundSize: '200% 100%',
+  animation: 'shimmer 1.5s infinite',
+  borderRadius: '6px',
+};
+
+// Inject shimmer keyframes once (shared with Dashboard if loaded)
+if (typeof document !== 'undefined' && !document.getElementById('taxonomy-skeleton-keyframes')) {
+  const style = document.createElement('style');
+  style.id = 'taxonomy-skeleton-keyframes';
+  style.textContent = `@keyframes shimmer { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }`;
+  document.head.appendChild(style);
+}
+
+const SkeletonBox = ({ width = '100%', height = '20px', style: extraStyle = {} }) => (
+  <div style={{ ...skeletonStyle, width, height, ...extraStyle }} />
+);
+
+const TreeSkeleton = () => (
+  <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+    {/* Category skeletons */}
+    {[1, 2, 3, 4].map(i => (
+      <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <SkeletonBox width="60%" height="18px" />
+        <div style={{ marginLeft: '20px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <SkeletonBox width="45%" height="14px" />
+          <SkeletonBox width="50%" height="14px" />
+        </div>
+      </div>
+    ))}
+  </div>
+);
+
+const DetailsPanelSkeleton = () => (
+  <div style={{ padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <SkeletonBox width="50%" height="22px" />
+    <SkeletonBox width="100%" height="14px" />
+    <SkeletonBox width="80%" height="14px" />
+    <div style={{ marginTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+      <SkeletonBox width="100%" height="40px" />
+      <SkeletonBox width="100%" height="40px" />
+      <SkeletonBox width="100%" height="40px" />
+    </div>
+  </div>
+);
 
 const SkillTaxonomyPage = () => {
   // Page-scoped store for state persistence across navigation
   // Use selective subscriptions to prevent infinite update loops
   const skillTreeCached = useCapabilityOverviewStore(s => s.skillTree);
   const filteredTreeCached = useCapabilityOverviewStore(s => s.filteredTree);
-  const selectedSkillCached = useCapabilityOverviewStore(s => s.selectedSkill);
   const searchTermCached = useCapabilityOverviewStore(s => s.searchTerm);
-  const showViewAllCached = useCapabilityOverviewStore(s => s.showViewAll);
   const hasCachedData = useCapabilityOverviewStore(s => s.hasCachedData);
   const leftPanelScrollTopCached = useCapabilityOverviewStore(s => s.leftPanelScrollTop);
   const rightPanelScrollTopCached = useCapabilityOverviewStore(s => s.rightPanelScrollTop);
@@ -73,12 +123,26 @@ const SkillTaxonomyPage = () => {
   // Refs for scroll restoration
   const leftPanelRef = useRef(null);
   const rightPanelRef = useRef(null);
+  const treeRef = useRef(null);
   const isRestoringScroll = useRef(false);
   const [skillTree, setSkillTree] = useState(skillTreeCached || []);
-  const [selectedSkill, setSelectedSkill] = useState(selectedSkillCached || null);
+  // Always start with no skill selected - user must explicitly click to select
+  const [selectedSkill, setSelectedSkill] = useState(null);
   const [isLoading, setIsLoading] = useState(!hasCachedData);
+  const [showLoadingUI, setShowLoadingUI] = useState(false); // Flicker avoidance: only show skeleton after 200ms
+  const loadingTimerRef = useRef(null); // Timer for flicker avoidance
   const [searchTerm, setSearchTerm] = useState(searchTermCached || '');
   const [filteredTree, setFilteredTree] = useState(filteredTreeCached || []);
+  // Scope data for header
+  const [scopeData, setScopeData] = useState(null);
+  // KPI data for Capability Overview
+  const [kpiData, setKpiData] = useState(null);
+  const [kpiLoading, setKpiLoading] = useState(true);
+  const [kpiError, setKpiError] = useState(null);
+  // Category coverage data for Details panel default state
+  const [categoryCoverage, setCategoryCoverage] = useState(null);
+  const [categoryCoverageLoading, setCategoryCoverageLoading] = useState(true);
+  const [categoryCoverageError, setCategoryCoverageError] = useState(null);
   // Derived: filtered for non-empty nodes
   const visibleTree = React.useMemo(() => filterCapabilityTree(filteredTree), [filteredTree]);
 
@@ -110,10 +174,81 @@ const SkillTaxonomyPage = () => {
     }
   }, [visibleTree, selectedSkill, setSelectedSkillStore]);
   
-  const [showViewAll, setShowViewAll] = useState(showViewAllCached || false);
+  // Always start with summary view, not employee list
+  const [showViewAll, setShowViewAll] = useState(false);
+
+  // Flicker avoidance: delay showing loading UI by 200ms to avoid flash on fast loads
+  useEffect(() => {
+    if (isLoading) {
+      loadingTimerRef.current = setTimeout(() => {
+        setShowLoadingUI(true);
+      }, 200);
+    } else {
+      // Clear timer and hide loading UI immediately when done
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+        loadingTimerRef.current = null;
+      }
+      setShowLoadingUI(false);
+    }
+    return () => {
+      if (loadingTimerRef.current) {
+        clearTimeout(loadingTimerRef.current);
+      }
+    };
+  }, [isLoading]);
   
   useEffect(() => {
     loadSkillTaxonomy();
+  }, []);
+
+  // Fetch scope data for header (sub-segments with fullnames + counts)
+  useEffect(() => {
+    const fetchScopeData = async () => {
+      try {
+        const data = await dropdownApi.getSubSegmentsScope();
+        setScopeData(data);
+      } catch (error) {
+        console.error('Failed to load scope data:', error);
+      }
+    };
+    fetchScopeData();
+  }, []);
+
+  // Fetch KPI data for Capability Overview
+  useEffect(() => {
+    const fetchKpiData = async () => {
+      setKpiLoading(true);
+      setKpiError(null);
+      try {
+        const data = await skillApi.getCapabilityKpis();
+        setKpiData(data);
+      } catch (error) {
+        console.error('Failed to load KPI data:', error);
+        setKpiError('Failed to load KPIs');
+      } finally {
+        setKpiLoading(false);
+      }
+    };
+    fetchKpiData();
+  }, []);
+
+  // Fetch category coverage for Details panel default state
+  useEffect(() => {
+    const fetchCategoryCoverage = async () => {
+      setCategoryCoverageLoading(true);
+      setCategoryCoverageError(null);
+      try {
+        const data = await skillApi.getCategoryCoverage();
+        setCategoryCoverage(data);
+      } catch (error) {
+        console.error('Failed to load category coverage:', error);
+        setCategoryCoverageError('Failed to load category coverage');
+      } finally {
+        setCategoryCoverageLoading(false);
+      }
+    };
+    fetchCategoryCoverage();
   }, []);
 
   // Server-side search effect with debounce
@@ -408,6 +543,15 @@ const SkillTaxonomyPage = () => {
     setSearchTermStore('');
   };
 
+  // Expand/collapse all tree nodes
+  const handleExpandAll = () => {
+    treeRef.current?.expandAll();
+  };
+
+  const handleCollapseAll = () => {
+    treeRef.current?.collapseAll();
+  };
+
   // Compute taxonomy counts from visible tree (support lazy-loading)
   const taxonomyCounts = React.useMemo(() => {
     const categories = visibleTree.length;
@@ -450,107 +594,167 @@ const SkillTaxonomyPage = () => {
     }
   }, [visibleTree, selectedSkill, setSelectedSkillStore]);
 
-  if (isLoading) {
-    return <LoadingState message="Loading skill taxonomy..." />;
-  }
+  // Do not use page-level loading return; keep shell rendered for better UX.
+  // Skeleton placeholders are shown inline instead of replacing entire content.
+  
+  // Determine if we should show skeletons (loading AND past the 200ms delay)
+  const showSkeletons = isLoading && showLoadingUI;
 
   // Show empty state ONLY if not loading and visibleTree is truly empty
   const showEmptyState = !isLoading && visibleTree.length === 0;
 
+  // Build scope subtitle for header
+  const scopeSubtitle = React.useMemo(() => {
+    if (!scopeData) return null;
+    
+    // Build sub-segment names (use fullname if available, fallback to name)
+    const subSegmentNames = (scopeData.sub_segments || [])
+      .map(ss => ss.fullname || ss.name)
+      .join(', ');
+    
+    return {
+      subSegments: subSegmentNames,
+      employees: scopeData.total_employees || 0,
+      projects: scopeData.total_projects || 0
+    };
+  }, [scopeData]);
+
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
+    <div className="capability-overview">
       <PageHeader 
         title="Capability Overview"
-        subtitle="Browse and explore organizational capabilities and skill structure"
+        subtitle={scopeSubtitle ? (
+          <span>
+            Scoped to: Sub-segments — {scopeSubtitle.subSegments || 'All'}
+            <span style={{ marginLeft: '24px', color: '#64748b' }}>
+              Employees: {scopeSubtitle.employees}
+            </span>
+            <span style={{ marginLeft: '16px', color: '#64748b' }}>
+              Projects: {scopeSubtitle.projects}
+            </span>
+          </span>
+        ) : 'Browse and explore organizational capabilities and skill structure'}
       />
-      <div className="p-8">
-        <div className="max-w-screen-2xl mx-auto">
-          {/* Search Bar */}
-          <div className="mb-6">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Search categories, subcategories, or skills..."
-                value={searchTerm}
-                onChange={handleSearchChange}
-                className="w-full pl-10 pr-10 py-2 border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-              {searchTerm && (
-                <button
-                  onClick={handleClearSearch}
-                  className="absolute right-3 top-1/2 transform -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                  aria-label="Clear search"
-                >
-                  <X className="h-4 w-4" />
+      <div className="co-content">
+
+        {/* KPI Cards */}
+        <div className="co-kpis" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+          <div className="co-kpi">
+            <p className="co-kpi-num">
+              {kpiLoading ? '...' : (kpiError ? '—' : (kpiData?.total_skills ?? '—'))}
+            </p>
+            <p className="co-kpi-cap">TOTAL SKILLS</p>
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+              Skills with at least one mapped employee
+            </p>
+          </div>
+          <div className="co-kpi">
+            <p className="co-kpi-num">
+              {kpiLoading ? '...' : (kpiError ? '—' : (kpiData?.avg_proficiency != null ? kpiData.avg_proficiency.toFixed(2) : '—'))}
+            </p>
+            <p className="co-kpi-cap">AVG PROFICIENCY</p>
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+              Across mapped employees
+            </p>
+          </div>
+          <div className="co-kpi">
+            <p className="co-kpi-num">
+              {kpiLoading ? '...' : (kpiError ? '—' : (kpiData?.total_certifications ?? '—'))}
+            </p>
+            <p className="co-kpi-cap">TOTAL CERTIFICATIONS</p>
+            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+              Certifications within the current scope
+            </p>
+          </div>
+        </div>
+
+        <div className="co-grid">
+          {/* LEFT: Skill Tree */}
+          <section className="co-card">
+            <div className="co-tree-header">
+              <div className="co-tree-header-title">
+                <h2>Capability Structure</h2>
+                <span className="co-tree-header-desc">Category → Sub-Category → Skills</span>
+              </div>
+
+              <div className="co-tree-search">
+                <Search className="co-tree-search-icon" />
+                <input
+                  type="text"
+                  placeholder="Search skills, categories, technologies..."
+                  value={searchTerm}
+                  onChange={handleSearchChange}
+                  disabled={isLoading}
+                />
+                {searchTerm && (
+                  <button
+                    onClick={handleClearSearch}
+                    className="co-tree-search-clear"
+                    aria-label="Clear search"
+                  >
+                    <X style={{ width: '14px', height: '14px' }} />
+                  </button>
+                )}
+              </div>
+
+              <div className="co-tree-controls">
+                <button className="co-tree-btn" onClick={handleExpandAll} disabled={isLoading}>
+                  Expand All
                 </button>
+                <button className="co-tree-btn" onClick={handleCollapseAll} disabled={isLoading}>
+                  Collapse All
+                </button>
+              </div>
+
+              {searchTerm && (
+                <p className="co-tree-search-hint">
+                  Showing results for "{searchTerm}"
+                </p>
               )}
             </div>
-            {searchTerm && (
-              <p className="text-xs text-slate-500 mt-2">
-                Showing results for "{searchTerm}"
-              </p>
-            )}
-          </div>
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:h-[calc(100vh-280px)] lg:overflow-hidden lg:min-h-0">
-            {/* Skill Tree - Adjusted width */}
-            <div className="lg:col-span-5 h-full min-h-0">
-              <div className="bg-white rounded-lg border border-slate-200 h-full flex flex-col min-h-0">
-                <div className="border-b border-slate-200 p-6 pb-4">
-                  {/* Layer 1: Icon + Title */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <TreePine className="h-5 w-5 text-blue-600" />
-                    <h2 className="text-xl font-semibold text-slate-900">Capability Structure</h2>
-                  </div>
-                  {/* Layer 2: Hierarchy hint and counts */}
-                  <div className="flex flex-col gap-2">
-                    <span className="text-xs text-slate-500">Category → Sub-Category → Skills</span>
-                    <div className="flex items-center gap-2 mt-0.5">
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 rounded">
-                        <span className="text-xs font-medium text-slate-700">{taxonomyCounts.categories}</span>
-                        <span className="text-xs text-slate-500">Categories</span>
-                      </div>
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 rounded">
-                        <span className="text-xs font-medium text-slate-700">{taxonomyCounts.subCategories}</span>
-                        <span className="text-xs text-slate-500">Sub-Categories</span>
-                      </div>
-                      <div className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 rounded">
-                        <span className="text-xs font-medium text-slate-700">{taxonomyCounts.skills}</span>
-                        <span className="text-xs text-slate-500">Skills</span>
-                      </div>
-                    </div>
-                  </div>
+
+            <div 
+              ref={leftPanelRef} 
+              style={{ 
+                maxHeight: 'calc(100vh - 340px)', 
+                overflowY: 'auto'
+              }}
+            >
+              {showSkeletons ? (
+                <TreeSkeleton />
+              ) : showEmptyState ? (
+                <div style={{ textAlign: 'center', padding: '32px 0', color: '#64748b' }}>
+                  <p style={{ fontSize: '16px', fontWeight: '500' }}>No skills available to display.</p>
                 </div>
-                <div ref={leftPanelRef} className="p-6 pb-12 flex-1 overflow-y-auto min-h-0">
-                  {/* Show friendly message if no skills available */}
-                  {showEmptyState ? (
-                    <div className="text-center py-8 text-gray-500">
-                      <p className="text-lg font-medium text-gray-600">No skills available to display.</p>
-                    </div>
-                  ) : (
-                    <TaxonomyTree 
-                      skillTree={visibleTree}
-                      onSkillSelect={handleSkillSelect}
-                      selectedSkill={selectedSkill}
-                      searchTerm={searchTerm}
-                      onLoadSubcategories={loadSubcategories}
-                      onLoadSkills={loadSkills}
-                    />
-                  )}
-                </div>
-              </div>
-            </div>
-            {/* Skill Details Panel - Expanded width */}
-            <div className="lg:col-span-7 h-full min-h-0">
-              <div ref={rightPanelRef} className="h-full overflow-y-auto min-h-0">
-                <SkillDetailsPanel 
-                  skill={selectedSkill}
-                  showViewAll={showViewAll}
-                  onViewAll={handleViewAll}
-                  onBackToSummary={handleBackToSummary}
+              ) : (
+                <TaxonomyTree 
+                  ref={treeRef}
+                  skillTree={visibleTree}
+                  onSkillSelect={handleSkillSelect}
+                  selectedSkill={selectedSkill}
+                  searchTerm={searchTerm}
+                  onLoadSubcategories={loadSubcategories}
+                  onLoadSkills={loadSkills}
                 />
-              </div>
+              )}
             </div>
+          </section>
+
+          {/* RIGHT: Skill Details Panel */}
+          <div ref={rightPanelRef} style={{ minHeight: '320px' }}>
+            {showSkeletons ? (
+              <DetailsPanelSkeleton />
+            ) : (
+              <SkillDetailsPanel 
+                skill={selectedSkill}
+                showViewAll={showViewAll}
+                onViewAll={handleViewAll}
+                onBackToSummary={handleBackToSummary}
+                categoryCoverage={categoryCoverage}
+                categoryCoverageLoading={categoryCoverageLoading}
+                categoryCoverageError={categoryCoverageError}
+              />
+            )}
           </div>
         </div>
       </div>

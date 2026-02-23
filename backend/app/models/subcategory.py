@@ -15,6 +15,7 @@ class SkillSubcategory(Base):
     subcategory_id = Column(Integer, primary_key=True, index=True)
     category_id = Column(Integer, ForeignKey("skill_categories.category_id", ondelete="CASCADE"), nullable=False)
     subcategory_name = Column(String, nullable=False, index=True)
+    description = Column(String(500), nullable=True)
     
     # Audit columns
     created_at = Column(

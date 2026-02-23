@@ -17,6 +17,10 @@ from app.services.dashboard.skill_update_activity_service import (
     get_skill_update_activity as get_skill_update_activity_service,
     InvalidDaysParameterError
 )
+from app.services.dashboard.data_freshness_service import (
+    get_data_freshness as get_data_freshness_service,
+    InvalidDaysParameterError as FreshnessInvalidDaysError
+)
 from app.schemas.dashboard import OrgSkillCoverageResponse
 
 logger = logging.getLogger(__name__)
@@ -156,4 +160,40 @@ async def get_skill_update_activity(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to retrieve skill update activity data"
+        )
+
+
+@router.get("/data-freshness")
+async def get_data_freshness(
+    days: int = Query(90, description="Time window in days for freshness calculation"),
+    sub_segment_id: Optional[int] = Query(None, description="Filter by sub-segment ID"),
+    project_id: Optional[int] = Query(None, description="Filter by project ID"),
+    team_id: Optional[int] = Query(None, description="Filter by team ID"),
+    db: Session = Depends(get_db)
+):
+    """
+    Get data freshness percentage for employees in scope.
+    
+    Data freshness = % of employees with at least one skill update in the specified
+    time window. Uses the same filter logic as Skill Update Activity.
+    
+    Returns:
+        - window_days: Time window used (echoed)
+        - employees_in_scope: Total employees matching filters
+        - employees_with_update: Employees with >= 1 update in window
+        - freshness_percent: Percentage (0-100, 1 decimal)
+    """
+    try:
+        logger.info(f"Fetching data freshness: days={days}, sub_segment_id={sub_segment_id}, project_id={project_id}, team_id={team_id}")
+        freshness_data = get_data_freshness_service(db, days, sub_segment_id, project_id, team_id)
+        return freshness_data
+    except FreshnessInvalidDaysError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching data freshness: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to retrieve data freshness"
         )

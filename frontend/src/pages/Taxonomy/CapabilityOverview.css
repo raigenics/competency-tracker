@@ -1,0 +1,1498 @@
+/*
+ * Capability Overview page scoped CSS
+ * Matches wireframe exactly - uses same design tokens as Capability Finder
+ */
+
+/* =========================
+   1) DESIGN TOKENS (scoped via .capability-overview)
+   ========================= */
+.capability-overview {
+  --co-bg: #f6f8fb;
+  --co-card: #ffffff;
+  --co-border: #e6eaf0;
+  --co-text: #0f172a;
+  --co-muted: #64748b;
+  --co-primary: #2563eb;
+  --co-primary-hover: #1d4ed8;
+  --co-primary-soft: #eff6ff;
+  --co-pill: #ecfdf5;
+  --co-pill-border: #bbf7d0;
+  
+  /* Spacing */
+  --co-gap: 14px;
+  --co-radius: 14px;
+  --co-radius-sm: 12px;
+  --co-padding: 22px;
+  
+  background: var(--co-bg);
+  min-height: 100vh;
+}
+
+/* =========================
+   2) MAIN GRID
+   ========================= */
+.capability-overview .co-content {
+  padding: var(--co-gap) var(--co-padding) var(--co-padding);
+}
+
+.capability-overview .co-grid {
+  display: grid;
+  grid-template-columns: 520px 1fr;
+  gap: var(--co-gap);
+  align-items: start;
+}
+
+@media (max-width: 1200px) {
+  .capability-overview .co-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Body grid for Skill Detail (2-column: left=snapshot+proficiency, right=context) */
+.capability-overview .co-body-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 0.8fr;
+  gap: 16px;
+  padding: 16px 18px 18px 18px;
+}
+
+@media (max-width: 900px) {
+  .capability-overview .co-body-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Left column card in body grid */
+.capability-overview .co-body-left {
+  background: #fff;
+  border: 1px solid var(--co-border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+/* Right column card in body grid */
+.capability-overview .co-body-right {
+  background: #fff;
+  border: 1px solid var(--co-border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+/* =========================
+   3) CARD
+   ========================= */
+.capability-overview .co-card {
+  background: var(--co-card);
+  border: 1px solid var(--co-border);
+  border-radius: var(--co-radius);
+  overflow: hidden;
+}
+
+/* =========================
+   4) EMPTY STATE (View A)
+   ========================= */
+.capability-overview .co-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  text-align: center;
+  padding: 18px;
+}
+
+.capability-overview .co-empty-icon {
+  font-size: 36px;
+  color: #94a3b8;
+  margin-bottom: 4px;
+}
+
+.capability-overview .co-empty h2 {
+  margin: 10px 0 6px;
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--co-text);
+}
+
+.capability-overview .co-empty p {
+  margin: 0;
+  color: var(--co-muted);
+  font-size: 14px;
+}
+
+.capability-overview .co-hint {
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--co-muted);
+}
+
+.capability-overview .co-hint code {
+  background: #fff;
+  border: 1px solid var(--co-border);
+  padding: 2px 6px;
+  border-radius: 8px;
+  font-family: inherit;
+}
+
+/* =========================
+   5) SKILL SUMMARY (View B)
+   ========================= */
+.capability-overview .co-skill-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--co-text);
+}
+
+.capability-overview .co-breadcrumb {
+  margin-top: 6px;
+  color: var(--co-muted);
+  font-size: 12px;
+}
+
+.capability-overview .co-breadcrumb strong {
+  color: var(--co-text);
+  font-weight: 700;
+}
+
+/* KPI Tiles */
+.capability-overview .co-kpis {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-bottom: var(--co-gap);
+}
+
+.capability-overview .co-kpi {
+  border: 1px solid var(--co-border);
+  border-radius: var(--co-radius-sm);
+  padding: 14px;
+  background: #fff;
+}
+
+.capability-overview .co-kpi-num {
+  font-size: 22px;
+  font-weight: 900;
+  margin: 0;
+  color: var(--co-text);
+}
+
+.capability-overview .co-kpi-cap {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--co-muted);
+  font-weight: 800;
+}
+
+/* Actions */
+.capability-overview .co-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.capability-overview .co-btn {
+  border: 1px solid var(--co-border);
+  background: #fff;
+  border-radius: var(--co-radius-sm);
+  padding: 10px 12px;
+  font-weight: 900;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color 0.2s, border-color 0.2s;
+}
+
+.capability-overview .co-btn:hover {
+  background: #f8fafc;
+}
+
+.capability-overview .co-btn.primary {
+  background: var(--co-primary);
+  border-color: var(--co-primary);
+  color: #fff;
+  flex: 1;
+}
+
+.capability-overview .co-btn.primary:hover {
+  background: var(--co-primary-hover);
+}
+
+.capability-overview .co-btn.primary:disabled {
+  background: #93c5fd;
+  border-color: #93c5fd;
+  cursor: not-allowed;
+}
+
+/* =========================
+   6) EMPLOYEE LIST (View C)
+   ========================= */
+
+/* -------------------------
+   6.1) SKILL DETAIL HEADER
+   ------------------------- */
+.capability-overview .co-skill-header {
+  padding: 18px 18px 12px 18px;
+  border-bottom: 1px solid var(--co-border);
+  display: flex;
+  gap: 14px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.capability-overview .co-skill-header-left {
+  min-width: 0;
+  flex: 1;
+}
+
+.capability-overview .co-skill-header-crumbs {
+  font-size: 12px;
+  color: var(--co-muted);
+  margin-bottom: 6px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.capability-overview .co-skill-header-crumbs b {
+  color: var(--co-text);
+  font-weight: 700;
+}
+
+.capability-overview .co-skill-header-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
+  color: var(--co-text);
+}
+
+.capability-overview .co-skill-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
+.capability-overview .co-skill-header-btn {
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  background: var(--co-primary);
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.capability-overview .co-skill-header-btn:hover {
+  filter: brightness(0.98);
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.1);
+}
+
+.capability-overview .co-skill-header-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.capability-overview .co-skill-header-btn-icon {
+  width: 16px;
+  height: 16px;
+}
+
+/* -------------------------
+   6.2) CAPABILITY SNAPSHOT (3 KPI Cards)
+   Matches CapabilityOverview_DetailSection.html
+   ------------------------- */
+.capability-overview .co-capability-snapshot {
+  display: block; /* Parent container (.co-body-left) provides padding */
+}
+
+.capability-overview .co-snapshot-title {
+  font-size: 12px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--co-muted);
+  margin: 0 0 10px 0;
+  font-weight: 900;
+}
+
+.capability-overview .co-snapshot-kpis {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 650px) {
+  .capability-overview .co-snapshot-kpis {
+    grid-template-columns: 1fr;
+  }
+}
+
+.capability-overview .co-snapshot-kpi {
+  border: 1px solid var(--co-border);
+  border-radius: 14px;
+  padding: 12px;
+  background: linear-gradient(180deg, #ffffff, #fbfcff);
+}
+
+.capability-overview .co-snapshot-kpi--loading {
+  opacity: 0.6;
+}
+
+.capability-overview .co-snapshot-kpi-label {
+  font-size: 12px;
+  color: var(--co-muted);
+  font-weight: 800;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.capability-overview .co-snapshot-kpi-value {
+  font-size: 22px;
+  font-weight: 900;
+  margin: 0;
+  letter-spacing: 0.2px;
+  color: var(--co-text);
+}
+
+.capability-overview .co-snapshot-kpi-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--co-muted);
+  line-height: 1.35;
+}
+
+/* Loading skeleton */
+.capability-overview .co-skeleton {
+  display: inline-block;
+  background: #e5e7eb;
+  border-radius: 4px;
+  height: 14px;
+  animation: co-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes co-pulse {
+  0%, 100% { opacity: 0.6; }
+  50% { opacity: 1; }
+}
+
+/* -------------------------
+   6.2.1) PROFICIENCY BREAKDOWN
+   Matches CapabilityOverview_DetailSection.html .barWrap styles
+   ------------------------- */
+.capability-overview .co-pb-wrap {
+  margin-top: 14px;
+  border: 1px solid var(--co-border);
+  border-radius: 12px;
+  padding: 12px;
+  background: #fff;
+}
+
+.capability-overview .co-pb-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.capability-overview .co-pb-title {
+  font-size: 12px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--co-muted);
+  margin: 0 0 4px 0;
+  font-weight: 900;
+}
+
+.capability-overview .co-pb-meta {
+  font-size: 12px;
+  color: var(--co-muted);
+  line-height: 1.35;
+}
+
+.capability-overview .co-pb-meta-right {
+  text-align: right;
+}
+
+.capability-overview .co-pb-meta-bold {
+  color: var(--co-text);
+  font-weight: 700;
+}
+
+/* Stacked bar */
+.capability-overview .co-pb-stacked {
+  height: 12px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #eef2ff;
+  border: 1px solid rgba(37, 99, 235, 0.12);
+  display: flex;
+}
+
+.capability-overview .co-pb-stacked--loading {
+  background: transparent;
+  border: none;
+}
+
+.capability-overview .co-pb-seg {
+  height: 100%;
+}
+
+/* Proficiency level colors (matches wireframe palette) */
+.capability-overview .co-pb-s1 { background: #c7d2fe; } /* Novice */
+.capability-overview .co-pb-s2 { background: #a5b4fc; } /* Adv. Beginner */
+.capability-overview .co-pb-s3 { background: #818cf8; } /* Competent */
+.capability-overview .co-pb-s4 { background: #6366f1; } /* Proficient */
+.capability-overview .co-pb-s5 { background: #4f46e5; } /* Expert */
+
+/* Legend */
+.capability-overview .co-pb-legend {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+}
+
+@media (max-width: 800px) {
+  .capability-overview .co-pb-legend {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.capability-overview .co-pb-leg-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--co-border);
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: #fff;
+}
+
+.capability-overview .co-pb-leg-item--loading {
+  opacity: 0.6;
+}
+
+.capability-overview .co-pb-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex: 0 0 auto;
+}
+
+.capability-overview .co-pb-leg-text {
+  min-width: 0;
+  font-size: 12px;
+  color: var(--co-muted);
+  line-height: 1.2;
+}
+
+.capability-overview .co-pb-leg-text b {
+  color: var(--co-text);
+  font-weight: 900;
+}
+
+/* Footnote */
+.capability-overview .co-pb-foot {
+  margin-top: 12px;
+  font-size: 12px;
+  color: var(--co-muted);
+  padding: 10px 12px;
+  border: 1px dashed var(--co-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+/* -------------------------
+   6.2.2) SKILL CONTEXT CARD
+   ------------------------- */
+
+/* Card container - inside body-right, no extra border/padding */
+.capability-overview .co-body-right .co-ctx-card {
+  border: none;
+  padding: 0;
+  background: transparent;
+}
+
+/* Standalone context card (outside body grid) has full card styles */
+.capability-overview .co-ctx-card {
+  background: #fff;
+  border: 1px solid var(--co-border);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+/* Standalone context card with margin when not in grid */
+.capability-overview > .co-ctx-card {
+  margin-top: 16px;
+}
+
+/* Section title */
+.capability-overview .co-ctx-title {
+  font-size: 12px;
+  letter-spacing: 0.9px;
+  text-transform: uppercase;
+  color: var(--co-muted);
+  margin: 0 0 10px 0;
+  font-weight: 900;
+}
+
+/* Row list container */
+.capability-overview .co-ctx-list {
+  display: grid;
+  gap: 10px;
+}
+
+/* Individual key-value row */
+.capability-overview .co-ctx-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--co-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.capability-overview .co-ctx-row--loading {
+  opacity: 0.6;
+}
+
+/* Left label (muted) */
+.capability-overview .co-ctx-label {
+  color: var(--co-muted);
+  font-size: 12px;
+  font-weight: 900;
+  letter-spacing: 0.3px;
+  flex-shrink: 0;
+}
+
+/* Right value (bold, truncated) */
+.capability-overview .co-ctx-value {
+  color: var(--co-text);
+  font-size: 13px;
+  font-weight: 900;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 60%;
+}
+
+/* Loading skeleton for value */
+.capability-overview .co-ctx-skeleton {
+  display: inline-block;
+  width: 80px;
+  height: 14px;
+  background: linear-gradient(90deg, #e2e8f0 25%, #f1f5f9 50%, #e2e8f0 75%);
+  background-size: 200% 100%;
+  animation: co-shimmer 1.5s infinite;
+  border-radius: 4px;
+}
+
+/* -------------------------
+   6.3) TOPBAR (Legacy)
+   ------------------------- */
+.capability-overview .co-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.capability-overview .co-link {
+  color: var(--co-primary);
+  text-decoration: none;
+  font-weight: 900;
+  font-size: 12px;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.capability-overview .co-link:hover {
+  text-decoration: underline;
+}
+
+.capability-overview .co-subline {
+  margin-top: 6px;
+  color: var(--co-muted);
+  font-size: 12px;
+}
+
+/* Employee Table */
+.capability-overview .co-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+  margin-top: 12px;
+}
+
+.capability-overview .co-table thead th {
+  font-size: 12px;
+  color: var(--co-muted);
+  text-align: left;
+  padding: 0 10px;
+  font-weight: 600;
+}
+
+.capability-overview .co-table tbody td {
+  padding: 12px 10px;
+  border-top: 1px solid var(--co-border);
+  border-bottom: 1px solid var(--co-border);
+  background: #fff;
+  vertical-align: middle;
+}
+
+.capability-overview .co-table tbody tr td:first-child {
+  border-left: 1px solid var(--co-border);
+  border-top-left-radius: var(--co-radius-sm);
+  border-bottom-left-radius: var(--co-radius-sm);
+}
+
+.capability-overview .co-table tbody tr td:last-child {
+  border-right: 1px solid var(--co-border);
+  border-top-right-radius: var(--co-radius-sm);
+  border-bottom-right-radius: var(--co-radius-sm);
+}
+
+.capability-overview .co-empname {
+  font-weight: 900;
+  color: var(--co-text);
+}
+
+.capability-overview .co-empsub {
+  margin-top: 2px;
+  color: var(--co-muted);
+  font-size: 12px;
+}
+
+/* Skill pills */
+.capability-overview .co-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--co-pill-border);
+  background: var(--co-pill);
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 900;
+  margin-right: 6px;
+  color: #166534;
+}
+
+.capability-overview .co-more {
+  font-size: 12px;
+  color: var(--co-muted);
+  font-weight: 900;
+}
+
+/* Proficiency Level Cell with Dot */
+.capability-overview .co-level {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.capability-overview .co-level-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+
+/* Level dot colors matching proficiency breakdown palette */
+.capability-overview .co-level-dot--novice { background: #c7d2fe; }
+.capability-overview .co-level-dot--beginner { background: #a5b4fc; }
+.capability-overview .co-level-dot--competent { background: #818cf8; }
+.capability-overview .co-level-dot--proficient { background: #6366f1; }
+.capability-overview .co-level-dot--expert { background: #4f46e5; }
+
+/* Certification Badge */
+.capability-overview .co-cert {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.capability-overview .co-cert--yes {
+  background: #dcfce7;
+  color: #166534;
+  border: 1px solid #bbf7d0;
+}
+
+.capability-overview .co-cert--no {
+  background: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fecaca;
+}
+
+/* Skill Column Header Truncation */
+.capability-overview .co-skill-header {
+  max-width: 120px;
+  display: inline-block;
+}
+
+.capability-overview .co-skill-header strong {
+  display: block;
+  max-width: 100px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* =========================
+   7) TREE HEADER (Left Panel)
+   ========================= */
+.capability-overview .co-tree-header {
+  padding: 14px 14px 10px;
+  background: #fbfcff;
+  border-bottom: 1px solid var(--co-border);
+}
+
+.capability-overview .co-tree-header-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.capability-overview .co-tree-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1;
+}
+
+.capability-overview .co-tree-header-desc {
+  font-size: 12px;
+  color: var(--co-muted);
+  font-weight: 800;
+  line-height: 1;
+}
+
+.capability-overview .co-tree-search {
+  margin-top: 10px;
+  position: relative;
+}
+
+.capability-overview .co-tree-search input {
+  width: 100%;
+  padding: 10px 12px 10px 36px;
+  border-radius: 12px;
+  border: 1px solid var(--co-border);
+  outline: none;
+  background: white;
+  transition: border 0.15s, box-shadow 0.15s;
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.capability-overview .co-tree-search input:focus {
+  border-color: rgba(37, 99, 235, 0.35);
+  box-shadow: 0 0 0 4px var(--co-primary-soft);
+}
+
+.capability-overview .co-tree-search-icon {
+  position: absolute;
+  top: 50%;
+  left: 12px;
+  transform: translateY(-50%);
+  color: #94a3b8;
+  width: 14px;
+  height: 14px;
+}
+
+.capability-overview .co-tree-search-clear {
+  position: absolute;
+  top: 50%;
+  right: 12px;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.capability-overview .co-tree-search-clear:hover {
+  color: #64748b;
+}
+
+.capability-overview .co-tree-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.capability-overview .co-tree-btn {
+  appearance: none;
+  border: 1px solid var(--co-border);
+  background: white;
+  color: #334155;
+  padding: 7px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: transform 0.05s ease, background 0.15s, border 0.15s;
+  user-select: none;
+  font-family: inherit;
+}
+
+.capability-overview .co-tree-btn:hover {
+  background: #f8fafc;
+  border-color: #dbe2ef;
+}
+
+.capability-overview .co-tree-btn:active {
+  transform: translateY(1px);
+}
+
+.capability-overview .co-tree-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.capability-overview .co-tree-search-hint {
+  font-size: 12px;
+  color: var(--co-muted);
+  margin-top: 8px;
+}
+
+.capability-overview .co-meta {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.capability-overview .co-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--co-border);
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--co-muted);
+  font-weight: 700;
+}
+
+/* =========================
+   8) SEARCH BOX
+   ========================= */
+.capability-overview .co-search {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin: 10px 0 14px;
+}
+
+.capability-overview .co-search input {
+  flex: 1;
+  border: 1px solid var(--co-border);
+  border-radius: var(--co-radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+}
+
+.capability-overview .co-search input:focus {
+  outline: none;
+  border-color: var(--co-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+/* =========================
+   9) DETAILS PANEL (Default State)
+   ========================= */
+.capability-overview.co-details-panel {
+  overflow: hidden;
+}
+
+.capability-overview .co-panel-header {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--co-border);
+  background: #fbfcff;
+}
+
+.capability-overview .co-panel-header-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.capability-overview .co-panel-header-title h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.capability-overview .co-panel-breadcrumb {
+  font-size: 12px;
+  color: var(--co-muted);
+  font-weight: 800;
+}
+
+.capability-overview .co-panel-subtitle {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--co-muted);
+}
+
+.capability-overview .co-detail {
+  padding: 18px;
+}
+
+.capability-overview .co-detail h3 {
+  margin: 0 0 8px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.capability-overview .co-detail > p {
+  margin: 0 0 12px;
+  color: var(--co-muted);
+  font-size: 13px;
+}
+
+.capability-overview .co-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.capability-overview .co-summary-card {
+  border: 1px solid var(--co-border);
+  background: linear-gradient(180deg, #fff 0%, #fbfcff 100%);
+  border-radius: 14px;
+  padding: 12px;
+}
+
+.capability-overview .co-summary-card-label {
+  font-size: 12px;
+  color: var(--co-muted);
+  font-weight: 800;
+  margin-bottom: 6px;
+}
+
+.capability-overview .co-summary-card-value {
+  font-size: 15px;
+  font-weight: 950;
+  letter-spacing: -0.01em;
+  color: var(--co-text);
+}
+
+.capability-overview .co-summary-card-hint {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--co-muted);
+}
+
+.capability-overview .co-hint-list {
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.capability-overview .co-hint-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--co-border);
+  border-radius: 12px;
+  background: #fff;
+}
+
+.capability-overview .co-hint-bullet {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  background: var(--co-primary);
+  margin-top: 4px;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1);
+  flex: 0 0 auto;
+}
+
+.capability-overview .co-hint-text {
+  font-size: 13px;
+  color: #334155;
+  font-weight: 750;
+}
+
+.capability-overview .co-hint-subtext {
+  display: block;
+  font-size: 12px;
+  color: var(--co-muted);
+  font-weight: 650;
+  margin-top: 2px;
+}
+
+/* =========================
+   11) TREE VIEW
+   ========================= */
+.capability-overview .co-tree {
+  padding: 10px 8px 14px;
+}
+
+.capability-overview .co-tree-node {
+  margin: 4px 6px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.capability-overview .co-tree-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s, transform 0.05s;
+  border: 1px solid transparent;
+  background: transparent;
+  width: 100%;
+  text-align: left;
+  font-family: inherit;
+}
+
+.capability-overview .co-tree-row:hover {
+  background: #f8fafc;
+}
+
+.capability-overview .co-tree-row:active {
+  transform: translateY(1px);
+}
+
+.capability-overview .co-tree-row:focus {
+  outline: none;
+}
+
+.capability-overview .co-tree-row:focus-visible {
+  box-shadow: 0 0 0 2px var(--co-primary);
+}
+
+.capability-overview .co-tree-row.selected {
+  background: var(--co-primary-soft);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
+  border: 1px solid rgba(37, 99, 235, 0.25);
+}
+
+.capability-overview .co-tree-row.selected .co-tree-name {
+  color: #1e3a8a;
+}
+
+.capability-overview .co-tree-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.capability-overview .co-tree-chev {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  border: 1px solid var(--co-border);
+  background: white;
+  color: #475569;
+  flex: 0 0 auto;
+  font-size: 11px;
+}
+
+.capability-overview .co-tree-chev.hidden {
+  visibility: hidden;
+}
+
+.capability-overview .co-tree-type {
+  font-size: 12px;
+  color: var(--co-muted);
+  font-weight: 800;
+  background: #f1f5f9;
+  border: 1px solid var(--co-border);
+  padding: 2px 8px;
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.capability-overview .co-tree-type.skill {
+  background: #eff6ff;
+  border-color: rgba(37, 99, 235, 0.2);
+  color: #1e3a8a;
+}
+
+.capability-overview .co-tree-name {
+  font-size: 13px;
+  font-weight: 900;
+  letter-spacing: -0.01em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--co-text);
+}
+
+.capability-overview .co-tree-row.skill .co-tree-name {
+  font-weight: 800;
+}
+
+.capability-overview .co-tree-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.capability-overview .co-tree-badge {
+  font-size: 12px;
+  font-weight: 900;
+  color: #3730a3;
+  background: #eef2ff;
+  border: 1px solid rgba(55, 48, 163, 0.12);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.capability-overview .co-tree-pill {
+  font-size: 12px;
+  font-weight: 900;
+  color: #0f172a;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  padding: 3px 8px;
+  border-radius: 999px;
+}
+
+.capability-overview .co-tree-children {
+  margin-left: 18px;
+  padding-left: 10px;
+  border-left: 1px dashed #dbe2ef;
+}
+
+.capability-overview .co-tree-highlight {
+  background: rgba(245, 158, 11, 0.18);
+  border-radius: 6px;
+  padding: 0 3px;
+}
+
+.capability-overview .co-tree-empty {
+  text-align: center;
+  padding: 32px 0;
+  color: var(--co-muted);
+}
+
+.capability-overview .co-tree-empty-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  color: #94a3b8;
+}
+
+.capability-overview .co-tree-empty-title {
+  font-size: 16px;
+  font-weight: 500;
+  color: #64748b;
+  margin: 0 0 4px;
+}
+
+.capability-overview .co-tree-empty-subtitle {
+  font-size: 14px;
+  color: var(--co-muted);
+  margin: 0;
+}
+
+/* =========================
+   VIEW EMPLOYEES HEADER
+   ========================= */
+
+/* Header container */
+.capability-overview .ve-header {
+  padding: 14px 16px 10px 16px;
+  border-bottom: 1px solid #e6ebf3;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+
+.capability-overview .ve-header-left {
+  min-width: 0;
+}
+
+/* Back link row */
+.capability-overview .ve-crumb-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.capability-overview .ve-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid #e6ebf3;
+  background: #fff;
+  color: #0f172a;
+  text-decoration: none;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.capability-overview .ve-back-link:hover {
+  background: #fbfcff;
+}
+
+/* Title row */
+.capability-overview .ve-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.capability-overview .ve-title {
+  font-size: 18px;
+  margin: 0;
+  letter-spacing: -0.2px;
+  font-weight: 600;
+}
+
+.capability-overview .ve-skill-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #e8efff;
+  color: #2563eb;
+  font-weight: 800;
+  font-size: 12px;
+  border: 1px solid #d7e4ff;
+  white-space: nowrap;
+}
+
+/* Subtitle row */
+.capability-overview .ve-sub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: #64748b;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.capability-overview .ve-meta-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: #cbd5e1;
+  display: inline-block;
+  margin: 0 2px;
+}
+
+.capability-overview .ve-hint {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
+/* Header right side */
+.capability-overview .ve-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+/* Buttons */
+.capability-overview .ve-btn {
+  border: 1px solid #e6ebf3;
+  background: #fff;
+  color: #0f172a;
+  padding: 9px 12px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.capability-overview .ve-btn:hover {
+  background: #fbfcff;
+}
+
+.capability-overview .ve-btn-ghost {
+  background: #fff;
+  color: #2563eb;
+  border-color: #d7e4ff;
+}
+
+.capability-overview .ve-btn-ghost:hover {
+  background: #e8efff;
+}
+
+/* KPI Strip */
+.capability-overview .ve-insight-strip {
+  padding: 12px 16px;
+  border-bottom: 1px solid #e6ebf3;
+  background: linear-gradient(180deg, #ffffff 0%, #fbfcff 100%);
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 10px;
+}
+
+.capability-overview .ve-kpi {
+  border: 1px solid #e6ebf3;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 12px;
+  min-height: 54px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4px;
+}
+
+.capability-overview .ve-kpi-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.capability-overview .ve-kpi-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 800;
+}
+
+.capability-overview .ve-kpi-value {
+  font-size: 16px;
+  font-weight: 900;
+  letter-spacing: -0.2px;
+}
+
+/* Tags */
+.capability-overview .ve-tag {
+  font-size: 11px;
+  font-weight: 900;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid #e6ebf3;
+  background: #fff;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.capability-overview .ve-tag.tagRisk {
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.25);
+  background: rgba(220, 38, 38, 0.06);
+}
+
+.capability-overview .ve-tag.tagWarn {
+  color: #b45309;
+  border-color: rgba(245, 158, 11, 0.30);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.capability-overview .ve-tag.tagHealthy {
+  color: #16a34a;
+  border-color: rgba(22, 163, 74, 0.25);
+  background: rgba(22, 163, 74, 0.06);
+}
+
+/* Controls section */
+.capability-overview .ve-controls {
+  padding: 12px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #e6ebf3;
+  background: #fff;
+}
+
+.capability-overview .ve-left-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+  min-width: 0;
+}
+
+.capability-overview .ve-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid #e6ebf3;
+  border-radius: 12px;
+  min-width: 320px;
+  background: #fff;
+}
+
+.capability-overview .ve-search input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-size: 13px;
+}
+
+.capability-overview .ve-right-controls {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+/* Responsive */
+@media (max-width: 980px) {
+  .capability-overview .ve-insight-strip {
+    grid-template-columns: 1fr;
+  }
+  
+  .capability-overview .ve-search {
+    min-width: 100%;
+  }
+}
+

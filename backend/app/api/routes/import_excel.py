@@ -5,7 +5,7 @@ import logging
 import tempfile
 import os
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 import asyncio
 from concurrent.futures import ThreadPoolExecutor
 
@@ -28,6 +28,39 @@ from app.services.imports.unresolved_skills_service import (
     SkillNotFoundError,
     AlreadyResolvedError,
     AliasAlreadyExistsError
+)
+from app.services.imports.role_mapping_service import (
+    get_roles_for_mapping,
+    map_role_to_failed_row,
+    RolesForMappingResponse,
+    MapRoleRequest,
+    MapRoleResponse,
+    ImportJobNotFoundError as RoleImportJobNotFoundError,
+    RoleNotFoundError,
+    InvalidFailedRowError,
+    AlreadyMappedError,
+    NotRoleErrorError,
+    AliasConflictError,
+    MissingAliasTextError
+)
+from app.services.imports.team_mapping_service import (
+    get_teams_for_mapping,
+    map_team_to_failed_row,
+    create_team_for_failed_row,
+    TeamsForMappingResponse,
+    MapTeamRequest,
+    MapTeamResponse,
+    CreateTeamFromImportRequest,
+    CreateTeamFromImportResponse,
+    ImportJobNotFoundError as TeamImportJobNotFoundError,
+    ProjectNotFoundError,
+    TeamNotFoundError,
+    TeamNotInProjectError,
+    InvalidFailedRowError as TeamInvalidFailedRowError,
+    AlreadyMappedError as TeamAlreadyMappedError,
+    NotTeamErrorError,
+    MissingTeamTextError,
+    MissingProjectInfoError
 )
 from app.db.session import get_db
 
@@ -437,5 +470,306 @@ async def get_single_skill_suggestions_endpoint(
     except RawSkillNotFoundError as e:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+# =============================================================================
+# ROLE MAPPING ENDPOINTS
+# =============================================================================
+
+@router.get("/{import_run_id}/roles-for-mapping", response_model=RolesForMappingResponse)
+async def get_roles_for_mapping_endpoint(
+    import_run_id: str,
+    q: Optional[str] = None,
+    db: Session = Depends(get_db)
+) -> RolesForMappingResponse:
+    """
+    Get all active roles for the role mapping UI.
+    
+    Args:
+        import_run_id: The import job UUID (for validation)
+        q: Optional search query to filter roles (case-insensitive)
+        db: Database session
+        
+    Returns:
+        RolesForMappingResponse with list of roles
+        
+    Raises:
+        HTTPException 404: If import job not found
+    """
+    # Validate import job exists
+    from app.models.import_job import ImportJob
+    import_job = db.query(ImportJob).filter(ImportJob.job_id == import_run_id).first()
+    if not import_job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Import job '{import_run_id}' not found"
+        )
+    
+    return get_roles_for_mapping(db=db, search_query=q)
+
+
+@router.post("/{import_run_id}/map-role", response_model=MapRoleResponse)
+async def map_role_to_import_row(
+    import_run_id: str,
+    request: MapRoleRequest,
+    db: Session = Depends(get_db)
+) -> MapRoleResponse:
+    """
+    Map a MISSING_ROLE failed row to an existing master role.
+    
+    This endpoint updates the import job result to mark the row as resolved.
+    
+    Args:
+        import_run_id: The import job UUID
+        request: MapRoleRequest with failed_row_index and target_role_id
+        db: Database session
+        
+    Returns:
+        MapRoleResponse with mapping details
+        
+    Raises:
+        HTTPException 404: If import job or role not found
+        HTTPException 400: If row is already mapped or not a MISSING_ROLE error
+    """
+    try:
+        result = map_role_to_failed_row(
+            db=db,
+            import_run_id=import_run_id,
+            failed_row_index=request.failed_row_index,
+            target_role_id=request.target_role_id,
+            mapped_by=None  # TODO: Get from auth context
+        )
+        return result
+    except RoleImportJobNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except RoleNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except InvalidFailedRowError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except AlreadyMappedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except NotRoleErrorError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except AliasConflictError as e:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(e)
+        )
+    except MissingAliasTextError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+# =============================================================================
+# TEAM MAPPING ENDPOINTS
+# =============================================================================
+
+@router.get("/{import_run_id}/teams-for-mapping", response_model=TeamsForMappingResponse)
+async def get_teams_for_mapping_endpoint(
+    import_run_id: str,
+    project_id: int,
+    q: Optional[str] = None,
+    db: Session = Depends(get_db)
+) -> TeamsForMappingResponse:
+    """
+    Get all active teams for a specific project for the team mapping UI.
+    
+    Args:
+        import_run_id: The import job UUID (for validation)
+        project_id: The project ID to get teams for
+        q: Optional search query to filter teams (case-insensitive)
+        db: Database session
+        
+    Returns:
+        TeamsForMappingResponse with list of teams
+        
+    Raises:
+        HTTPException 404: If import job or project not found
+    """
+    # Validate import job exists
+    from app.models.import_job import ImportJob
+    import_job = db.query(ImportJob).filter(ImportJob.job_id == import_run_id).first()
+    if not import_job:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=f"Import job '{import_run_id}' not found"
+        )
+    
+    try:
+        return get_teams_for_mapping(db=db, project_id=project_id, search_query=q)
+    except ProjectNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+
+
+@router.post("/{import_run_id}/map-team", response_model=MapTeamResponse)
+async def map_team_to_import_row(
+    import_run_id: str,
+    request: MapTeamRequest,
+    db: Session = Depends(get_db)
+) -> MapTeamResponse:
+    """
+    Map a MISSING_TEAM failed row to an existing master team.
+    
+    This endpoint:
+    1. Validates the team belongs to the expected project
+    2. Updates the import job result to mark the row as resolved
+    
+    Args:
+        import_run_id: The import job UUID
+        request: MapTeamRequest with failed_row_index and target_team_id
+        db: Database session
+        
+    Returns:
+        MapTeamResponse with mapping details
+        
+    Raises:
+        HTTPException 404: If import job, project, or team not found
+        HTTPException 400: If row is already mapped, not a MISSING_TEAM error,
+                          or team doesn't belong to the expected project
+    """
+    try:
+        result = map_team_to_failed_row(
+            db=db,
+            import_run_id=import_run_id,
+            failed_row_index=request.failed_row_index,
+            target_team_id=request.target_team_id,
+            mapped_by=None  # TODO: Get from auth context
+        )
+        return result
+    except TeamImportJobNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except ProjectNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except TeamNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except TeamNotInProjectError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except TeamInvalidFailedRowError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except TeamAlreadyMappedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except NotTeamErrorError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except MissingTeamTextError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except MissingProjectInfoError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+
+
+@router.post("/{import_run_id}/create-team", response_model=CreateTeamFromImportResponse)
+async def create_team_for_import_row(
+    import_run_id: str,
+    request: CreateTeamFromImportRequest,
+    db: Session = Depends(get_db)
+) -> CreateTeamFromImportResponse:
+    """
+    Create a new team for a MISSING_TEAM failed row.
+    
+    This endpoint allows users to create a new team directly from the import
+    error resolution dialog, instead of only mapping to existing teams.
+    
+    The team is created under the same project as specified in the failed row,
+    and the row is marked as resolved.
+    
+    Args:
+        import_run_id: The import job UUID
+        request: CreateTeamFromImportRequest with failed_row_index and team_name
+        db: Database session
+        
+    Returns:
+        CreateTeamFromImportResponse with created team details
+        
+    Raises:
+        HTTPException 404: If import job not found
+        HTTPException 400: If row is already mapped, not a MISSING_TEAM error,
+                          team name is invalid, or team already exists
+    """
+    try:
+        result = create_team_for_failed_row(
+            db=db,
+            import_run_id=import_run_id,
+            failed_row_index=request.failed_row_index,
+            team_name=request.team_name,
+            created_by=None  # TODO: Get from auth context
+        )
+        return result
+    except TeamImportJobNotFoundError as e:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except TeamInvalidFailedRowError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except TeamAlreadyMappedError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except NotTeamErrorError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except MissingProjectInfoError as e:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=str(e)
+        )
+    except ValueError as e:
+        # From create_team: invalid name, duplicate team, or parent not found
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
             detail=str(e)
         )

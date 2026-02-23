@@ -97,7 +97,8 @@ def search_matching_talent(
     Search for employees matching specified criteria.
     
     Filters:
-    - Required Skills (multi-select with AND logic - must have ALL)
+    - Required Skills (filtered by match_mode)
+    - Match Mode: "ALL" (must have all skills), "ANY" (at least one skill), or omit for HYBRID
     - Sub-segment (optional)
     - Team (optional)
     - Role (optional)
@@ -115,7 +116,8 @@ def search_matching_talent(
             team_id=request.team_id,
             role=request.role,
             min_proficiency=request.min_proficiency,
-            min_experience_years=request.min_experience_years
+            min_experience_years=request.min_experience_years,
+            match_mode=request.match_mode
         )
         
         return SearchResponse(
@@ -172,7 +174,8 @@ async def export_matching_talent(
             role=request.filters.role,
             min_proficiency=request.filters.min_proficiency,
             min_experience_years=request.filters.min_experience_years,
-            selected_employee_ids=request.selected_employee_ids
+            selected_employee_ids=request.selected_employee_ids,
+            match_mode=request.filters.match_mode
         )
         
         # Generate filename with timestamp

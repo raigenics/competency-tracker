@@ -80,3 +80,20 @@ class ProficiencyLevelDropdown(BaseModel):
 class ProficiencyLevelListResponse(BaseModel):
     """Response schema for proficiency levels list."""
     proficiency_levels: List[ProficiencyLevelDropdown]
+
+
+class SubSegmentScopeItem(BaseModel):
+    """Schema for sub-segment scope item with fullname support."""
+    id: int
+    name: str
+    fullname: Optional[str] = None
+
+    class Config:
+        from_attributes = True
+
+
+class SubSegmentScopeResponse(BaseModel):
+    """Response schema for sub-segments scope list with aggregate counts."""
+    sub_segments: List[SubSegmentScopeItem]
+    total_employees: int
+    total_projects: int

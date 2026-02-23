@@ -18,6 +18,7 @@ class Team(Base):
     
     team_id = Column(Integer, primary_key=True, index=True)
     team_name = Column(String, nullable=False, index=True)
+    team_fullname = Column(String, nullable=True)
     project_id = Column(Integer, ForeignKey("projects.project_id", ondelete="CASCADE"), nullable=False)
     
     # Audit columns

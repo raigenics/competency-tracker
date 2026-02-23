@@ -116,6 +116,8 @@ class MasterDataValidator:
         if not team:
             return MasterDataValidationResult(
                 is_valid=False,
+                sub_segment_id=sub_segment.sub_segment_id,
+                project_id=project.project_id,  # Include project_id for team mapping
                 error_code="MISSING_TEAM",
                 error_message=f"Team '{team_name}' not found under Project '{project_name}'"
             )
@@ -171,15 +173,24 @@ class MasterDataValidator:
         return project
     
     def _get_team(self, name: str, project_id: int) -> Optional[Team]:
-        """Get Team by name AND project_id with caching (case-insensitive)."""
-        # Use lowercase name for cache key
-        cache_key = (name.lower() if name else "", project_id)
+        """
+        Get Team by name AND project_id with caching (case-insensitive).
+        
+        Resolution: Exact match on team_name (case-insensitive, trimmed)
+        
+        If not found, returns None (caller should raise MISSING_TEAM).
+        """
+        # Use normalized name for cache key
+        normalized_name = normalize_designation(name) if name else ""
+        cache_key = (normalized_name, project_id)
         if cache_key in self._team_cache:
             return self._team_cache[cache_key]
         
+        # Exact match by team_name (case-insensitive)
         team = self.db.query(Team).filter(
-            func.lower(Team.team_name) == cache_key[0],
-            Team.project_id == project_id
+            func.lower(Team.team_name) == (name.lower() if name else ""),
+            Team.project_id == project_id,
+            Team.deleted_at.is_(None)
         ).first()
         
         self._team_cache[cache_key] = team

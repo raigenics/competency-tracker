@@ -17,6 +17,7 @@ class Segment(Base):
     
     segment_id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     segment_name = Column(String, unique=True, nullable=False, index=True)
+    segment_fullname = Column(String, nullable=True)
     
     # Audit columns
     created_at = Column(

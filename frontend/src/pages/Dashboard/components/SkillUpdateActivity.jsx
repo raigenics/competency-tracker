@@ -1,7 +1,15 @@
 import { useState } from 'react';
-import { TrendingUp, Users, AlertTriangle, AlertCircle } from 'lucide-react';
+import MiniProgressBar from './MiniProgressBar.jsx';
 
-const SkillUpdateActivity = ({ activityData, loading, onDaysChange }) => {
+/**
+ * SkillUpdateActivity - Skill Update Activity Section
+ * 
+ * Uses existing API data from dashboardApi.getSkillUpdateActivity
+ * Preserves existing behavior and data source.
+ * 
+ * Progress bars show count / employeesInScope as a visual indicator.
+ */
+const SkillUpdateActivity = ({ activityData, loading, onDaysChange, employeesInScope = 0 }) => {
   const [selectedDays, setSelectedDays] = useState(90);
 
   const handleDaysChange = (newDays) => {
@@ -11,120 +19,100 @@ const SkillUpdateActivity = ({ activityData, loading, onDaysChange }) => {
     }
   };
 
+  // Calculate progress percentage (clamped 0-100)
+  const calcProgress = (count) => {
+    if (!employeesInScope || employeesInScope <= 0) return 0;
+    return Math.round((count / employeesInScope) * 100);
+  };
+
   if (loading) {
     return (
-      <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-        <div className="animate-pulse">
-          <div className="h-6 bg-slate-200 rounded w-1/3 mb-2"></div>
-          <div className="h-4 bg-slate-200 rounded w-2/3 mb-6"></div>
-          <div className="grid grid-cols-4 gap-4">
+      <section className="db-card db-activity-card" style={{ gridColumn: '2 / span 1' }}>
+        <div className="db-card-h">
+          <div className="left">
+            <h4>Skill Update Activity</h4>
+            <p>Loading...</p>
+          </div>
+        </div>
+        <div className="db-card-b">
+          <div className="db-activity">
             {[...Array(4)].map((_, i) => (
-              <div key={i} className="h-40 bg-slate-200 rounded"></div>
+              <div key={i} className="db-stat" style={{ opacity: 0.5 }}>
+                <div className="top">
+                  <b style={{ background: '#e2e8f0', width: '60px', height: '14px', display: 'block', borderRadius: '4px' }}></b>
+                </div>
+                <div style={{ background: '#e2e8f0', width: '50px', height: '28px', borderRadius: '6px', marginTop: '10px' }}></div>
+              </div>
             ))}
           </div>
         </div>
-      </div>
+      </section>
     );
   }
+
   const cards = [
     {
-      title: 'Updates in last 90 days',
+      title: 'Updates',
       value: activityData?.total_updates || 0,
-      caption: 'Employees with ≥ 1 update in last 90 days',
-      badge: { label: 'Activity', color: 'bg-blue-100 text-blue-700' },
-      icon: TrendingUp,
-      iconColor: 'text-blue-600',
-      iconBg: 'bg-blue-100'
+      caption: 'Employees with ≥ 1 update',
+      chipLabel: 'Active',
+      chipClass: 'ok',
+      progressVariant: 'success'
     },
     {
-      title: 'Active learners',
+      title: 'Active Learners',
       value: activityData?.active_learners || 0,
-      caption: 'Employees with ≥ 2 updates in last 90 days',
-      badge: { label: 'Engaged', color: 'bg-green-100 text-green-700' },
-      icon: Users,
-      iconColor: 'text-green-600',
-      iconBg: 'bg-green-100'
+      caption: 'Employees with ≥ 2 updates',
+      chipLabel: 'Engaged',
+      chipClass: 'ok',
+      progressVariant: 'success'
     },
     {
-      title: 'Low activity',
+      title: 'Low Activity',
       value: activityData?.low_activity || 0,
-      caption: 'Employees with 0–1 update in last 90 days',
-      badge: { label: 'Watch', color: 'bg-yellow-100 text-yellow-700' },
-      icon: AlertTriangle,
-      iconColor: 'text-yellow-600',
-      iconBg: 'bg-yellow-100'
+      caption: 'Employees with 0–1 update',
+      chipLabel: 'Watch',
+      chipClass: 'warn',
+      progressVariant: 'warn'
     },
     {
       title: 'Stagnant',
       value: activityData?.stagnant_180_days || 0,
-      caption: 'Employees with no updates in 180+ days',
-      badge: { label: 'Risk', color: 'bg-red-100 text-red-700' },
-      icon: AlertCircle,
-      iconColor: 'text-red-600',
-      iconBg: 'bg-red-100'
+      caption: 'No updates in 180+ days',
+      chipLabel: 'Risk',
+      chipClass: 'risk',
+      progressVariant: 'danger'
     }
   ];
 
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-slate-200 p-6 mb-6">
-      {/* Section Header */}
-      <div className="flex items-center justify-between mb-2">
-        <div>
-          <h3 className="text-lg font-semibold text-slate-900">Skill Update Activity</h3>
-          <p className="text-sm text-slate-600 mt-1">
-            Based on skill/proficiency updates captured in the system.
-          </p>
+    <section className="db-card db-activity-card" style={{ gridColumn: '2 / span 1' }}>
+      <div className="db-card-h">
+        <div className="left">
+          <h4>Skill Update Activity</h4>
+          <p>Signals to spot engaged vs stagnant team members</p>
         </div>
-        <div className="flex items-center space-x-2">
-          <span className="text-xs text-slate-600">Time window:</span>
-          <select
-            value={selectedDays}
-            onChange={(e) => handleDaysChange(Number(e.target.value))}
-            className="px-3 py-1.5 text-sm border border-slate-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-          >
-            <option value={30}>Last 30 days</option>
-            <option value={90}>Last 90 days</option>
-            <option value={180}>Last 180 days</option>
-          </select>
-        </div>
-      </div>      {/* Cards Grid */}
-      <div className="grid grid-cols-4 gap-4 mt-6">
-        {cards.map((card, index) => {
-          const Icon = card.icon;
-          return (
-            <div
-              key={index}
-              className="bg-white border border-slate-200 rounded-lg p-5 hover:shadow-md transition-shadow"
-            >
-              {/* Header with Icon and Badge */}
-              <div className="flex items-start justify-between mb-3">
-                <div className={`w-10 h-10 rounded-lg ${card.iconBg} flex items-center justify-center`}>
-                  <Icon className={`w-5 h-5 ${card.iconColor}`} />
-                </div>
-                <span className={`px-2 py-0.5 text-xs font-semibold rounded ${card.badge.color}`}>
-                  {card.badge.label}
-                </span>
-              </div>
-
-              {/* Title */}
-              <h4 className="text-sm font-medium text-slate-700 mb-1">
-                {card.title}
-              </h4>
-
-              {/* Value */}
-              <div className="text-3xl font-bold text-slate-900 mb-2">
-                {card.value.toLocaleString()}
-              </div>
-
-              {/* Caption */}
-              <p className="text-xs text-slate-600">
-                {card.caption}
-              </p>
-            </div>
-          );
-        })}
+        <span className="db-pill">Last {selectedDays} days</span>
       </div>
-    </div>
+      <div className="db-card-b">
+        <div className="db-activity">
+          {cards.map((card, index) => (
+            <div key={index} className="db-stat">
+              <div className="top">
+                <b>{card.title}</b>
+                <span className={`db-chip ${card.chipClass}`}>{card.chipLabel}</span>
+              </div>
+              <div className="stat-value">{card.value}</div>
+              <p className="sub">{card.caption}</p>
+              <MiniProgressBar 
+                value={calcProgress(card.value)} 
+                variant={card.progressVariant} 
+              />
+            </div>
+          ))}
+        </div>
+      </div>
+    </section>
   );
 };
 

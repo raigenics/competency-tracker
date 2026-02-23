@@ -19,6 +19,7 @@ class SubSegment(Base):
     
     sub_segment_id = Column(Integer, primary_key=True, index=True)
     sub_segment_name = Column(String, unique=True, nullable=False, index=True)
+    sub_segment_fullname = Column(String, nullable=True)
     
     # Foreign key to parent segment (nullable for backward compatibility)
     # Will be populated for all records after migration, but remains nullable

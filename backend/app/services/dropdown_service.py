@@ -1,13 +1,15 @@
 """
 Service layer for dropdown data operations.
 """
-from typing import List
+from typing import List, Dict, Any
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from app.models.segment import Segment
 from app.models.sub_segment import SubSegment
 from app.models.project import Project
 from app.models.team import Team
 from app.models.proficiency import ProficiencyLevel
+from app.models.employee import Employee
 
 
 class DropdownService:
@@ -135,3 +137,33 @@ class DropdownService:
             .order_by(ProficiencyLevel.proficiency_level_id)
             .all()
         )
+
+    @staticmethod
+    def get_sub_segments_scope(db: Session) -> Dict[str, Any]:
+        """
+        Get all non-deleted sub-segments for scope display with aggregate counts.
+        
+        Returns:
+            Dict with sub_segments list, total_employees, and total_projects
+        """
+        # Fetch sub-segments
+        sub_segments = (
+            db.query(SubSegment)
+            .filter(SubSegment.deleted_at.is_(None))
+            .order_by(SubSegment.sub_segment_name)
+            .all()
+        )
+        
+        # Count total employees (non-deleted)
+        total_employees = db.query(func.count(Employee.employee_id)).scalar() or 0
+        
+        # Count total projects (non-deleted)
+        total_projects = db.query(func.count(Project.project_id)).filter(
+            Project.deleted_at.is_(None)
+        ).scalar() or 0
+        
+        return {
+            "sub_segments": sub_segments,
+            "total_employees": total_employees,
+            "total_projects": total_projects
+        }

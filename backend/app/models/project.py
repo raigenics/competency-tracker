@@ -18,6 +18,7 @@ class Project(Base):
     
     project_id = Column(Integer, primary_key=True, index=True)
     project_name = Column(String, nullable=False, index=True)
+    project_fullname = Column(String, nullable=True)
     sub_segment_id = Column(Integer, ForeignKey("sub_segments.sub_segment_id", ondelete="CASCADE"), nullable=False)
     
     # Audit columns

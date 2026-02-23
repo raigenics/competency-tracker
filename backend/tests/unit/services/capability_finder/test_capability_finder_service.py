@@ -154,7 +154,8 @@ class TestSearchMatchingTalent:
                 team_id=5,
                 role='Developer',
                 min_proficiency=3,
-                min_experience_years=2
+                min_experience_years=2,
+                match_mode='ALL'
             )
         
         # Assert
@@ -165,7 +166,8 @@ class TestSearchMatchingTalent:
             team_id=5,
             role='Developer',
             min_proficiency=3,
-            min_experience_years=2
+            min_experience_years=2,
+            match_mode='ALL'
         )
     
     def test_returns_search_results(self, mock_db):
@@ -209,6 +211,37 @@ class TestSearchMatchingTalent:
         assert call_kwargs['role'] is None
         assert call_kwargs['min_proficiency'] == 0
         assert call_kwargs['min_experience_years'] == 0
+        assert call_kwargs['match_mode'] is None
+    
+    def test_passes_match_mode_parameter(self, mock_db):
+        """Should pass match_mode parameter to search service."""
+        # Arrange
+        with patch('app.services.capability_finder_service._search_matching_talent', return_value=[]) as mock_fn:
+            # Act
+            CapabilityFinderService.search_matching_talent(
+                mock_db,
+                skills=['Python', 'AWS'],
+                match_mode='ALL'
+            )
+        
+        # Assert
+        call_kwargs = mock_fn.call_args[1]
+        assert call_kwargs['match_mode'] == 'ALL'
+    
+    def test_passes_any_match_mode(self, mock_db):
+        """Should pass ANY match_mode to search service."""
+        # Arrange
+        with patch('app.services.capability_finder_service._search_matching_talent', return_value=[]) as mock_fn:
+            # Act
+            CapabilityFinderService.search_matching_talent(
+                mock_db,
+                skills=['Python'],
+                match_mode='ANY'
+            )
+        
+        # Assert
+        call_kwargs = mock_fn.call_args[1]
+        assert call_kwargs['match_mode'] == 'ANY'
 
 
 # ============================================================================

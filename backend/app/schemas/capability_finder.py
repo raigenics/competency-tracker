@@ -1,7 +1,7 @@
 """
 Schemas for Capability Finder (Advanced Query) API.
 """
-from typing import List, Optional
+from typing import List, Literal, Optional
 from pydantic import BaseModel, Field
 
 
@@ -30,7 +30,12 @@ class RoleListResponse(BaseModel):
 
 class SearchRequest(BaseModel):
     """Request schema for talent search."""
-    skills: List[str] = Field(default_factory=list, description="List of required skill names (AND logic)")
+    skills: List[str] = Field(default_factory=list, description="List of required skill names")
+    match_mode: Optional[Literal["ALL", "ANY"]] = Field(
+        None,
+        description="Skill matching mode: 'ALL' requires all skills, 'ANY' requires at least one. "
+                    "If omitted, uses HYBRID mode (tries ALL first, falls back to ANY)."
+    )
     sub_segment_id: Optional[int] = Field(None, description="Sub-segment ID filter")
     team_id: Optional[int] = Field(None, description="Team ID filter")
     role: Optional[str] = Field(None, description="Role name filter")
@@ -49,6 +54,7 @@ class EmployeeSearchResult(BaseModel):
     employee_id: int
     employee_name: str
     sub_segment: str
+    project: str = Field("", description="Employee's current project name")
     team: str
     role: str
     top_skills: List[SkillInfo]

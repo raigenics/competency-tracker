@@ -117,6 +117,12 @@ class EmployeePersister:
                         'full_name': full_name if full_name else None,
                         'employee_name': full_name if full_name else None,
                         'skill_name': None,
+                        'role_name': role_name if role_name else None,
+                        # Include project/team info for team mapping
+                        'project_name': project_name if project_name else None,
+                        'team_name': team_name if team_name else None,
+                        # Include project_id if validation got that far
+                        'project_id': validation_result.project_id,
                         'error_code': validation_result.error_code,
                         'message': validation_result.error_message
                     }

@@ -313,24 +313,14 @@ const OrgProjectTeamsPanel = ({
           <div className="info-section-title" style={{ margin: 0 }}>TEAMS IN THIS PROJECT</div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {!disabled && onCreateTeam && (
-              <button className="btn btn-primary btn-sm" onClick={handleStartAdd}>
+              <button className="oh-btn subtle" onClick={handleStartAdd}>
                 + Add Team
               </button>
             )}
           </div>
         </div>
-        <div className="skills-empty-state">
-          <div className="empty-icon">👥</div>
-          <p>No teams in this project yet</p>
-          {!disabled && onCreateTeam && (
-            <button 
-              className="btn btn-primary btn-sm" 
-              onClick={handleStartAdd}
-              style={{ marginTop: '16px' }}
-            >
-              + Add First Team
-            </button>
-          )}
+        <div className="skills-empty-state" style={{ padding: '32px 16px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--oh-sub, #64748b)', margin: 0 }}>No teams in this project yet.</p>
         </div>
       </div>
     );
@@ -383,7 +373,7 @@ const OrgProjectTeamsPanel = ({
           )}
           {!disabled && onCreateTeam && (
             <button 
-              className="btn btn-primary btn-sm" 
+              className="oh-btn subtle" 
               onClick={handleStartAdd}
               disabled={isAddingSaving}
             >

@@ -168,6 +168,83 @@ export const skillApi = {
       console.error(`Failed to search skills with query '${query}':`, error);
       throw error;
     }
+  },
+
+  // Get capability KPIs for Capability Overview page
+  async getCapabilityKpis() {
+    try {
+      const response = await httpClient.get('/skills/capability-kpis');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch capability KPIs:', error);
+      throw error;
+    }
+  },
+
+  // Get category coverage (most/least populated categories)
+  async getCategoryCoverage() {
+    try {
+      const response = await httpClient.get('/skills/category-coverage');
+      return response;
+    } catch (error) {
+      console.error('Failed to fetch category coverage:', error);
+      throw error;
+    }
+  },
+
+  // Get capability snapshot KPIs for a specific skill (3 KPI cards)
+  async getCapabilitySnapshot(skillId) {
+    try {
+      const response = await httpClient.get(`/skills/${skillId}/capability-snapshot`);
+      return response;
+    } catch (error) {
+      console.error(`Failed to fetch capability snapshot for skill ${skillId}:`, error);
+      throw error;
+    }
+  },
+
+  // Get proficiency breakdown for a specific skill (stacked bar + legend)
+  async getProficiencyBreakdown(skillId) {
+    try {
+      const response = await httpClient.get(`/skills/${skillId}/proficiency-breakdown`);
+      return response;
+    } catch (error) {
+      console.error(`Failed to fetch proficiency breakdown for skill ${skillId}:`, error);
+      throw error;
+    }
+  },
+
+  // Get leading sub-segment for a specific skill (highest distinct employee count)
+  async getLeadingSubSegment(skillId) {
+    try {
+      const response = await httpClient.get(`/skills/${skillId}/leading-subsegment`);
+      return response;
+    } catch (error) {
+      console.error(`Failed to fetch leading sub-segment for skill ${skillId}:`, error);
+      throw error;
+    }
+  },
+
+  // Get employees summary for a specific skill (View Employees header KPIs)
+  async getEmployeesSummary(skillId) {
+    try {
+      const response = await httpClient.get(`/skills/${skillId}/employees/summary`);
+      return response;
+    } catch (error) {
+      console.error(`Failed to fetch employees summary for skill ${skillId}:`, error);
+      throw error;
+    }
+  },
+
+  // Get employees list for a specific skill (View Employees table)
+  async getEmployeesList(skillId) {
+    try {
+      const response = await httpClient.get(`/skills/${skillId}/employees`);
+      return response;
+    } catch (error) {
+      console.error(`Failed to fetch employees list for skill ${skillId}:`, error);
+      throw error;
+    }
   }
 };
 

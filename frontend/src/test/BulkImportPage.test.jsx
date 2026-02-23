@@ -598,4 +598,153 @@ describe('BulkImportPage', () => {
       });
     });
   });
+
+  // =========================================================================
+  // Button State After Import Completes
+  // =========================================================================
+  describe('Button State After Import Completes', () => {
+    it('should enable buttons immediately when import completes successfully', async () => {
+      // Arrange - mock job completion
+      bulkImportApi.importExcel.mockResolvedValueOnce({
+        job_id: 'test-job-success',
+        status: 'pending'
+      });
+      
+      // First poll returns processing, second returns completed
+      let pollCount = 0;
+      bulkImportApi.getJobStatus.mockImplementation(async () => {
+        pollCount++;
+        if (pollCount === 1) {
+          return {
+            job_id: 'test-job-success',
+            status: 'processing',
+            percent_complete: 50,
+            message: 'Processing...'
+          };
+        }
+        return {
+          job_id: 'test-job-success',
+          status: 'completed',
+          percent_complete: 100,
+          result: {
+            status: 'success',
+            employee_total: 10,
+            employee_imported: 10,
+            employee_failed: 0,
+            skill_total: 50,
+            skill_imported: 50,
+            skill_failed: 0,
+            failed_rows: []
+          }
+        };
+      });
+
+      renderWithRouter(<BulkImportPage />);
+      const file = createMockFile('test.xlsx');
+      const input = document.querySelector('input[type="file"]');
+      fireEvent.change(input, { target: { files: [file] } });
+
+      await waitFor(() => {
+        expect(screen.getByText('Start Import')).toBeInTheDocument();
+      });
+
+      // Act - start import
+      fireEvent.click(screen.getByText('Start Import'));
+
+      // Wait for import to complete and show success
+      await waitFor(() => {
+        expect(screen.getByText(/Import Completed/)).toBeInTheDocument();
+      }, { timeout: 3000 });
+
+      // Assert - buttons should be enabled immediately (not disabled)
+      // The Remove button should exist and be enabled
+      const removeButton = screen.getByRole('button', { name: /remove/i });
+      expect(removeButton).not.toBeDisabled();
+
+      // Start Import button should show "Start Import" (not "Importing...")
+      const startImportButton = screen.getByRole('button', { name: /start import/i });
+      expect(startImportButton).not.toBeDisabled();
+      expect(startImportButton.textContent).toBe('Start Import');
+    });
+
+    it('should enable buttons when import fails', async () => {
+      // Arrange
+      bulkImportApi.importExcel.mockResolvedValueOnce({
+        job_id: 'test-job-fail',
+        status: 'pending'
+      });
+      bulkImportApi.getJobStatus.mockResolvedValue({
+        job_id: 'test-job-fail',
+        status: 'failed',
+        error: 'Something went wrong'
+      });
+
+      renderWithRouter(<BulkImportPage />);
+      const file = createMockFile('test.xlsx');
+      const input = document.querySelector('input[type="file"]');
+      fireEvent.change(input, { target: { files: [file] } });
+
+      await waitFor(() => {
+        expect(screen.getByText('Start Import')).toBeInTheDocument();
+      });
+
+      // Act
+      fireEvent.click(screen.getByText('Start Import'));
+
+      // Wait for error - use getAllByText since there are multiple "Import Failed" elements
+      await waitFor(() => {
+        expect(screen.getAllByText(/Import Failed/).length).toBeGreaterThan(0);
+      }, { timeout: 3000 });
+
+      // Assert - there should be a Try Again button which shows state is reset
+      expect(screen.getByText('← Try Again')).toBeInTheDocument();
+    });
+
+    it('should clear polling interval when import completes', async () => {
+      // Arrange
+      const clearIntervalSpy = vi.spyOn(globalThis, 'clearInterval');
+      
+      bulkImportApi.importExcel.mockResolvedValueOnce({
+        job_id: 'test-job-clear',
+        status: 'pending'
+      });
+      bulkImportApi.getJobStatus.mockResolvedValue({
+        job_id: 'test-job-clear',
+        status: 'completed',
+        percent_complete: 100,
+        result: {
+          status: 'success',
+          employee_total: 5,
+          employee_imported: 5,
+          employee_failed: 0,
+          skill_total: 10,
+          skill_imported: 10,
+          skill_failed: 0,
+          failed_rows: []
+        }
+      });
+
+      renderWithRouter(<BulkImportPage />);
+      const file = createMockFile('test.xlsx');
+      const input = document.querySelector('input[type="file"]');
+      fireEvent.change(input, { target: { files: [file] } });
+
+      await waitFor(() => {
+        expect(screen.getByText('Start Import')).toBeInTheDocument();
+      });
+
+      // Act
+      fireEvent.click(screen.getByText('Start Import'));
+
+      // Wait for completion
+      await waitFor(() => {
+        expect(screen.getByText(/Import Completed/)).toBeInTheDocument();
+      }, { timeout: 3000 });
+
+      // Assert - clearInterval should have been called
+      expect(clearIntervalSpy).toHaveBeenCalled();
+
+      clearIntervalSpy.mockRestore();
+    });
+  });
 });

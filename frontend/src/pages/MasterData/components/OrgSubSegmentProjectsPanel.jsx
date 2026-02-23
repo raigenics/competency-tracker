@@ -313,24 +313,14 @@ const OrgSubSegmentProjectsPanel = ({
           <div className="info-section-title" style={{ margin: 0 }}>PROJECTS IN THIS SUB-SEGMENT</div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {!disabled && onCreateProject && (
-              <button className="btn btn-primary btn-sm" onClick={handleStartAdd}>
+              <button className="oh-btn subtle" onClick={handleStartAdd}>
                 + Add Project
               </button>
             )}
           </div>
         </div>
-        <div className="skills-empty-state">
-          <div className="empty-icon">📋</div>
-          <p>No projects in this sub-segment yet</p>
-          {!disabled && onCreateProject && (
-            <button 
-              className="btn btn-primary btn-sm" 
-              onClick={handleStartAdd}
-              style={{ marginTop: '16px' }}
-            >
-              + Add First Project
-            </button>
-          )}
+        <div className="skills-empty-state" style={{ padding: '32px 16px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--oh-sub, #64748b)', margin: 0 }}>No projects in this sub-segment yet.</p>
         </div>
       </div>
     );
@@ -383,7 +373,7 @@ const OrgSubSegmentProjectsPanel = ({
           )}
           {!disabled && onCreateProject && (
             <button 
-              className="btn btn-primary btn-sm" 
+              className="oh-btn subtle" 
               onClick={handleStartAdd}
               disabled={isAddingSaving}
             >

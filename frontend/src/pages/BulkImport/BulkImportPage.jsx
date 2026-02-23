@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader.jsx';
 import { bulkImportApi } from '../../services/api/bulkImportApi.js';
 import SkillMappingModal from './SkillMappingModal.jsx';
+import RoleMappingModal from './RoleMappingModal.jsx';
+import TeamMappingModal from './TeamMappingModal.jsx';
 
 const BulkImportPage = () => {
   const navigate = useNavigate();
@@ -32,6 +34,16 @@ const BulkImportPage = () => {
   const [unresolvedSkills, setUnresolvedSkills] = useState([]);
   const [selectedUnresolvedSkill, setSelectedUnresolvedSkill] = useState(null);
   const [, setLoadingUnresolved] = useState(false);
+
+  // Role mapping modal state
+  const [roleMappingModalOpen, setRoleMappingModalOpen] = useState(false);
+  const [selectedRoleFailedRow, setSelectedRoleFailedRow] = useState(null);
+  const [selectedRoleFailedRowIndex, setSelectedRoleFailedRowIndex] = useState(null);
+
+  // Team mapping modal state
+  const [teamMappingModalOpen, setTeamMappingModalOpen] = useState(false);
+  const [selectedTeamFailedRow, setSelectedTeamFailedRow] = useState(null);
+  const [selectedTeamFailedRowIndex, setSelectedTeamFailedRowIndex] = useState(null);
 
   // Reset displayPercent when progressData becomes null (React recommended pattern)
   if (progressData !== prevProgressData) {
@@ -152,6 +164,70 @@ const BulkImportPage = () => {
     }
   }, [importResults]);
 
+  // Handle opening the role mapping modal for a MISSING_ROLE failed row
+  const handleRoleMapClick = useCallback((failedRow, rowIndex) => {
+    setSelectedRoleFailedRow(failedRow);
+    setSelectedRoleFailedRowIndex(rowIndex);
+    setRoleMappingModalOpen(true);
+  }, []);
+
+  // Handle successful role mapping
+  const handleRoleMapped = useCallback((result) => {
+    console.log('Role mapped:', result);
+    
+    // Update failed_rows to mark this row as resolved
+    if (importResults?.failed_rows) {
+      setImportResults(prev => ({
+        ...prev,
+        failed_rows: prev.failed_rows.map((row, idx) => {
+          if (idx === result.failed_row_index) {
+            return {
+              ...row,
+              resolved: true,
+              mapped_role_id: result.mapped_role_id,
+              mapped_role_name: result.mapped_role_name
+            };
+          }
+          return row;
+        }),
+        // Update the failed count
+        employee_failed: Math.max(0, (prev.employee_failed || 0) - 1)
+      }));
+    }
+  }, [importResults]);
+
+  // Handle opening the team mapping modal for a MISSING_TEAM failed row
+  const handleTeamMapClick = useCallback((failedRow, rowIndex) => {
+    setSelectedTeamFailedRow(failedRow);
+    setSelectedTeamFailedRowIndex(rowIndex);
+    setTeamMappingModalOpen(true);
+  }, []);
+
+  // Handle successful team mapping
+  const handleTeamMapped = useCallback((result) => {
+    console.log('Team mapped:', result);
+    
+    // Update failed_rows to mark this row as resolved
+    if (importResults?.failed_rows) {
+      setImportResults(prev => ({
+        ...prev,
+        failed_rows: prev.failed_rows.map((row, idx) => {
+          if (idx === result.failed_row_index) {
+            return {
+              ...row,
+              resolved: true,
+              mapped_team_id: result.mapped_team_id,
+              mapped_team_name: result.mapped_team_name
+            };
+          }
+          return row;
+        }),
+        // Update the failed count
+        employee_failed: Math.max(0, (prev.employee_failed || 0) - 1)
+      }));
+    }
+  }, [importResults]);
+
   // Import handler
   const startImport = async () => {
     if (!selectedFile) return;
@@ -206,10 +282,9 @@ const BulkImportPage = () => {
         if (status.status === 'completed') {
           setImportResults(status.result);
           setCompletedJobId(jobId); // Preserve for unresolved skills fetching
-          // BUGFIX: Don't immediately hide progress - let animation complete first
-          // Only hide progress UI after displayPercent reaches 100%
-          // (This is handled in the animation effect cleanup)
-          // setIsImporting(false); // MOVED - see animation effect
+          // Reset import state immediately - buttons should be enabled as soon as import completes
+          // Progress animation can continue independently for visual smoothness
+          setIsImporting(false);
           setJobId(null);
           clearInterval(pollingIntervalRef.current);
         } else if (status.status === 'failed') {
@@ -310,20 +385,6 @@ const BulkImportPage = () => {
       }
     };
   }, [progressData, displayPercent]);
-  // BUGFIX: Hide progress UI only after animation completes to prevent Import Report regression
-  // This ensures the Import Report appears after smooth completion animation finishes
-  // ROOT CAUSE: The completion animation (1.8s) + 100ms delay kept isImporting=true too long,
-  // causing spinner to run even after import report was visible.
-  // FIX: Progress section now checks `!importResults` to hide immediately when report appears.
-  useEffect(() => {
-    if (progressData?.status === 'completed' && displayPercent >= 100) {
-      // Small delay to ensure final frame is rendered
-      const timer = setTimeout(() => {
-        setIsImporting(false);
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [progressData?.status, displayPercent]);
 
   // Utility
   const downloadTemplate = () => {
@@ -645,6 +706,8 @@ const BulkImportPage = () => {
                             <tbody>
                               {importResults.failed_rows.map((row, idx) => {
                                 const isUnresolvedSkill = row.error_code === 'SKILL_NOT_RESOLVED' || row.error_code === 'SKILL_NEEDS_REVIEW';
+                                const isUnresolvedRole = row.error_code === 'MISSING_ROLE';
+                                const isUnresolvedTeam = row.error_code === 'MISSING_TEAM';
                                 const isResolved = row.resolved === true;
                                 
                                 return (
@@ -696,7 +759,23 @@ const BulkImportPage = () => {
                                         onClick={() => handleMapClick(row)}
                                         className="px-3 py-1.5 bg-[#667eea] text-white text-xs font-medium rounded hover:bg-[#5568d3] transition-colors"
                                       >
-                                        Map
+                                        Map Skill
+                                      </button>
+                                    )}
+                                    {isUnresolvedRole && !isResolved && completedJobId && (
+                                      <button
+                                        onClick={() => handleRoleMapClick(row, idx)}
+                                        className="px-3 py-1.5 bg-[#f59e0b] text-white text-xs font-medium rounded hover:bg-[#d97706] transition-colors"
+                                      >
+                                        Map Role
+                                      </button>
+                                    )}
+                                    {isUnresolvedTeam && !isResolved && completedJobId && (
+                                      <button
+                                        onClick={() => handleTeamMapClick(row, idx)}
+                                        className="px-3 py-1.5 bg-[#10b981] text-white text-xs font-medium rounded hover:bg-[#059669] transition-colors"
+                                      >
+                                        Map Team
                                       </button>
                                     )}
                                     {isResolved && (
@@ -745,6 +824,34 @@ const BulkImportPage = () => {
         importRunId={completedJobId}
         unresolvedSkill={selectedUnresolvedSkill}
         onResolved={handleSkillResolved}
+      />
+
+      {/* Role Mapping Modal */}
+      <RoleMappingModal
+        isOpen={roleMappingModalOpen}
+        onClose={() => {
+          setRoleMappingModalOpen(false);
+          setSelectedRoleFailedRow(null);
+          setSelectedRoleFailedRowIndex(null);
+        }}
+        importRunId={completedJobId}
+        failedRow={selectedRoleFailedRow}
+        failedRowIndex={selectedRoleFailedRowIndex}
+        onMapped={handleRoleMapped}
+      />
+
+      {/* Team Mapping Modal */}
+      <TeamMappingModal
+        isOpen={teamMappingModalOpen}
+        onClose={() => {
+          setTeamMappingModalOpen(false);
+          setSelectedTeamFailedRow(null);
+          setSelectedTeamFailedRowIndex(null);
+        }}
+        importRunId={completedJobId}
+        failedRow={selectedTeamFailedRow}
+        failedRowIndex={selectedTeamFailedRowIndex}
+        onMapped={handleTeamMapped}
       />
     </div>
   );

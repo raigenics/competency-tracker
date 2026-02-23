@@ -38,7 +38,8 @@ def export_matching_talent_to_excel(
     role: Optional[str] = None,
     min_proficiency: int = 0,
     min_experience_years: int = 0,
-    selected_employee_ids: List[int] = None
+    selected_employee_ids: List[int] = None,
+    match_mode: Optional[str] = None
 ) -> BytesIO:
     """
     Export matching talent to Excel format with all skills consolidated per employee.
@@ -86,7 +87,8 @@ def export_matching_talent_to_excel(
         role=role,
         min_proficiency=min_proficiency,
         min_experience_years=min_experience_years,
-        selected_employee_ids=selected_employee_ids
+        selected_employee_ids=selected_employee_ids,
+        match_mode=match_mode
     )
     
     # Handle empty result set
@@ -135,7 +137,8 @@ def _determine_employee_ids_to_export(
     role: Optional[str],
     min_proficiency: int,
     min_experience_years: int,
-    selected_employee_ids: Optional[List[int]]
+    selected_employee_ids: Optional[List[int]],
+    match_mode: Optional[str] = None
 ) -> Set[int]:
     """
     Determine which employee IDs to export based on mode and filters.
@@ -172,7 +175,8 @@ def _determine_employee_ids_to_export(
         team_id=team_id,
         role=role,
         min_proficiency=min_proficiency,
-        min_experience_years=min_experience_years
+        min_experience_years=min_experience_years,
+        match_mode=match_mode
     )
     
     employee_ids = set(result.employee_id for result in search_results)
@@ -187,7 +191,8 @@ def _search_matching_talent_for_export(
     team_id: Optional[int],
     role: Optional[str],
     min_proficiency: int,
-    min_experience_years: int
+    min_experience_years: int,
+    match_mode: Optional[str] = None
 ) -> List[EmployeeSearchResult]:
     """
     Search for matching employees (duplicated from search service for isolation).
@@ -217,7 +222,8 @@ def _search_matching_talent_for_export(
         team_id=team_id,
         role=role,
         min_proficiency=min_proficiency,
-        min_experience_years=min_experience_years
+        min_experience_years=min_experience_years,
+        match_mode=match_mode
     )
 
 

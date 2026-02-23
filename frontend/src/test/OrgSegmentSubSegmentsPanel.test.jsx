@@ -247,4 +247,70 @@ describe('OrgSegmentSubSegmentsPanel', () => {
     // Add row should still be visible
     expect(screen.getByPlaceholderText('Enter sub-segment name')).toBeInTheDocument();
   });
+
+  // Regression tests for UI styling update (Skill Library matching)
+  describe('Skill Library style matching', () => {
+    it('renders section title "SUB-SEGMENTS IN THIS SEGMENT"', () => {
+      render(
+        <OrgSegmentSubSegmentsPanel
+          subSegments={mockSubSegments}
+          segmentName="Test Segment"
+          onCreateSubSegment={mockCreateSubSegment}
+        />
+      );
+
+      expect(screen.getByText('SUB-SEGMENTS IN THIS SEGMENT')).toBeInTheDocument();
+    });
+
+    it('renders search input with placeholder "Search sub-segments..."', () => {
+      render(
+        <OrgSegmentSubSegmentsPanel
+          subSegments={mockSubSegments}
+          segmentName="Test Segment"
+          onCreateSubSegment={mockCreateSubSegment}
+        />
+      );
+
+      expect(screen.getByPlaceholderText('Search sub-segments...')).toBeInTheDocument();
+    });
+
+    it('renders "+ Add Sub-segment" button in the section header', () => {
+      render(
+        <OrgSegmentSubSegmentsPanel
+          subSegments={mockSubSegments}
+          segmentName="Test Segment"
+          onCreateSubSegment={mockCreateSubSegment}
+        />
+      );
+
+      const addButton = screen.getByRole('button', { name: /\+ Add Sub-segment/i });
+      expect(addButton).toBeInTheDocument();
+    });
+
+    it('renders DESCRIPTION column header', () => {
+      render(
+        <OrgSegmentSubSegmentsPanel
+          subSegments={mockSubSegments}
+          segmentName="Test Segment"
+          onCreateSubSegment={mockCreateSubSegment}
+        />
+      );
+
+      expect(screen.getByText('DESCRIPTION')).toBeInTheDocument();
+    });
+
+    it('renders em dash for sub-segments without description', () => {
+      render(
+        <OrgSegmentSubSegmentsPanel
+          subSegments={mockSubSegments}
+          segmentName="Test Segment"
+          onCreateSubSegment={mockCreateSubSegment}
+        />
+      );
+
+      // Sub-segments without description should show em dash
+      const emDashes = screen.getAllByText('—');
+      expect(emDashes.length).toBeGreaterThan(0);
+    });
+  });
 });

@@ -1,0 +1,358 @@
+/*
+ * Capability Finder scoped CSS
+ * Matches HTML wireframe exactly
+ */
+
+/* =========================
+   1) DESIGN TOKENS (scoped via .capability-finder)
+   ========================= */
+.capability-finder {
+  --cf-bg: #f6f8fb;
+  --cf-card: #ffffff;
+  --cf-border: #e6eaf0;
+  --cf-text: #0f172a;
+  --cf-muted: #64748b;
+  --cf-primary: #2563eb;
+  --cf-primary-hover: #1d4ed8;
+  
+  /* Spacing */
+  --cf-gap: 16px;
+  --cf-radius: 14px;
+  --cf-radius-sm: 12px;
+  
+  background: var(--cf-bg);
+  min-height: 100vh;
+}
+
+/* =========================
+   2) HEADER
+   ========================= */
+.capability-finder .cf-header {
+  padding: 22px 26px 0;
+}
+
+.capability-finder .cf-header h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--cf-text);
+}
+
+.capability-finder .cf-header p {
+  margin: 6px 0 0;
+  font-size: 14px;
+  color: var(--cf-muted);
+}
+
+/* =========================
+   3) MAIN GRID
+   ========================= */
+.capability-finder .cf-grid {
+  display: grid;
+  grid-template-columns: 380px 1fr;
+  gap: var(--cf-gap);
+  padding: 16px 26px 40px;
+  align-items: start;
+}
+
+@media (max-width: 1024px) {
+  .capability-finder .cf-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================
+   4) CARD
+   ========================= */
+.capability-finder .cf-card {
+  background: var(--cf-card);
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-radius);
+  padding: 14px;
+}
+
+.capability-finder .cf-card h3 {
+  margin: 0 0 12px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cf-text);
+}
+
+/* =========================
+   5) FORM FIELDS
+   ========================= */
+.capability-finder .cf-field {
+  margin-bottom: 12px;
+}
+
+.capability-finder .cf-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cf-muted);
+  margin-bottom: 6px;
+}
+
+.capability-finder .cf-input,
+.capability-finder .cf-select {
+  width: 100%;
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+  color: var(--cf-text);
+  background: #fff;
+}
+
+.capability-finder .cf-input:focus,
+.capability-finder .cf-select:focus {
+  outline: none;
+  border-color: var(--cf-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+.capability-finder .cf-input:disabled,
+.capability-finder .cf-select:disabled {
+  background: #f8fafc;
+  color: var(--cf-muted);
+  cursor: not-allowed;
+}
+
+.capability-finder .cf-help {
+  font-size: 12px;
+  color: var(--cf-muted);
+  margin-top: 6px;
+}
+
+/* =========================
+   6) SEGMENTED CONTROL (Match Mode)
+   ========================= */
+.capability-finder .cf-segmented {
+  display: flex;
+  border: 1px solid var(--cf-border);
+  border-radius: var(--cf-radius-sm);
+  overflow: hidden;
+}
+
+.capability-finder .cf-segmented button {
+  flex: 1;
+  padding: 9px 10px;
+  border: none;
+  background: #fff;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--cf-muted);
+  transition: background 0.15s, color 0.15s;
+}
+
+.capability-finder .cf-segmented button:not(:first-child) {
+  border-left: 1px solid var(--cf-border);
+}
+
+.capability-finder .cf-segmented button.active {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.capability-finder .cf-segmented button:hover:not(.active) {
+  background: #f8fafc;
+}
+
+/* =========================
+   7) ROW LAYOUT (side-by-side fields)
+   ========================= */
+.capability-finder .cf-row {
+  display: flex;
+  gap: 10px;
+}
+
+.capability-finder .cf-row > * {
+  flex: 1;
+}
+
+/* =========================
+   8) BUTTONS
+   ========================= */
+.capability-finder .cf-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.capability-finder .cf-btn {
+  border: 1px solid var(--cf-border);
+  background: #fff;
+  border-radius: var(--cf-radius-sm);
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.capability-finder .cf-btn:hover {
+  background: #f8fafc;
+}
+
+.capability-finder .cf-btn.primary {
+  flex: 1;
+  background: var(--cf-primary);
+  border-color: var(--cf-primary);
+  color: #fff;
+}
+
+.capability-finder .cf-btn.primary:hover {
+  background: var(--cf-primary-hover);
+}
+
+.capability-finder .cf-btn.primary:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.capability-finder .cf-btn.link {
+  border: none;
+  background: transparent;
+  color: var(--cf-muted);
+  font-weight: 800;
+}
+
+.capability-finder .cf-btn.link:hover {
+  color: var(--cf-text);
+}
+
+.capability-finder .cf-btn.link:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* =========================
+   9) RESULTS PANEL
+   ========================= */
+.capability-finder .cf-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.capability-finder .cf-count {
+  font-size: 14px;
+  font-weight: 900;
+  color: var(--cf-text);
+}
+
+/* =========================
+   10) TABLE
+   ========================= */
+.capability-finder .cf-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+
+.capability-finder .cf-table thead th {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--cf-muted);
+  text-align: left;
+  padding: 0 10px;
+}
+
+.capability-finder .cf-table tbody tr {
+  background: #fff;
+}
+
+.capability-finder .cf-table tbody td {
+  padding: 12px 10px;
+  border-top: 1px solid var(--cf-border);
+  border-bottom: 1px solid var(--cf-border);
+  font-size: 14px;
+  color: var(--cf-text);
+}
+
+.capability-finder .cf-table tbody tr td:first-child {
+  border-left: 1px solid var(--cf-border);
+  border-top-left-radius: var(--cf-radius-sm);
+  border-bottom-left-radius: var(--cf-radius-sm);
+}
+
+.capability-finder .cf-table tbody tr td:last-child {
+  border-right: 1px solid var(--cf-border);
+  border-top-right-radius: var(--cf-radius-sm);
+  border-bottom-right-radius: var(--cf-radius-sm);
+}
+
+/* Employee cell */
+.capability-finder .cf-emp-name {
+  font-weight: 900;
+  color: var(--cf-text);
+}
+
+.capability-finder .cf-emp-sub {
+  font-size: 12px;
+  color: var(--cf-muted);
+  margin-top: 2px;
+}
+
+/* Pills */
+.capability-finder .cf-pill {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--cf-border);
+  border-radius: 999px;
+  padding: 5px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  margin-right: 6px;
+  background: #f8fafc;
+}
+
+.capability-finder .cf-pill.green {
+  background: #ecfdf5;
+  border-color: #bbf7d0;
+  color: #166534;
+}
+
+.capability-finder .cf-more {
+  color: var(--cf-muted);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+/* View Profile link */
+.capability-finder .cf-link {
+  font-weight: 900;
+  color: var(--cf-primary);
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  font-size: 14px;
+}
+
+.capability-finder .cf-link:hover {
+  text-decoration: underline;
+}
+
+/* =========================
+   11) EMPTY STATE
+   ========================= */
+.capability-finder .cf-empty {
+  padding: 40px 14px;
+  text-align: center;
+}
+
+.capability-finder .cf-empty-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--cf-text);
+  margin-bottom: 8px;
+}
+
+.capability-finder .cf-empty-sub {
+  font-size: 14px;
+  color: var(--cf-muted);
+}

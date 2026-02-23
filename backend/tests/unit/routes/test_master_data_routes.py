@@ -178,6 +178,7 @@ class TestCreateCategory:
         mock_response = CategoryCreateResponse(
             id=1,
             name="New Category",
+            description=None,
             created_at=datetime(2024, 1, 15),
             created_by="system",
             message="Category created successfully"
@@ -193,6 +194,29 @@ class TestCreateCategory:
         data = response.json()
         assert data['id'] == 1
         assert data['name'] == "New Category"
+    
+    def test_create_with_description_success(self):
+        """Should create category with description and return 201."""
+        mock_response = CategoryCreateResponse(
+            id=2,
+            name="Category With Desc",
+            description="This is a test description",
+            created_at=datetime(2024, 1, 15),
+            created_by="system",
+            message="Category created successfully"
+        )
+        with patch('app.api.routes.master_data.taxonomy_update_service.create_category',
+                   return_value=mock_response):
+            response = client.post(
+                '/master-data/skill-taxonomy/categories',
+                json={"category_name": "Category With Desc", "description": "This is a test description"}
+            )
+        
+        assert response.status_code == 201
+        data = response.json()
+        assert data['id'] == 2
+        assert data['name'] == "Category With Desc"
+        assert data['description'] == "This is a test description"
     
     def test_create_duplicate_returns_409(self):
         """Should return 409 when category name already exists."""
@@ -256,6 +280,30 @@ class TestCreateSubcategory:
         assert data['id'] == 1
         assert data['name'] == "New Subcategory"
         assert data['category_id'] == 1
+    
+    def test_create_with_description(self):
+        """Should create subcategory with optional description."""
+        mock_response = SubcategoryCreateResponse(
+            id=2,
+            name="New Subcategory With Description",
+            category_id=1,
+            description="A test subcategory description",
+            created_at=datetime(2024, 1, 15),
+            created_by="system",
+            message="Subcategory created successfully"
+        )
+        with patch('app.api.routes.master_data.taxonomy_update_service.create_subcategory',
+                   return_value=mock_response):
+            response = client.post(
+                '/master-data/skill-taxonomy/categories/1/subcategories',
+                json={"subcategory_name": "New Subcategory With Description", "description": "A test subcategory description"}
+            )
+        
+        assert response.status_code == 201
+        data = response.json()
+        assert data['id'] == 2
+        assert data['name'] == "New Subcategory With Description"
+        assert data['description'] == "A test subcategory description"
     
     def test_create_category_not_found_returns_404(self):
         """Should return 404 when parent category doesn't exist."""
@@ -462,6 +510,27 @@ class TestUpdateSubcategory:
         assert response.status_code == 200
         data = response.json()
         assert data['name'] == "Updated Subcat"
+    
+    def test_update_with_description(self):
+        """Should update subcategory name and description."""
+        mock_response = SubcategoryUpdateResponse(
+            id=1,
+            name="Updated Subcat",
+            category_id=1,
+            description="Updated description",
+            message="Subcategory updated successfully"
+        )
+        with patch('app.api.routes.master_data.taxonomy_update_service.update_subcategory_name',
+                   return_value=mock_response):
+            response = client.patch(
+                '/master-data/skill-taxonomy/subcategories/1',
+                json={"subcategory_name": "Updated Subcat", "description": "Updated description"}
+            )
+        
+        assert response.status_code == 200
+        data = response.json()
+        assert data['name'] == "Updated Subcat"
+        assert data['description'] == "Updated description"
     
     def test_update_not_found_returns_404(self):
         """Should return 404 when subcategory doesn't exist."""

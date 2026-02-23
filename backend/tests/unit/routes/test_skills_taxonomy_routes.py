@@ -409,3 +409,48 @@ class TestGetSkillSummary:
         
         # Assert
         assert response.status_code == 500
+
+
+# ============================================================================
+# TEST: GET /skills/{skill_id}/capability-snapshot (Regression test)
+# ============================================================================
+
+class TestGetSkillCapabilitySnapshotRegression:
+    """Regression test for GET /skills/{skill_id}/capability-snapshot endpoint.
+    
+    Ensures the existing capability-snapshot API remains unchanged after
+    adding the new employees/summary endpoint.
+    """
+    
+    def test_capability_snapshot_returns_expected_fields(self):
+        """Should return capability snapshot with employee_count, certified_count, team_count."""
+        # Arrange
+        from app.schemas.skill import SkillCapabilitySnapshotResponse
+        mock_response = SkillCapabilitySnapshotResponse(
+            employee_count=128,
+            certified_count=36,
+            team_count=14
+        )
+        with patch('app.api.routes.skills.skill_capability_snapshot_service.get_skill_capability_snapshot', return_value=mock_response):
+            # Act
+            response = client.get('/skills/42/capability-snapshot')
+        
+        # Assert
+        assert response.status_code == 200
+        data = response.json()
+        assert data['employee_count'] == 128
+        assert data['certified_count'] == 36
+        assert data['team_count'] == 14
+        # Ensure avg_proficiency is NOT in this response (it's in proficiency-breakdown)
+        assert 'avg_proficiency' not in data
+    
+    def test_capability_snapshot_returns_500_on_error(self):
+        """Should return 500 when service throws exception."""
+        # Arrange
+        with patch('app.api.routes.skills.skill_capability_snapshot_service.get_skill_capability_snapshot', side_effect=Exception('DB error')):
+            # Act
+            response = client.get('/skills/1/capability-snapshot')
+        
+        # Assert
+        assert response.status_code == 500
+

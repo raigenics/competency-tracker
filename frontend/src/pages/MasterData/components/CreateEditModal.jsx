@@ -54,13 +54,51 @@ const CreateEditModal = ({
   // Use onSubmit or onSave (onSubmit takes precedence)
   const saveHandler = onSubmit || onSave;
 
+  // Check if form is valid (Name is required)
+  const isNameValid = name.trim().length > 0;
+
   const handleSave = () => {
+    // Defensive guard - don't proceed if name is empty
+    if (!isNameValid) {
+      return;
+    }
     if (saveHandler) {
-      saveHandler({ name, description, parent });
+      saveHandler({ name: name.trim(), description, parent });
     }
     // Don't close here - let the handler decide (for async operations)
     if (!onSubmit) {
       onClose();
+    }
+  };
+
+  /**
+   * Format error for display. Handles:
+   * - String errors (display as-is)
+   * - FastAPI validation error arrays [{type, loc, msg, ...}]
+   * - Objects with detail property
+   */
+  const formatError = (err) => {
+    if (!err) return null;
+    if (typeof err === 'string') return err;
+    // FastAPI validation error array
+    if (Array.isArray(err)) {
+      return err.map(e => e.msg || e.message || JSON.stringify(e)).join('; ');
+    }
+    // Object with detail (could be string or array)
+    if (err.detail) {
+      if (typeof err.detail === 'string') return err.detail;
+      if (Array.isArray(err.detail)) {
+        return err.detail.map(e => e.msg || e.message || JSON.stringify(e)).join('; ');
+      }
+    }
+    // Object with msg
+    if (err.msg) return err.msg;
+    if (err.message) return err.message;
+    // Fallback - stringify
+    try {
+      return JSON.stringify(err);
+    } catch {
+      return 'An error occurred';
     }
   };
 
@@ -105,7 +143,6 @@ const CreateEditModal = ({
               onChange={(e) => setDescription(e.target.value)}
               disabled={isSaving}
             />
-            <div className="form-help">Optional: Provide additional context</div>
           </div>
           {shouldShowParentSelect && (
             <div className="form-group">
@@ -131,13 +168,13 @@ const CreateEditModal = ({
               backgroundColor: 'var(--danger-bg, #f8d7da)',
               borderRadius: '4px'
             }}>
-              {error}
+              {formatError(error)}
             </div>
           )}
         </div>
         <div className="modal-footer">
           <button className="btn btn-secondary" onClick={onClose} disabled={isSaving}>Cancel</button>
-          <button className="btn btn-primary" onClick={handleSave} disabled={isSaving}>
+          <button className="btn btn-primary" onClick={handleSave} disabled={isSaving || !isNameValid}>
             {isSaving ? 'Saving...' : 'Save'}
           </button>
         </div>

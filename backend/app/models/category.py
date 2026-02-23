@@ -14,6 +14,7 @@ class SkillCategory(Base):
     
     category_id = Column(Integer, primary_key=True, index=True)
     category_name = Column(String, unique=True, nullable=False, index=True)
+    description = Column(String(500), nullable=True)
     
     # Audit columns
     created_at = Column(

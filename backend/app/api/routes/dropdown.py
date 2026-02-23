@@ -18,7 +18,9 @@ from app.schemas.dropdown import (
     ProjectDropdown,
     TeamDropdown,
     ProficiencyLevelDropdown,
-    ProficiencyLevelListResponse
+    ProficiencyLevelListResponse,
+    SubSegmentScopeItem,
+    SubSegmentScopeResponse
 )
 
 logger = logging.getLogger(__name__)
@@ -200,3 +202,36 @@ def get_proficiency_levels(db: Session = Depends(get_db)):
         return ProficiencyLevelListResponse(proficiency_levels=dropdown_items)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch proficiency levels: {str(e)}")
+
+
+@router.get("/sub-segments-scope", response_model=SubSegmentScopeResponse)
+def get_sub_segments_scope(db: Session = Depends(get_db)):
+    """
+    Get all sub-segments for scope display with fullname support and aggregate counts.
+    
+    Returns:
+        - sub_segments: List with id, name, fullname (use fullname if available, fallback to name)
+        - total_employees: Total count of employees in scope
+        - total_projects: Total count of active projects
+    """
+    start_time = time.time()
+    try:
+        result = DropdownService.get_sub_segments_scope(db)
+        query_time = time.time() - start_time
+        scope_items = [
+            SubSegmentScopeItem(
+                id=ss.sub_segment_id,
+                name=ss.sub_segment_name,
+                fullname=ss.sub_segment_fullname
+            )
+            for ss in result["sub_segments"]
+        ]
+        total_time = time.time() - start_time
+        logger.info(f"[PERF] GET /dropdown/sub-segments-scope | query={query_time*1000:.1f}ms | total={total_time*1000:.1f}ms | count={len(scope_items)}")
+        return SubSegmentScopeResponse(
+            sub_segments=scope_items,
+            total_employees=result["total_employees"],
+            total_projects=result["total_projects"]
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch sub-segments scope: {str(e)}")

@@ -14,7 +14,11 @@ from app.schemas.skill import (
     SkillListResponse, SkillDetailResponse,
     SkillSummaryResponse, TaxonomyTreeResponse,
     CategoriesResponse, SubcategoriesResponse,
-    SkillsResponse, SkillSearchResponse
+    SkillsResponse, SkillSearchResponse,
+    CapabilityKPIsResponse, CategoryCoverageResponse,
+    SkillCapabilitySnapshotResponse, SkillProficiencyBreakdownResponse,
+    SkillLeadingSubSegmentResponse, SkillEmployeesSummaryResponse,
+    SkillEmployeesListResponse
 )
 from app.schemas.common import PaginationParams
 
@@ -27,6 +31,13 @@ from app.services.capability_overview import taxonomy_categories_service
 from app.services.capability_overview import taxonomy_subcategories_service
 from app.services.capability_overview import taxonomy_skills_service
 from app.services.capability_overview import taxonomy_search_service
+from app.services.capability_overview import kpi_service
+from app.services.capability_overview import category_coverage_service
+from app.services.capability_overview import skill_capability_snapshot_service
+from app.services.capability_overview import skill_proficiency_breakdown_service
+from app.services.capability_overview import skill_leading_subsegment_service
+from app.services.capability_overview import skill_employees_summary_service
+from app.services.capability_overview import skill_employees_list_service
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +68,51 @@ async def get_skills(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching skills"
+        )
+
+
+@router.get("/capability-kpis", response_model=CapabilityKPIsResponse)
+async def get_capability_kpis(db: Session = Depends(get_db)):
+    """
+    Get KPI metrics for the Capability Overview page.
+    
+    Returns:
+        - total_skills: Skills with at least one mapped employee
+        - avg_proficiency: Average proficiency level across mapped employees
+        - total_certifications: Count of certifications within the current scope
+    """
+    logger.info("GET /skills/capability-kpis")
+    
+    try:
+        return kpi_service.get_capability_kpis(db)
+        
+    except Exception as e:
+        logger.error(f"Error fetching capability KPIs: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching capability KPIs"
+        )
+
+
+@router.get("/category-coverage", response_model=CategoryCoverageResponse)
+async def get_category_coverage(db: Session = Depends(get_db)):
+    """
+    Get employee concentration by skill category.
+    
+    Returns:
+        - most_populated_category: Category with highest employee concentration
+        - least_populated_category: Category with lowest non-zero employee concentration
+    """
+    logger.info("GET /skills/category-coverage")
+    
+    try:
+        return category_coverage_service.get_category_coverage(db)
+        
+    except Exception as e:
+        logger.error(f"Error fetching category coverage: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching category coverage"
         )
 
 
@@ -150,6 +206,149 @@ async def get_skill_summary(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Error fetching skill summary"
+        )
+
+
+@router.get("/{skill_id}/capability-snapshot", response_model=SkillCapabilitySnapshotResponse)
+async def get_skill_capability_snapshot(
+    skill_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get capability snapshot KPIs for a specific skill.
+    
+    Returns:
+        - employee_count: Employees mapped to this skill
+        - certified_count: Employees with a certification tagged to this skill
+        - team_count: Distinct teams with employees having this skill
+    """
+    logger.info(f"GET /skills/{skill_id}/capability-snapshot")
+    
+    try:
+        return skill_capability_snapshot_service.get_skill_capability_snapshot(db, skill_id)
+        
+    except Exception as e:
+        logger.error(f"Error fetching capability snapshot for skill_id {skill_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching capability snapshot"
+        )
+
+
+@router.get("/{skill_id}/proficiency-breakdown", response_model=SkillProficiencyBreakdownResponse)
+async def get_skill_proficiency_breakdown(
+    skill_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get proficiency breakdown for a specific skill.
+    
+    Returns:
+        - counts: Dict of proficiency level names (Novice, Adv. Beginner, Competent, Proficient, Expert) to counts
+        - avg: Average proficiency value (1-5) rounded to 1 decimal
+        - median: Median proficiency value (1-5)
+        - total: Total employees with proficiency data
+    """
+    logger.info(f"GET /skills/{skill_id}/proficiency-breakdown")
+    
+    try:
+        return skill_proficiency_breakdown_service.get_skill_proficiency_breakdown(db, skill_id)
+        
+    except Exception as e:
+        logger.error(f"Error fetching proficiency breakdown for skill_id {skill_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching proficiency breakdown"
+        )
+
+
+@router.get("/{skill_id}/leading-subsegment", response_model=SkillLeadingSubSegmentResponse)
+async def get_skill_leading_subsegment(
+    skill_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get the leading sub-segment for a specific skill.
+    
+    Leading sub-segment = the sub-segment with the highest number of 
+    distinct employees mapped to this skill.
+    
+    Returns:
+        - leading_sub_segment_name: Name of the leading sub-segment (or null if no data)
+        - leading_sub_segment_employee_count: Count of distinct employees in that sub-segment
+    """
+    logger.info(f"GET /skills/{skill_id}/leading-subsegment")
+    
+    try:
+        return skill_leading_subsegment_service.get_skill_leading_subsegment(db, skill_id)
+        
+    except Exception as e:
+        logger.error(f"Error fetching leading subsegment for skill_id {skill_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching leading sub-segment"
+        )
+
+
+@router.get("/{skill_id}/employees/summary", response_model=SkillEmployeesSummaryResponse)
+async def get_skill_employees_summary(
+    skill_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get aggregated summary statistics for employees with a specific skill.
+    Used for View Employees header KPIs.
+    
+    Returns:
+        - employee_count: Count of distinct employees with this skill
+        - avg_proficiency: Average proficiency value (1-5) rounded to 1 decimal
+        - certified_count: Count of employees with certification for this skill
+        - team_count: Count of distinct teams with employees having this skill
+    """
+    logger.info(f"GET /skills/{skill_id}/employees/summary")
+    
+    try:
+        return skill_employees_summary_service.get_skill_employees_summary(db, skill_id)
+        
+    except Exception as e:
+        logger.error(f"Error fetching employees summary for skill_id {skill_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching employees summary"
+        )
+
+
+@router.get("/{skill_id}/employees", response_model=SkillEmployeesListResponse)
+async def get_skill_employees_list(
+    skill_id: int,
+    db: Session = Depends(get_db)
+):
+    """
+    Get detailed list of employees with a specific skill.
+    Used for the View Employees table.
+    
+    Returns:
+        - skill_id: The queried skill ID
+        - skill_name: The skill name
+        - employees: List of employees with proficiency, certification, and last updated info
+        - total_count: Total number of employees
+    """
+    logger.info(f"GET /skills/{skill_id}/employees")
+    
+    try:
+        return skill_employees_list_service.get_skill_employees_list(db, skill_id)
+        
+    except ValueError as e:
+        logger.warning(f"Skill not found: skill_id {skill_id}")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(e)
+        )
+    except Exception as e:
+        logger.error(f"Error fetching employees list for skill_id {skill_id}: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Error fetching employees list"
         )
 
 

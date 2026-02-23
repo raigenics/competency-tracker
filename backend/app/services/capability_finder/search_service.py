@@ -54,14 +54,16 @@ def search_matching_talent(
     team_id: Optional[int] = None,
     role: Optional[str] = None,
     min_proficiency: int = 0,
-    min_experience_years: int = 0
+    min_experience_years: int = 0,
+    match_mode: Optional[str] = None
 ) -> List[EmployeeSearchResult]:
     """
-    Search for employees matching specified criteria using HYBRID search strategy.
+    Search for employees matching specified criteria.
     
-    HYBRID SEARCH STRATEGY:
-    1. STRICT match (AND logic): Return employees who have ALL specified skills
-    2. PARTIAL fallback (OR logic): If strict returns empty, return employees with ≥1 skill
+    MATCH MODES:
+    - None (HYBRID): STRICT match first, PARTIAL fallback if no results
+    - "ALL": STRICT match only (employees must have ALL specified skills)
+    - "ANY": PARTIAL match only (employees with at least one skill)
     
     Features:
     - Case-insensitive skill matching ("react" matches "React")
@@ -73,12 +75,13 @@ def search_matching_talent(
     
     Args:
         db: Database session
-        skills: List of required skill names (AND logic first, OR fallback)
+        skills: List of required skill names
         sub_segment_id: Optional sub-segment filter
         team_id: Optional team filter
         role: Optional role name filter (case-insensitive)
         min_proficiency: Minimum proficiency level (0-5, applies to required skills)
         min_experience_years: Minimum years of experience (applies to required skills)
+        match_mode: "ALL", "ANY", or None for HYBRID (default)
         
     Returns:
         List of matching employees with their top 3 skills and match metadata
@@ -88,10 +91,10 @@ def search_matching_talent(
         ...     db=db,
         ...     skills=['react', 'AWS'],
         ...     min_proficiency=3,
-        ...     team_id=5
+        ...     team_id=5,
+        ...     match_mode="ALL"
         ... )
-        >>> # STRICT: Returns employees who have BOTH React AND AWS
-        >>> # PARTIAL: If none found, returns employees with React OR AWS
+        >>> # ALL: Returns employees who have BOTH React AND AWS
     """
     # Normalize skill terms and resolve to canonical skill IDs
     normalized_terms = _normalize_skill_terms(skills) if skills else []
@@ -104,8 +107,39 @@ def search_matching_talent(
     # Normalize role for case-insensitive matching
     normalized_role = role.strip().lower() if role else None
     
-    # STEP 1: Try STRICT match (AND logic - all skills required)
+    # Handle search based on match_mode
     if canonical_skill_ids:
+        # match_mode="ANY": PARTIAL only (at least 1 skill)
+        if match_mode == "ANY":
+            return _query_partial_match(
+                db=db,
+                canonical_skill_ids=canonical_skill_ids,
+                sub_segment_id=sub_segment_id,
+                team_id=team_id,
+                normalized_role=normalized_role,
+                min_proficiency=min_proficiency,
+                min_experience_years=min_experience_years
+            )
+        
+        # match_mode="ALL": STRICT only (all skills required, no fallback)
+        if match_mode == "ALL":
+            strict_results = _query_strict_match(
+                db=db,
+                canonical_skill_ids=canonical_skill_ids,
+                sub_segment_id=sub_segment_id,
+                team_id=team_id,
+                normalized_role=normalized_role,
+                min_proficiency=min_proficiency,
+                min_experience_years=min_experience_years
+            )
+            return _build_results(
+                db=db,
+                employees=strict_results,
+                match_type="STRICT",
+                matched_skill_count=len(canonical_skill_ids)
+            )
+        
+        # HYBRID mode (match_mode=None): STRICT first, PARTIAL fallback
         strict_results = _query_strict_match(
             db=db,
             canonical_skill_ids=canonical_skill_ids,
@@ -125,8 +159,8 @@ def search_matching_talent(
                 matched_skill_count=len(canonical_skill_ids)
             )
         
-        # STEP 2: PARTIAL fallback (OR logic - at least 1 skill)
-        partial_results = _query_partial_match(
+        # PARTIAL fallback (OR logic - at least 1 skill)
+        return _query_partial_match(
             db=db,
             canonical_skill_ids=canonical_skill_ids,
             sub_segment_id=sub_segment_id,
@@ -135,8 +169,6 @@ def search_matching_talent(
             min_proficiency=min_proficiency,
             min_experience_years=min_experience_years
         )
-        
-        return partial_results
     
     # No skills specified - org-only search (return all matching org filters)
     employees = _query_org_only(
@@ -639,6 +671,7 @@ def _build_employee_result(
     
     # Extract organization info
     sub_segment_name = employee.sub_segment.sub_segment_name if employee.sub_segment else ""
+    project_name = employee.project.project_name if employee.project else ""
     team_name = employee.team.team_name if employee.team else ""
     role_name = employee.role.role_name if employee.role else ""
     
@@ -647,6 +680,7 @@ def _build_employee_result(
         employee_id=employee.employee_id,
         employee_name=employee.full_name,
         sub_segment=sub_segment_name,
+        project=project_name,
         team=team_name,
         role=role_name,
         top_skills=skills_info,

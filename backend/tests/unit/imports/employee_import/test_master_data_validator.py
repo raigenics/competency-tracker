@@ -170,7 +170,11 @@ class TestValidateRowTeam:
     def test_fails_when_team_not_found(self, mock_db, validator, mock_sub_segment, mock_project):
         """Should return MISSING_TEAM error when Team doesn't exist."""
         # Arrange - SubSegment and Project exist, Team doesn't
-        mock_db.first.side_effect = [mock_sub_segment, mock_project, None]
+        mock_db.first.side_effect = [
+            mock_sub_segment,  # SubSegment lookup
+            mock_project,      # Project lookup
+            None               # Team lookup (exact name)
+        ]
         
         # Act
         result = validator.validate_row(
@@ -188,7 +192,11 @@ class TestValidateRowTeam:
     def test_fails_when_team_under_wrong_project(self, mock_db, validator, mock_sub_segment, mock_project):
         """Should fail if Team exists but not under the correct Project."""
         # Arrange - All parent entities exist, but team query returns None
-        mock_db.first.side_effect = [mock_sub_segment, mock_project, None]
+        mock_db.first.side_effect = [
+            mock_sub_segment,  # SubSegment lookup
+            mock_project,      # Project lookup
+            None               # Team lookup (wrong project, so not found)
+        ]
         
         # Act
         result = validator.validate_row(

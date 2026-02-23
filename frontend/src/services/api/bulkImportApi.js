@@ -148,6 +148,125 @@ export const bulkImportApi = {  /**
       throw error;
     }
   },
+
+  // =========================================================================
+  // ROLE MAPPING APIs
+  // =========================================================================
+
+  /**
+   * Get all roles available for mapping (for role mapping modal)
+   * @param {string} importRunId - The import job UUID
+   * @param {string} searchQuery - Optional search query to filter roles
+   * @returns {Promise} List of roles available for mapping
+   */
+  async getRolesForMapping(importRunId, searchQuery = '') {
+    try {
+      const params = searchQuery ? `?q=${encodeURIComponent(searchQuery)}` : '';
+      const response = await httpClient.get(
+        `/import/${importRunId}/roles-for-mapping${params}`
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to get roles for mapping:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Map a MISSING_ROLE failed row to an existing master role
+   * @param {string} importRunId - The import job UUID
+   * @param {number} failedRowIndex - Index of the failed row in failed_rows array
+   * @param {number} targetRoleId - ID of the master role to map to
+   * @returns {Promise} Mapping result
+   */
+  async mapRole(importRunId, failedRowIndex, targetRoleId) {
+    try {
+      const response = await httpClient.post(
+        `/import/${importRunId}/map-role`,
+        {
+          failed_row_index: failedRowIndex,
+          target_role_id: targetRoleId
+        }
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to map role:', error);
+      throw error;
+    }
+  },
+
+  // =========================================================================
+  // TEAM MAPPING APIs
+  // =========================================================================
+
+  /**
+   * Get all teams available for mapping under a specific project
+   * @param {string} importRunId - The import job UUID
+   * @param {number} projectId - The project ID to get teams for
+   * @param {string} searchQuery - Optional search query to filter teams
+   * @returns {Promise} List of teams available for mapping
+   */
+  async getTeamsForMapping(importRunId, projectId, searchQuery = '') {
+    try {
+      const params = new URLSearchParams({ project_id: projectId });
+      if (searchQuery) {
+        params.append('q', searchQuery);
+      }
+      const response = await httpClient.get(
+        `/import/${importRunId}/teams-for-mapping?${params}`
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to get teams for mapping:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Map a MISSING_TEAM failed row to an existing master team
+   * @param {string} importRunId - The import job UUID
+   * @param {number} failedRowIndex - Index of the failed row in failed_rows array
+   * @param {number} targetTeamId - ID of the master team to map to
+   * @returns {Promise} Mapping result
+   */
+  async mapTeam(importRunId, failedRowIndex, targetTeamId) {
+    try {
+      const response = await httpClient.post(
+        `/import/${importRunId}/map-team`,
+        {
+          failed_row_index: failedRowIndex,
+          target_team_id: targetTeamId
+        }
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to map team:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create a new team for a MISSING_TEAM failed row
+   * @param {string} importRunId - The import job UUID
+   * @param {number} failedRowIndex - Index of the failed row in failed_rows array
+   * @param {string} teamName - Name for the new team
+   * @returns {Promise} Created team result
+   */
+  async createTeamFromImport(importRunId, failedRowIndex, teamName) {
+    try {
+      const response = await httpClient.post(
+        `/import/${importRunId}/create-team`,
+        {
+          failed_row_index: failedRowIndex,
+          team_name: teamName
+        }
+      );
+      return response;
+    } catch (error) {
+      console.error('Failed to create team:', error);
+      throw error;
+    }
+  },
 };
 
 export default bulkImportApi;

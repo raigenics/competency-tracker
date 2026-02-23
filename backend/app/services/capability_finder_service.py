@@ -80,7 +80,8 @@ class CapabilityFinderService:
         team_id: Optional[int] = None,
         role: Optional[str] = None,
         min_proficiency: int = 0,
-        min_experience_years: int = 0
+        min_experience_years: int = 0,
+        match_mode: Optional[str] = None
     ) -> List[EmployeeSearchResult]:
         """
         Search for employees matching specified criteria.
@@ -89,12 +90,13 @@ class CapabilityFinderService:
         
         Args:
             db: Database session
-            skills: List of required skill names (AND logic - must have ALL)
+            skills: List of required skill names
             sub_segment_id: Optional sub-segment filter
             team_id: Optional team filter
             role: Optional role name filter
             min_proficiency: Minimum proficiency level (0-5)
             min_experience_years: Minimum years of experience
+            match_mode: "ALL", "ANY", or None for HYBRID
             
         Returns:
             List of matching employees with their top 3 skills
@@ -106,7 +108,8 @@ class CapabilityFinderService:
             team_id=team_id,
             role=role,
             min_proficiency=min_proficiency,
-            min_experience_years=min_experience_years
+            min_experience_years=min_experience_years,
+            match_mode=match_mode
         )
     
     @staticmethod
@@ -119,7 +122,8 @@ class CapabilityFinderService:
         role: Optional[str] = None,
         min_proficiency: int = 0,
         min_experience_years: int = 0,
-        selected_employee_ids: List[int] = None
+        selected_employee_ids: List[int] = None,
+        match_mode: Optional[str] = None
     ):
         """
         Export matching talent to Excel format with all skills consolidated per employee.
@@ -129,13 +133,14 @@ class CapabilityFinderService:
         Args:
             db: Database session
             mode: 'all' or 'selected'
-            skills: List of required skill names (AND logic)
+            skills: List of required skill names
             sub_segment_id: Optional sub-segment filter
             team_id: Optional team filter
             role: Optional role name filter
             min_proficiency: Minimum proficiency level (0-5)
             min_experience_years: Minimum years of experience
             selected_employee_ids: List of employee IDs for mode='selected'
+            match_mode: "ALL", "ANY", or None for HYBRID
             
         Returns:
             BytesIO object containing Excel file
@@ -149,5 +154,6 @@ class CapabilityFinderService:
             role=role,
             min_proficiency=min_proficiency,
             min_experience_years=min_experience_years,
-            selected_employee_ids=selected_employee_ids
+            selected_employee_ids=selected_employee_ids,
+            match_mode=match_mode
         )

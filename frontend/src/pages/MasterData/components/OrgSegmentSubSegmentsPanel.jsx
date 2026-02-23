@@ -309,28 +309,18 @@ const OrgSegmentSubSegmentsPanel = ({
   if ((!subSegments || subSegments.length === 0) && !isAddingNew) {
     return (
       <div className="info-section">
-        <div className="info-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-          <div className="info-section-title" style={{ margin: 0 }}>SUB-SEGMENTS IN THIS SEGMENT</div>
-          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="info-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '0' }}>
+          <div className="info-section-title">SUB-SEGMENTS IN THIS SEGMENT</div>
+          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             {!disabled && onCreateSubSegment && (
-              <button className="btn btn-primary btn-sm" onClick={handleStartAdd}>
+              <button className="oh-btn subtle" onClick={handleStartAdd}>
                 + Add Sub-segment
               </button>
             )}
           </div>
         </div>
-        <div className="skills-empty-state">
-          <div className="empty-icon">🏬</div>
-          <p>No sub-segments in this segment yet</p>
-          {!disabled && onCreateSubSegment && (
-            <button 
-              className="btn btn-primary btn-sm" 
-              onClick={handleStartAdd}
-              style={{ marginTop: '16px' }}
-            >
-              + Add First Sub-segment
-            </button>
-          )}
+        <div className="oh-empty-state" style={{ padding: '32px 16px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--oh-sub, #64748b)', margin: 0 }}>No sub-segments in this segment yet.</p>
         </div>
       </div>
     );
@@ -339,35 +329,18 @@ const OrgSegmentSubSegmentsPanel = ({
   return (
     <div className="info-section">
       {/* Section Header */}
-      <div className="info-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '8px', marginBottom: '8px' }}>
-        <div className="info-section-title" style={{ margin: 0 }}>SUB-SEGMENTS IN THIS SEGMENT</div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Search box - only show if sub-segments exist */}
+      <div className="info-section-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px', marginBottom: '0' }}>
+        <div className="info-section-title">SUB-SEGMENTS IN THIS SEGMENT</div>
+        <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          {/* Search box - mini search style matching Skill Library */}
           {subSegments.length > 0 && (
-            <div className="search-box" style={{ position: 'relative' }}>
-              <Search 
-                size={16} 
-                style={{ 
-                  position: 'absolute', 
-                  left: '12px', 
-                  top: '50%', 
-                  transform: 'translateY(-50%)', 
-                  color: 'var(--text-muted)' 
-                }} 
-              />
+            <div className="oh-mini-search">
+              <Search size={14} style={{ color: 'var(--oh-sub, #64748b)', flexShrink: 0 }} />
               <input
                 type="text"
                 placeholder="Search sub-segments..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                style={{
-                  width: '180px',
-                  padding: '8px 12px 8px 36px',
-                  border: '1px solid var(--border)',
-                  borderRadius: '6px',
-                  fontSize: '13px',
-                  fontFamily: 'inherit'
-                }}
               />
             </div>
           )}
@@ -383,7 +356,7 @@ const OrgSegmentSubSegmentsPanel = ({
           )}
           {!disabled && onCreateSubSegment && (
             <button 
-              className="btn btn-primary btn-sm" 
+              className="oh-btn subtle" 
               onClick={handleStartAdd}
               disabled={isAddingSaving}
             >
@@ -402,8 +375,8 @@ const OrgSegmentSubSegmentsPanel = ({
       />
 
       {/* Sub-Segments Table */}
-      <div className="skills-table-container">
-        <table className="skills-table">
+      <div>
+        <table>
           <thead>
             <tr>
               <th style={{ width: '40px', textAlign: 'center' }}>
@@ -416,14 +389,15 @@ const OrgSegmentSubSegmentsPanel = ({
                   title={selectionState === 'all' ? 'Deselect all' : 'Select all'}
                 />
               </th>
-              <th>SUB-SEGMENT</th>
+              <th style={{ width: '30%' }}>SUB-SEGMENT</th>
+              <th style={{ width: '40%' }}>DESCRIPTION</th>
               <th style={{ width: '140px', textAlign: 'right', paddingRight: '16px' }}>ACTIONS</th>
             </tr>
           </thead>
           <tbody>
             {/* Inline Add Row - shown at top when adding */}
             {isAddingNew && (
-              <tr className="add-row" style={{ backgroundColor: 'var(--background-secondary, #f8f9fa)' }}>
+              <tr className="add-row" style={{ backgroundColor: 'var(--oh-bg, #f8f9fa)' }}>
                 <td style={{ textAlign: 'center' }}>
                   {/* Empty checkbox cell for alignment */}
                 </td>
@@ -443,8 +417,8 @@ const OrgSegmentSubSegmentsPanel = ({
                       placeholder="Enter sub-segment name"
                       style={{
                         width: '100%',
-                        padding: '4px 8px',
-                        border: addError ? '1px solid #dc2626' : '1px solid var(--border-color)',
+                        padding: '6px 10px',
+                        border: addError ? '1px solid #dc2626' : '1px solid var(--oh-cardBorder, #e7e9f0)',
                         borderRadius: '4px',
                         fontSize: 'inherit',
                         backgroundColor: addError ? '#fef2f2' : undefined,
@@ -462,19 +436,23 @@ const OrgSegmentSubSegmentsPanel = ({
                     )}
                   </div>
                 </td>
+                <td>
+                  {/* Description cell - empty for new add, shown as placeholder */}
+                  <span style={{ color: 'var(--oh-muted2, #94a3b8)', fontStyle: 'italic' }}>—</span>
+                </td>
                 <td style={{ textAlign: 'right', paddingRight: '16px' }}>
                   <div className="row-actions">
                     <button 
-                      className="action-link"
+                      className="oh-inline-btn oh-inline-btn-save"
                       onClick={handleAddSave}
-                      disabled={isAddingSaving}
+                      disabled={isAddingSaving || !addName.trim()}
                       title="Save"
                     >
                       <Check size={14} />
                       <span>Save</span>
                     </button>
                     <button 
-                      className="action-link danger"
+                      className="oh-inline-btn oh-inline-btn-cancel"
                       onClick={handleAddCancel}
                       disabled={isAddingSaving}
                       title="Cancel"
@@ -511,8 +489,8 @@ const OrgSegmentSubSegmentsPanel = ({
                         disabled={isSaving}
                         style={{
                           width: '100%',
-                          padding: '4px 8px',
-                          border: '1px solid var(--border-color)',
+                          padding: '6px 10px',
+                          border: '1px solid var(--oh-cardBorder, #e7e9f0)',
                           borderRadius: '4px',
                           fontSize: 'inherit',
                         }}
@@ -521,21 +499,29 @@ const OrgSegmentSubSegmentsPanel = ({
                       subSegment.name
                     )}
                   </td>
+                  <td>
+                    {/* Description column */}
+                    {subSegment.description ? (
+                      <span>{subSegment.description}</span>
+                    ) : (
+                      <span style={{ color: 'var(--oh-muted2, #94a3b8)' }}>—</span>
+                    )}
+                  </td>
                   <td style={{ textAlign: 'right', paddingRight: '16px' }}>
                     <div className="row-actions">
                       {isEditing ? (
                         <>
                           <button 
-                            className="action-link"
+                            className="oh-inline-btn oh-inline-btn-save"
                             onClick={handleSave}
-                            disabled={isSaving}
+                            disabled={isSaving || !editName.trim()}
                             title="Save"
                           >
                             <Check size={14} />
                             <span>Save</span>
                           </button>
                           <button 
-                            className="action-link danger"
+                            className="oh-inline-btn oh-inline-btn-cancel"
                             onClick={handleCancel}
                             disabled={isSaving}
                             title="Cancel"

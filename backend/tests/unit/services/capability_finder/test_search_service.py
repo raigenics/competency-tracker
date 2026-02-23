@@ -535,6 +535,38 @@ class TestBuildEmployeeResult:
         assert result.top_skills[0].name == "First"
         assert result.top_skills[1].name == "Second"
         assert result.top_skills[2].name == "Third"
+    
+    def test_includes_project_name(self, mock_employee):
+        """Should include project name from employee.project relationship."""
+        # Arrange
+        employee = mock_employee(1, "Z1001", "Nina")
+        employee.project = MagicMock(project_name="Project Alpha")
+        employee.sub_segment = MagicMock(sub_segment_name="Segment A")
+        employee.team = MagicMock(team_name="Team A")
+        employee.role = MagicMock(role_name="Developer")
+        top_skills = [("Python", 5)]
+        
+        # Act
+        result = service._build_employee_result(employee, top_skills)
+        
+        # Assert
+        assert result.project == "Project Alpha"
+    
+    def test_handles_missing_project(self, mock_employee):
+        """Should return empty string when employee has no project."""
+        # Arrange
+        employee = mock_employee(1, "Z1001", "Oscar")
+        employee.project = None
+        employee.sub_segment = None
+        employee.team = None
+        employee.role = None
+        top_skills = [("Python", 4)]
+        
+        # Act
+        result = service._build_employee_result(employee, top_skills)
+        
+        # Assert
+        assert result.project == ""
 
 # ============================================================================
 # REGRESSION TEST: Sub-Segment Join Bug Fix
@@ -1519,3 +1551,139 @@ class TestOrgOnlyFunction:
         
         # Assert - multiple filters applied (soft-delete + team + sub_segment)
         assert filter_call_count >= 2
+
+
+# ============================================================================
+# TEST: Match Mode Parameter Support
+# ============================================================================
+
+class TestMatchModeParameter:
+    """Tests for match_mode parameter support (ALL, ANY, HYBRID)."""
+    
+    def test_match_mode_all_uses_strict_only(self, mock_db, mock_employee):
+        """match_mode='ALL' should only use strict match, no fallback."""
+        # Arrange
+        employees = [mock_employee(1, "Z1001", "Alice")]
+        
+        with patch.object(service, '_normalize_skill_terms', return_value=['python', 'aws']):
+            with patch.object(service, '_resolve_canonical_skill_ids', return_value={1, 2}):
+                with patch.object(service, '_query_strict_match', return_value=employees) as mock_strict:
+                    with patch.object(service, '_query_partial_match') as mock_partial:
+                        with patch.object(service, '_query_employee_top_skills', return_value=[]):
+                            # Act
+                            results = service.search_matching_talent(
+                                mock_db,
+                                skills=['Python', 'AWS'],
+                                match_mode='ALL'
+                            )
+        
+        # Assert
+        mock_strict.assert_called_once()
+        mock_partial.assert_not_called()
+        assert len(results) == 1
+    
+    def test_match_mode_all_returns_empty_when_no_strict_match(self, mock_db, mock_employee):
+        """match_mode='ALL' should return empty if strict match fails (no fallback)."""
+        # Arrange
+        with patch.object(service, '_normalize_skill_terms', return_value=['python', 'aws']):
+            with patch.object(service, '_resolve_canonical_skill_ids', return_value={1, 2}):
+                with patch.object(service, '_query_strict_match', return_value=[]) as mock_strict:
+                    with patch.object(service, '_query_partial_match') as mock_partial:
+                        # Act
+                        results = service.search_matching_talent(
+                            mock_db,
+                            skills=['Python', 'AWS'],
+                            match_mode='ALL'
+                        )
+        
+        # Assert
+        mock_strict.assert_called_once()
+        mock_partial.assert_not_called()
+        assert results == []
+    
+    def test_match_mode_any_uses_partial_only(self, mock_db, mock_employee):
+        """match_mode='ANY' should only use partial match, skip strict."""
+        # Arrange
+        partial_results = [
+            MagicMock(employee_id=1, employee_name="Bob", match_type="PARTIAL")
+        ]
+        
+        with patch.object(service, '_normalize_skill_terms', return_value=['python', 'aws']):
+            with patch.object(service, '_resolve_canonical_skill_ids', return_value={1, 2}):
+                with patch.object(service, '_query_strict_match') as mock_strict:
+                    with patch.object(service, '_query_partial_match', return_value=partial_results) as mock_partial:
+                        # Act
+                        results = service.search_matching_talent(
+                            mock_db,
+                            skills=['Python', 'AWS'],
+                            match_mode='ANY'
+                        )
+        
+        # Assert
+        mock_strict.assert_not_called()
+        mock_partial.assert_called_once()
+    
+    def test_match_mode_none_uses_hybrid_with_fallback(self, mock_db, mock_employee):
+        """match_mode=None (HYBRID) should try strict first, then partial fallback."""
+        # Arrange
+        partial_results = [
+            MagicMock(employee_id=1, employee_name="Charlie", match_type="PARTIAL")
+        ]
+        
+        with patch.object(service, '_normalize_skill_terms', return_value=['python', 'aws']):
+            with patch.object(service, '_resolve_canonical_skill_ids', return_value={1, 2}):
+                # Strict returns empty, so fallback to partial
+                with patch.object(service, '_query_strict_match', return_value=[]) as mock_strict:
+                    with patch.object(service, '_query_partial_match', return_value=partial_results) as mock_partial:
+                        # Act
+                        results = service.search_matching_talent(
+                            mock_db,
+                            skills=['Python', 'AWS'],
+                            match_mode=None  # Explicit None = HYBRID
+                        )
+        
+        # Assert - both called
+        mock_strict.assert_called_once()
+        mock_partial.assert_called_once()
+    
+    def test_match_mode_none_skips_partial_when_strict_succeeds(self, mock_db, mock_employee):
+        """HYBRID mode should not call partial when strict returns results."""
+        # Arrange
+        employees = [mock_employee(1, "Z1001", "Diana")]
+        
+        with patch.object(service, '_normalize_skill_terms', return_value=['python']):
+            with patch.object(service, '_resolve_canonical_skill_ids', return_value={1}):
+                with patch.object(service, '_query_strict_match', return_value=employees) as mock_strict:
+                    with patch.object(service, '_query_partial_match') as mock_partial:
+                        with patch.object(service, '_query_employee_top_skills', return_value=[]):
+                            # Act
+                            results = service.search_matching_talent(
+                                mock_db,
+                                skills=['Python'],
+                                match_mode=None
+                            )
+        
+        # Assert
+        mock_strict.assert_called_once()
+        mock_partial.assert_not_called()
+        assert len(results) == 1
+    
+    def test_default_match_mode_is_hybrid(self, mock_db, mock_employee):
+        """Omitting match_mode should default to HYBRID behavior."""
+        # Arrange
+        employees = [mock_employee(1, "Z1001", "Eve")]
+        partial_results = [MagicMock()]
+        
+        with patch.object(service, '_normalize_skill_terms', return_value=['python']):
+            with patch.object(service, '_resolve_canonical_skill_ids', return_value={1}):
+                with patch.object(service, '_query_strict_match', return_value=[]) as mock_strict:
+                    with patch.object(service, '_query_partial_match', return_value=partial_results) as mock_partial:
+                        # Act - no match_mode provided
+                        results = service.search_matching_talent(
+                            mock_db,
+                            skills=['Python']
+                        )
+        
+        # Assert - HYBRID behavior (strict called, then partial fallback)
+        mock_strict.assert_called_once()
+        mock_partial.assert_called_once()

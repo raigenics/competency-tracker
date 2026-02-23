@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Search } from 'lucide-react';
 import ComboBox from '../../../components/ComboBox';
 import EnhancedSkillSelector from './EnhancedSkillSelector';
 import { capabilityFinderApi } from '../../../services/api/capabilityFinderApi';
 import { dropdownApi } from '../../../services/api/dropdownApi';
 
-const QueryBuilderPanel = ({ query, onQueryChange, onSearch, onClearFilters, isLoading, hasSearched: _hasSearched }) => {
+const QueryBuilderPanel = ({ query, onQueryChange, onSearch, onClearFilters, isLoading, hasSearched: _hasSearched, matchMode, onMatchModeChange }) => {
   const [availableRoles, setAvailableRoles] = useState([]);
   const [subSegments, setSubSegments] = useState([]);
   const [teams, setTeams] = useState([]);
@@ -148,46 +147,61 @@ const QueryBuilderPanel = ({ query, onQueryChange, onSearch, onClearFilters, isL
   }
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* Skills to Match */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Skills to Match
-        </label>
+      <div className="cf-field">
+        <label className="cf-label">Skills to Match</label>
         <EnhancedSkillSelector
           value={query.skills || []}
           onChange={handleAddSkill}
-          placeholder="Type to search skills..."
+          placeholder="Type to search skills…"
         />
-        <p className="mt-1.5 text-xs text-gray-500">
-          Multi-select skills. Matches employees with <span className="font-medium">all</span> skills. <span className="font-medium">any</span> selected skill. 
-        </p>
+        <div className="cf-help">Multi-select skills. Choose match mode below.</div>
+      </div>
+
+      {/* Match Mode */}
+      <div className="cf-field">
+        <label className="cf-label">Match Mode</label>
+        <div className="cf-segmented" role="tablist" aria-label="Match mode">
+          <button
+            type="button"
+            onClick={() => onMatchModeChange('all')}
+            className={matchMode === 'all' ? 'active' : ''}
+          >
+            All skills
+          </button>
+          <button
+            type="button"
+            onClick={() => onMatchModeChange('any')}
+            className={matchMode === 'any' ? 'active' : ''}
+          >
+            Any skill
+          </button>
+        </div>
       </div>
 
       {/* Sub-Segment */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Sub-Segment
-        </label>
+      <div className="cf-field">
+        <label className="cf-label">Sub-Segment (optional)</label>
         <ComboBox
           options={subSegments}
           value={query.subSegment || 'all'}
           onChange={handleSubSegmentChange}
-          placeholder="Select sub-segment..."
+          placeholder="All Sub-Segments"
           multi={false}
         />
-      </div>      {/* Teams */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Team
-        </label>
+      </div>
+
+      {/* Team */}
+      <div className="cf-field">
+        <label className="cf-label">Team (optional)</label>
         <ComboBox
           options={teams}
           value={query.team || ''}
           onChange={handleTeamChange}
           placeholder={
             query.subSegment === 'all' 
-              ? "Select sub-segment first" 
+              ? "Select a sub-segment to filter teams" 
               : teams.length === 0 
                 ? "No teams available" 
                 : "Select team..."
@@ -196,86 +210,76 @@ const QueryBuilderPanel = ({ query, onQueryChange, onSearch, onClearFilters, isL
           clearable={true}
           disabled={query.subSegment === 'all' || teams.length === 0}
         />
-      </div>      {/* Roles */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Role
-        </label>
+      </div>
+
+      {/* Role */}
+      <div className="cf-field">
+        <label className="cf-label">Role (optional)</label>
         <ComboBox
           options={availableRoles}
           value={query.role || ''}
           onChange={handleRoleChange}
-          placeholder="Select role..."
+          placeholder="Any role"
           multi={false}
           clearable={true}
         />
       </div>
 
-      {/* Proficiency Range */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Minimum Proficiency Level
-        </label>
-        <div className="flex items-center gap-4">
-          <input
-            type="range"
-            min="0"
-            max="5"
+      {/* Proficiency & Experience Row (side-by-side) */}
+      <div className="cf-row cf-field">
+        <div>
+          <label className="cf-label">Minimum Proficiency</label>
+          <select
             value={query.proficiency.min}
             onChange={(e) => handleProficiencyChange('min', e.target.value)}
-            className="flex-1"
-          />
-          <span className="text-sm font-medium text-gray-700 min-w-0">
-            {query.proficiency.min}/5
-          </span>
+            className="cf-select"
+          >
+            <option value="0">Any (0)</option>
+            <option value="1">1+</option>
+            <option value="2">2+</option>
+            <option value="3">3+</option>
+            <option value="4">4+</option>
+            <option value="5">5 (Expert)</option>
+          </select>
         </div>
-      </div>
-
-      {/* Experience Range */}
-      <div>
-        <label className="block text-sm font-medium text-gray-700 mb-2">
-          Minimum Experience (years)
-        </label>
-        <div className="flex items-center gap-4">
-          <input
-            type="range"
-            min="0"
-            max="20"
+        <div>
+          <label className="cf-label">Minimum Experience</label>
+          <select
             value={query.experience.min}
             onChange={(e) => handleExperienceChange('min', e.target.value)}
-            className="flex-1"
-          />
-          <span className="text-sm font-medium text-gray-700 min-w-0">
-            {query.experience.min}+ years
-          </span>
+            className="cf-select"
+          >
+            <option value="0">Any (0+ years)</option>
+            <option value="3">3+ years</option>
+            <option value="5">5+ years</option>
+            <option value="8">8+ years</option>
+          </select>
         </div>
       </div>
 
-      {/* Search Button */}
-      <div>
+      {/* Action Buttons */}
+      <div className="cf-actions">
         <button
+          type="button"
           onClick={onSearch}
           disabled={isLoading || !query.skills || query.skills.length === 0}
-          className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          className="cf-btn primary"
         >
-          <Search className="h-5 w-5" />
-          {isLoading ? 'Searching...' : 'Find Matching Talent'}
+          {isLoading ? 'Searching...' : '🔍 Search'}
         </button>
-        {!query.skills || query.skills.length === 0 ? (
-          <p className="mt-2 text-xs text-gray-500 text-center">
-            Please select at least one skill to search.
-          </p>
-        ) : null}
+        <button
+          type="button"
+          onClick={onClearFilters}
+          className="cf-btn link"
+        >
+          Reset
+        </button>
       </div>
 
-      {/* Clear All */}
-      <button
-        onClick={onClearFilters}
-        disabled={!query.skills || query.skills.length === 0}
-        className="w-full px-4 py-2 text-gray-600 border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-      >
-        Clear All Filters
-      </button>
+      {/* Tip text */}
+      <div className="cf-help" style={{ marginTop: '10px' }}>
+        Tip: If results look too narrow, reduce proficiency/experience or switch to "Any skill".
+      </div>
     </div>
   );
 };

@@ -35,6 +35,7 @@ def mock_category():
         category = Mock()
         category.category_id = category_id
         category.category_name = category_name
+        category.description = kwargs.get('description', None)
         category.created_at = kwargs.get('created_at', datetime(2024, 1, 1))
         category.created_by = kwargs.get('created_by', 'admin')
         return category
