@@ -5,7 +5,6 @@ Provides text embedding generation for semantic skill matching.
 """
 import logging
 import os
-from abc import ABC, abstractmethod
 from typing import List, Protocol
 from openai import AzureOpenAI, OpenAI
 

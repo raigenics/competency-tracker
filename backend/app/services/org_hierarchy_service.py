@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from typing import List, Dict, Any, Optional, Tuple
 from collections import defaultdict
 from sqlalchemy.orm import Session
-from sqlalchemy import select, func
+from sqlalchemy import func
 
 from app.models.segment import Segment
 from app.models.sub_segment import SubSegment

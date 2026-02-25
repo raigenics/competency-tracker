@@ -17,7 +17,6 @@ from app.schemas.rbac_admin import (
     UserListItem,
     CreateUserRequest,
     CreateUserResponse,
-    UpdateUserRequest,
     UserDetailResponse,
     RoleAssignmentBadge,
     RoleAssignmentDetail,

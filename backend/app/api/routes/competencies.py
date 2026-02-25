@@ -13,7 +13,7 @@ from app.models import (
     ProficiencyLevel, SubSegment, Project, Team
 )
 from app.schemas.competency import (
-    EmployeeCompetencyProfile, CompetencyMatrixResponse, SkillDemandResponse,
+    EmployeeCompetencyProfile, CompetencyMatrixResponse,
     CompetencyInsights, CompetencySearchFilters, EmployeeSkillResponse,
     ProficiencyLevelResponse
 )
