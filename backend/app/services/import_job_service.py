@@ -53,12 +53,12 @@ class ImportJobService:
         self._last_percent = {}  # job_id -> last percent reported (for boundary detection)
         self._last_status = {}  # job_id -> last status reported (for status change detection)
     
-    def create_job(self, _job_type: str = "employee_import", message: str = "Import starting...") -> str:
+    def create_job(self, job_type: str = "employee_import", message: str = "Import starting...") -> str:
         """
         Create a new import job in database.
         
         Args:
-            _job_type: Type of import (for logging/debugging, currently unused)
+            job_type: Type of import (for logging/debugging)
             message: Initial progress message
             
         Returns:
