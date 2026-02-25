@@ -19,7 +19,7 @@
 
 .sidebar {
   width: 280px;
-  height: 100vh;
+  height: 100%;
   background: var(--bg);
   color: var(--text);
   display: flex;

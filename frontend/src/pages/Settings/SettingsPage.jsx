@@ -6,15 +6,15 @@
  * Route: /system/settings
  * Section: SYSTEM (Super admin only)
  */
+import PageHeader from '../../components/PageHeader';
 
 const SettingsPage = () => {
   return (
     <main style={{ padding: '22px' }}>
-      <div className="pagehead">
-        <h1 style={{ fontSize: '20px', fontWeight: 600, color: '#1e293b', margin: 0 }}>
-          Settings
-        </h1>
-      </div>
+      <PageHeader
+        title="Settings"
+        subtitle="Configure system-wide settings"
+      />
       
       <div style={{
         marginTop: '24px',

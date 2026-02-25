@@ -800,20 +800,23 @@ const EmployeesPage = () => {
   const showAddEmployee = useMemo(() => canShowAddEmployee(), []);
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      <PageHeader 
-        title="Employees"
-        actions={
-          showAddEmployee && (
-            <button 
-              className="px-5 py-2.5 bg-[#667eea] text-white rounded-md text-sm font-medium hover:bg-[#5568d3] transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#667eea]/30"
-              onClick={handleAddEmployee}
-            >
-              + Add Employee
-            </button>
-          )
-        }
-      />
+    <div className="employees-page bg-[#f8f7f5]">
+      {/* Header wrapper with consistent padding matching Dashboard */}
+      <div style={{ padding: '0 26px' }}>
+        <PageHeader 
+          title="Employees"
+          actions={
+            showAddEmployee && (
+              <button 
+                className="px-5 py-2.5 bg-[#667eea] text-white rounded-md text-sm font-medium hover:bg-[#5568d3] transition-all hover:-translate-y-0.5 hover:shadow-lg hover:shadow-[#667eea]/30"
+                onClick={handleAddEmployee}
+              >
+                + Add Employee
+              </button>
+            )
+          }
+        />
+      </div>
       
       {/* Add/Edit Employee Drawer - Only mount when open to avoid loading roles/skills on parent page */}
       {isAddEmployeeOpen && (

@@ -13,6 +13,7 @@
  */
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
 import { Search } from 'lucide-react';
+import PageHeader from '../../components/PageHeader';
 import './skillLibrary.css';
 
 // Import API functions
@@ -1846,22 +1847,24 @@ const SkillLibraryPage = () => {
         <ImportBlockingOverlay message={importOverlay.message} />
       )}
 
-      {/* Topbar */}
-      <header className="sl-topbar">
-        <div className="sl-topbar-left">
-          <div className="sl-title">Skill Library</div>
-          <div className="sl-subtitle">Govern categories, sub-categories, and skills used across the organization</div>
-        </div>
-        <div className="sl-topbar-actions">
-          <button className="sl-btn ghost" onClick={handleDownloadTemplate}>
-            <span>⬇️</span>Download Template
-          </button>
-          <button className="sl-btn ghost" onClick={handleImportSkills}>
-            <span>⬆️</span>Import Skills
-          </button>
-          <button className="sl-btn" onClick={handleAddCategory}>+ Add Category</button>
-        </div>
-      </header>
+      {/* Header wrapper with consistent padding matching Dashboard */}
+      <div style={{ padding: '0 20px' }}>
+        <PageHeader
+          title="Skill Library"
+          subtitle="Govern categories, sub-categories, and skills used across the organization"
+          actions={
+            <>
+              <button className="sl-btn ghost" onClick={handleDownloadTemplate}>
+                <span>⬇️</span>Download Template
+              </button>
+              <button className="sl-btn ghost" onClick={handleImportSkills}>
+                <span>⬆️</span>Import Skills
+              </button>
+              <button className="sl-btn" onClick={handleAddCategory}>+ Add Category</button>
+            </>
+          }
+        />
+      </div>
 
       {/* Error banner */}
       {error && (

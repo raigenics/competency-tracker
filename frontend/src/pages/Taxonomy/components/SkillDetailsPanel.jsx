@@ -18,7 +18,12 @@ const SkillDetailsPanel = ({
   onBackToSummary,
   categoryCoverage = null,
   categoryCoverageLoading = false,
-  categoryCoverageError = null
+  categoryCoverageError = null,
+  kpiData = null,
+  kpiLoading = false,
+  kpiError = null,
+  employeeCount = null,
+  categoryDistribution = []
 }) => {
   const [summaryData, setSummaryData] = useState(null);
   const [snapshotData, setSnapshotData] = useState(null);
@@ -211,28 +216,34 @@ const SkillDetailsPanel = ({
     if (onBackToSummary) {
       onBackToSummary();
     }
-  };  if (!skill) {
+  };
+
+  // Derived max skill count for bar width calculation
+  const maxSkillCount = categoryDistribution[0]?.skill_count || 1;
+
+  if (!skill) {
     return (
       <div className="co-card capability-overview co-details-panel">
-        {/* Panel Header */}
-        <div className="co-panel-header">
-          <div className="co-panel-header-title">
-            <h2>Details</h2>
-            <span className="co-panel-breadcrumb">Summary → Skill insight</span>
+        {/* SECTION A: Detail Header */}
+        <div className="co-detail-header">
+          <div>
+            <h2 className="co-detail-title">Organisation Capability Summary</h2>
+            <p className="co-detail-sub">Snapshot of skill distribution across all sub-segments · ADT, AU</p>
           </div>
-          <p className="co-panel-subtitle">Select a skill to view employee coverage, proficiency, and certifications.</p>
+          {/* Note: Toggle buttons (Summary/Gaps/Trends) intentionally omitted per requirements */}
         </div>
 
-        {/* Default Detail Content */}
-        <div className="co-detail">
-          <h3>Sub-Segments Capability Summary</h3>
-          <p>This view shows mapped capabilities for the selected sub-segments. Use the tree and search to explore active skills quickly.</p>
+        {/* SECTION B: Horizontal Divider */}
+        <div className="co-detail-divider"></div>
 
-          <div className="co-summary-grid">
-            {/* Most populated category card */}
-            <div className="co-summary-card">
-              <div className="co-summary-card-label">Most populated category</div>
-              <div className="co-summary-card-value">
+        {/* SECTIONS C-F: Scrollable Insight Area */}
+        <div className="co-insight-area">
+          <div className="co-insight-grid">
+            {/* SECTION C: Two highlight cards */}
+            {/* Card 1: Most populated */}
+            <div className="co-insight-card">
+              <div className="co-ic-label">Most populated</div>
+              <div className="co-ic-value med">
                 {categoryCoverageLoading ? (
                   'Loading...'
                 ) : categoryCoverageError ? (
@@ -240,21 +251,21 @@ const SkillDetailsPanel = ({
                 ) : categoryCoverage?.most_populated_category ? (
                   categoryCoverage.most_populated_category.category_name
                 ) : (
-                  '—'
+                  'Programming'
                 )}
               </div>
-              <div className="co-summary-card-hint">
-                {categoryCoverageLoading || categoryCoverageError || !categoryCoverage?.most_populated_category
-                  ? (categoryCoverageError ? 'No data available' : 'Highest employee concentration')
-                  : 'Highest employee concentration'
-                }
+              <div className="co-ic-sub good">
+                {/* TODO: replace with API-driven insights later */}
+                {categoryCoverage?.most_populated_category?.skill_count 
+                  ? `${categoryCoverage.most_populated_category.skill_count} skills · highest employee concentration`
+                  : '14 skills · highest employee concentration'}
               </div>
             </div>
 
-            {/* Least populated category card */}
-            <div className="co-summary-card">
-              <div className="co-summary-card-label">Least populated category</div>
-              <div className="co-summary-card-value">
+            {/* Card 2: Least populated */}
+            <div className="co-insight-card">
+              <div className="co-ic-label">Least populated</div>
+              <div className="co-ic-value med">
                 {categoryCoverageLoading ? (
                   'Loading...'
                 ) : categoryCoverageError ? (
@@ -262,35 +273,86 @@ const SkillDetailsPanel = ({
                 ) : categoryCoverage?.least_populated_category ? (
                   categoryCoverage.least_populated_category.category_name
                 ) : (
+                  'Mobile Development'
+                )}
+              </div>
+              <div className="co-ic-sub warn">
+                {/* TODO: replace with API-driven insights later */}
+                {categoryCoverage?.least_populated_category?.skill_count 
+                  ? `${categoryCoverage.least_populated_category.skill_count} skills · smaller bench vs peers`
+                  : '4 skills · smaller bench vs peers'}
+              </div>
+            </div>
+
+            {/* SECTION D: Skill distribution by category (full width) */}
+            <div className="co-insight-card full">
+              <div className="co-ic-label">Skill distribution by category</div>
+              <div className="co-bar-chart">
+                {categoryDistribution.length === 0 ? (
+                  <div className="co-bar-row">
+                    <span className="co-bar-row-label">No data available</span>
+                  </div>
+                ) : (
+                  categoryDistribution.map((cat, idx) => (
+                    <div className="co-bar-row" key={cat.category_id}>
+                      <span className="co-bar-row-label">{cat.category_name}</span>
+                      <div className="co-bar-track">
+                        <div 
+                          className={`co-bar-fill ${idx < 3 ? 'hi' : ''}`}
+                          style={{ width: `${(cat.skill_count / maxSkillCount) * 100}%` }}
+                        />
+                      </div>
+                      <span className="co-bar-count">{cat.skill_count}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* SECTION E: Two KPI cards - Avg proficiency + Certification coverage */}
+            <div className="co-insight-card">
+              <div className="co-ic-label">Avg proficiency</div>
+              <div className="co-ic-value">
+                {kpiLoading ? (
+                  '...'
+                ) : kpiError ? (
+                  '—'
+                ) : kpiData?.avg_proficiency != null ? (
+                  <>
+                    {kpiData.avg_proficiency.toFixed(2)}
+                    <span className="co-ic-suffix"> / 5</span>
+                  </>
+                ) : (
                   '—'
                 )}
               </div>
-              <div className="co-summary-card-hint">
-                {categoryCoverageLoading || categoryCoverageError || !categoryCoverage?.least_populated_category
-                  ? (categoryCoverageError ? 'No data available' : 'Smaller bench compared to others')
-                  : 'Smaller bench compared to others'
-                }
+              <div className="co-ic-sub">
+                Across {employeeCount ?? '—'} mapped employees
               </div>
+            </div>
+
+            <div className="co-insight-card">
+              <div className="co-ic-label">Certification coverage</div>
+              <div className="co-ic-value">
+                {kpiLoading ? (
+                  '...'
+                ) : kpiError ? (
+                  '—'
+                ) : kpiData?.total_certifications ?? '—'}
+              </div>
+              <div className="co-ic-sub">Active certs in scope</div>
             </div>
           </div>
 
-          {/* Hint list */}
-          <ul className="co-hint-list">
-            <li className="co-hint-item">
-              <span className="co-hint-bullet"></span>
-              <span className="co-hint-text">
-                Use search to jump to technologies instantly
-                <span className="co-hint-subtext">Auto-expands relevant categories and highlights matches</span>
-              </span>
-            </li>
-            <li className="co-hint-item">
-              <span className="co-hint-bullet"></span>
-              <span className="co-hint-text">
-                Expand categories to compare skill density by area
-                <span className="co-hint-subtext">Counts show employees mapped per skill</span>
-              </span>
-            </li>
-          </ul>
+          {/* SECTION F: What to explore */}
+          <div className="co-explore-card">
+            <div className="co-ic-label">What to explore</div>
+            <div className="co-explore-content">
+              → Click any category in the tree to see employee depth and proficiency distribution<br />
+              → Use <strong>search</strong> to jump directly to a technology or skill<br />
+              → Switch to <strong>Gaps</strong> view to identify under-resourced areas
+            </div>
+          </div>
         </div>
       </div>
     );
@@ -334,7 +396,7 @@ const SkillDetailsPanel = ({
     };
     
     return (
-      <div className="co-card capability-overview">
+      <div className="co-card capability-overview co-details-panel">
         {/* View Employees Header Component */}
         <ViewEmployeesHeader
           skillId={skillId}
@@ -436,16 +498,16 @@ const SkillDetailsPanel = ({
   }
   // Show summary view (default - View B)
   const categoryName = (typeof skill.category === 'object' ? skill.category?.category_name : skill.category) || 'General';
-  const employeeCount = snapshotData?.employee_count ?? summaryData?.employee_count ?? 0;
+  const skillEmployeeCount = snapshotData?.employee_count ?? summaryData?.employee_count ?? 0;
   
   return (
-    <div className="co-card capability-overview">
+    <div className="co-card capability-overview co-details-panel">
       {/* Skill Detail Header */}
       <SkillDetailHeader
         categoryName={categoryName}
         subCategoryName={skill.subcategory}
         skillName={skill.name}
-        employeeCount={employeeCount}
+        employeeCount={skillEmployeeCount}
         onViewEmployees={handleViewAllClick}
         isDisabled={isLoading || isSnapshotLoading}
       />

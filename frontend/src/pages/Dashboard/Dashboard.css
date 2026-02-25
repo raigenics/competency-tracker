@@ -10,7 +10,7 @@
    ========================= */
 .dashboard-page {
   /* Surfaces */
-  --db-bg: #f6f7fb;
+  --db-bg: #f8f7f5;
   --db-surface: #ffffff;
   --db-surface-2: #fbfcff;
   --db-border: #e6e9f2;
@@ -53,7 +53,7 @@
   /* Apply base styles */
   background: var(--db-bg);
   color: var(--db-text);
-  min-height: 100vh;
+  /* Removed min-height: 100vh - MainLayout now owns viewport height */
 }
 
 /* =========================

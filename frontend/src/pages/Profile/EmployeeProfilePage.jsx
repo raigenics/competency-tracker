@@ -43,7 +43,7 @@ const EmployeeProfilePage = () => {
   // Show error only if there was an actual error OR if ID was provided but employee not found
   if (error || (id && !employee)) {
     return (
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="p-8 bg-slate-50">
         <div className="max-w-screen-2xl mx-auto">
           <EmptyState
             icon={User}
@@ -58,7 +58,7 @@ const EmployeeProfilePage = () => {
   // No ID provided and no employee - show message to use URL
   if (!id && !employee) {
     return (
-      <div className="p-8 bg-slate-50 min-h-screen">
+      <div className="p-8 bg-slate-50">
         <div className="max-w-screen-2xl mx-auto">
           <EmptyState
             icon={User}
@@ -71,7 +71,7 @@ const EmployeeProfilePage = () => {
   }
   
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
+    <div className="p-8 bg-slate-50">
       <div className="max-w-screen-2xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900">Employee Profile</h1>

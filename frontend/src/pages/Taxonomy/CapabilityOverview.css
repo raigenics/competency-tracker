@@ -1,22 +1,25 @@
 /*
  * Capability Overview page scoped CSS
- * Matches wireframe exactly - uses same design tokens as Capability Finder
+ * Matches capabilityOverview.html wireframe
  */
 
 /* =========================
    1) DESIGN TOKENS (scoped via .capability-overview)
    ========================= */
 .capability-overview {
-  --co-bg: #f6f8fb;
+  --co-bg: #f8f7f5;
   --co-card: #ffffff;
-  --co-border: #e6eaf0;
-  --co-text: #0f172a;
-  --co-muted: #64748b;
+  --co-border: #d0d0d0;
+  --co-border-light: #e8e8e8;
+  --co-text: #1a1a1a;
+  --co-text-mid: #555;
+  --co-muted: #888;
+  --co-muted-ghost: #bbb;
   --co-primary: #2563eb;
   --co-primary-hover: #1d4ed8;
   --co-primary-soft: #eff6ff;
-  --co-pill: #ecfdf5;
-  --co-pill-border: #bbf7d0;
+  --co-surface: #f5f5f5;
+  --co-surface-hover: #ececec;
   
   /* Spacing */
   --co-gap: 14px;
@@ -24,15 +27,121 @@
   --co-radius-sm: 12px;
   --co-padding: 22px;
   
+  /* Main container - flex column layout */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
   background: var(--co-bg);
-  min-height: 100vh;
 }
 
 /* =========================
-   2) MAIN GRID
+   1.5) PAGE HEADER (matches capabilityOverview.html wireframe)
+   ========================= */
+.capability-overview .co-page-header {
+  background: #ffffff;
+  border-bottom: 1.5px solid #d0d0d0;
+  padding: 20px 28px 0;
+  flex-shrink: 0;
+}
+
+.capability-overview .co-page-header-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
+.capability-overview .co-page-header-left {
+  min-width: 0;
+  flex: 1;
+}
+
+.capability-overview .co-page-title {
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #1a1a1a;
+  line-height: 1.2;
+  margin: 0;
+}
+
+.capability-overview .co-page-description {
+  font-size: 13px;
+  color: #555;
+  margin: 4px 0 0;
+  max-width: 480px;
+  line-height: 1.5;
+  font-weight: 400;
+}
+
+/* Metrics strip - inline stats row (replaces KPI cards) */
+.capability-overview .co-metrics-strip {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  margin-top: 4px;
+  padding-bottom: 14px;
+}
+
+.capability-overview .co-metrics-scope {
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 11px;
+  background: #f5f5f5;
+  border: 1px solid #d0d0d0;
+  padding: 2px 7px;
+  border-radius: 20px;
+  color: #888;
+  margin-right: 14px;
+  font-weight: 500;
+  letter-spacing: 0.02em;
+}
+
+.capability-overview .co-metrics-item {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  color: #555;
+  padding: 6px 14px 8px;
+}
+
+.capability-overview .co-metrics-item:first-of-type {
+  padding-left: 0;
+}
+
+.capability-overview .co-metrics-value {
+  font-weight: 700;
+  color: #1a1a1a;
+  font-size: 13px;
+}
+
+.capability-overview .co-metrics-label {
+  color: #555;
+}
+
+.capability-overview .co-metrics-sep {
+  width: 1px;
+  height: 14px;
+  background: #d0d0d0;
+  margin: 0 10px;
+  display: inline-block;
+}
+
+/* =========================
+   2) MAIN CONTENT / BODY LAYOUT
    ========================= */
 .capability-overview .co-content {
-  padding: var(--co-gap) var(--co-padding) var(--co-padding);
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+  padding: 0;
+}
+
+/* Right detail pane - force stretch to fill grid column */
+.co-detail-pane {
+  width: 100%;
+  min-width: 0;
 }
 
 .capability-overview .co-grid {
@@ -116,12 +225,12 @@
 .capability-overview .co-empty p {
   margin: 0;
   color: var(--co-muted);
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .capability-overview .co-hint {
   margin-top: 10px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
 }
 
@@ -146,7 +255,7 @@
 .capability-overview .co-breadcrumb {
   margin-top: 6px;
   color: var(--co-muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .capability-overview .co-breadcrumb strong {
@@ -178,7 +287,7 @@
 
 .capability-overview .co-kpi-cap {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   font-weight: 800;
 }
@@ -196,7 +305,7 @@
   border-radius: var(--co-radius-sm);
   padding: 10px 12px;
   font-weight: 900;
-  font-size: 14px;
+  font-size: 15px;
   cursor: pointer;
   transition: background-color 0.2s, border-color 0.2s;
 }
@@ -244,7 +353,7 @@
 }
 
 .capability-overview .co-skill-header-crumbs {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   margin-bottom: 6px;
   white-space: nowrap;
@@ -280,7 +389,7 @@
   padding: 10px 12px;
   border-radius: 12px;
   font-weight: 800;
-  font-size: 13px;
+  font-size: 14px;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -313,7 +422,7 @@
 }
 
 .capability-overview .co-snapshot-title {
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.9px;
   text-transform: uppercase;
   color: var(--co-muted);
@@ -345,7 +454,7 @@
 }
 
 .capability-overview .co-snapshot-kpi-label {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   font-weight: 800;
   margin-bottom: 8px;
@@ -364,7 +473,7 @@
 
 .capability-overview .co-snapshot-kpi-hint {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   line-height: 1.35;
 }
@@ -404,7 +513,7 @@
 }
 
 .capability-overview .co-pb-title {
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.9px;
   text-transform: uppercase;
   color: var(--co-muted);
@@ -413,7 +522,7 @@
 }
 
 .capability-overview .co-pb-meta {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   line-height: 1.35;
 }
@@ -490,7 +599,7 @@
 
 .capability-overview .co-pb-leg-text {
   min-width: 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   line-height: 1.2;
 }
@@ -503,7 +612,7 @@
 /* Footnote */
 .capability-overview .co-pb-foot {
   margin-top: 12px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   padding: 10px 12px;
   border: 1px dashed var(--co-border);
@@ -537,7 +646,7 @@
 
 /* Section title */
 .capability-overview .co-ctx-title {
-  font-size: 12px;
+  font-size: 13px;
   letter-spacing: 0.9px;
   text-transform: uppercase;
   color: var(--co-muted);
@@ -569,7 +678,7 @@
 /* Left label (muted) */
 .capability-overview .co-ctx-label {
   color: var(--co-muted);
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   letter-spacing: 0.3px;
   flex-shrink: 0;
@@ -578,7 +687,7 @@
 /* Right value (bold, truncated) */
 .capability-overview .co-ctx-value {
   color: var(--co-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 900;
   text-align: right;
   white-space: nowrap;
@@ -612,7 +721,7 @@
   color: var(--co-primary);
   text-decoration: none;
   font-weight: 900;
-  font-size: 12px;
+  font-size: 13px;
   cursor: pointer;
   background: none;
   border: none;
@@ -626,7 +735,7 @@
 .capability-overview .co-subline {
   margin-top: 6px;
   color: var(--co-muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* Employee Table */
@@ -638,7 +747,7 @@
 }
 
 .capability-overview .co-table thead th {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   text-align: left;
   padding: 0 10px;
@@ -673,7 +782,7 @@
 .capability-overview .co-empsub {
   margin-top: 2px;
   color: var(--co-muted);
-  font-size: 12px;
+  font-size: 13px;
 }
 
 /* Skill pills */
@@ -684,14 +793,14 @@
   background: var(--co-pill);
   border-radius: 999px;
   padding: 5px 8px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   margin-right: 6px;
   color: #166534;
 }
 
 .capability-overview .co-more {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   font-weight: 900;
 }
@@ -723,7 +832,7 @@
   align-items: center;
   padding: 4px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
 }
 
@@ -754,8 +863,190 @@
 }
 
 /* =========================
-   7) TREE HEADER (Left Panel)
+   7) TREE PANEL (Left Panel - matches wireframe)
    ========================= */
+
+/* Tree panel container */
+.capability-overview .co-tree-panel {
+  width: 420px;
+  flex-shrink: 0;
+  background: #fff;
+  border-right: 1.5px solid #d0d0d0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Tree toolbar (search + actions) */
+.capability-overview .co-tree-toolbar {
+  padding: 14px 16px 10px;
+  border-bottom: 1px solid #e8e8e8;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+/* Search box */
+.capability-overview .co-tree-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: #f5f5f5;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 5px;
+  padding: 7px 10px;
+  font-size: 13px;
+  color: #888;
+  position: relative;
+}
+
+.capability-overview .co-tree-search-box input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  font-size: 13px;
+  color: #1a1a1a;
+  font-family: inherit;
+}
+
+.capability-overview .co-tree-search-box input::placeholder {
+  color: #888;
+}
+
+.capability-overview .co-tree-search-box .co-tree-search-icon {
+  position: static;
+  transform: none;
+  width: 12px;
+  height: 12px;
+  color: #888;
+  flex-shrink: 0;
+}
+
+.capability-overview .co-tree-search-box .co-tree-search-clear {
+  position: static;
+  transform: none;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #888;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.capability-overview .co-tree-search-box .co-tree-search-clear:hover {
+  color: #555;
+}
+
+/* Tree actions row */
+.capability-overview .co-tree-actions-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.capability-overview .co-tree-actions-left {
+  display: flex;
+  gap: 6px;
+}
+
+.capability-overview .co-tree-action-btn {
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border: 1px solid #d0d0d0;
+  border-radius: 3px;
+  background: #fff;
+  cursor: pointer;
+  color: #888;
+  transition: background 0.1s;
+}
+
+.capability-overview .co-tree-action-btn:hover {
+  background: #f5f5f5;
+  color: #1a1a1a;
+}
+
+.capability-overview .co-tree-action-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.capability-overview .co-tree-path-legend {
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #bbb;
+  letter-spacing: 0.02em;
+}
+
+.capability-overview .co-tree-search-hint {
+  font-size: 12px;
+  color: #888;
+  margin-top: 4px;
+}
+
+/* Organisation Summary button */
+.capability-overview .co-org-summary-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #fafafa;
+  border: none;
+  border-bottom: 1px solid #e8e8e8;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 500;
+  color: #555;
+  width: 100%;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+  font-family: inherit;
+}
+
+.capability-overview .co-org-summary-btn:hover {
+  background: #f0f0f0;
+  color: #1a1a1a;
+}
+
+.capability-overview .co-org-summary-btn.active {
+  background: #f0f0f0;
+  color: #1a1a1a;
+  border-left: 3px solid #1a1a1a;
+}
+
+.capability-overview .co-org-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  flex-shrink: 0;
+}
+
+/* Tree body (scrollable area) */
+.capability-overview .co-tree-body {
+  flex: 1;
+  overflow-y: auto;
+}
+
+.capability-overview .co-tree-body::-webkit-scrollbar {
+  width: 4px;
+}
+
+.capability-overview .co-tree-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.capability-overview .co-tree-body::-webkit-scrollbar-thumb {
+  background: #d0d0d0;
+  border-radius: 4px;
+}
+
+/* Legacy tree header styles (keep for fallback) */
 .capability-overview .co-tree-header {
   padding: 14px 14px 10px;
   background: #fbfcff;
@@ -771,14 +1062,14 @@
 
 .capability-overview .co-tree-header h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
   line-height: 1;
 }
 
 .capability-overview .co-tree-header-desc {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   font-weight: 800;
   line-height: 1;
@@ -797,7 +1088,7 @@
   outline: none;
   background: white;
   transition: border 0.15s, box-shadow 0.15s;
-  font-size: 13px;
+  font-size: 14px;
   font-family: inherit;
 }
 
@@ -849,7 +1140,7 @@
   color: #334155;
   padding: 7px 10px;
   border-radius: 999px;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   cursor: pointer;
   transition: transform 0.05s ease, background 0.15s, border 0.15s;
@@ -872,7 +1163,7 @@
 }
 
 .capability-overview .co-tree-search-hint {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   margin-top: 8px;
 }
@@ -892,7 +1183,7 @@
   background: #fff;
   border-radius: 999px;
   padding: 6px 10px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   font-weight: 700;
 }
@@ -912,7 +1203,7 @@
   border: 1px solid var(--co-border);
   border-radius: var(--co-radius-sm);
   padding: 10px 12px;
-  font-size: 14px;
+  font-size: 15px;
 }
 
 .capability-overview .co-search input:focus {
@@ -922,12 +1213,199 @@
 }
 
 /* =========================
-   9) DETAILS PANEL (Default State)
+   9) DETAILS PANEL (Default State - matches capabilityOverview.html)
    ========================= */
 .capability-overview.co-details-panel {
+  background: #f8f7f5;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  width: 100%;
+  min-width: 0;
   overflow: hidden;
+  /* Override co-card border-radius for detail panel (per HTML wireframe) */
+  border-radius: 0;
+  border: none;
 }
 
+/* Detail Panel Header */
+.capability-overview .co-detail-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-shrink: 0;
+  padding: 18px 24px 0;
+}
+
+.capability-overview .co-detail-title {
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: #1a1a1a;
+  margin: 0;
+}
+
+.capability-overview .co-detail-sub {
+  font-size: 13px;
+  color: #555;
+  margin-top: 3px;
+}
+
+/* Horizontal Divider */
+.capability-overview .co-detail-divider {
+  height: 1px;
+  background: #e8e8e8;
+  margin: 14px 24px 0;
+}
+
+/* Insight Area (scrollable content) */
+.capability-overview .co-insight-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.capability-overview .co-insight-area::-webkit-scrollbar { width: 4px; }
+.capability-overview .co-insight-area::-webkit-scrollbar-thumb { background: #d0d0d0; border-radius: 4px; }
+
+/* Insight Card Grid */
+.capability-overview .co-insight-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+/* Individual Insight Card */
+.capability-overview .co-insight-card {
+  background: #fff;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
+.capability-overview .co-insight-card.full {
+  grid-column: 1 / -1;
+}
+
+/* Card Label (monospace uppercase) */
+.capability-overview .co-ic-label {
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #888;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+}
+
+/* Card Value (large number/text) */
+.capability-overview .co-ic-value {
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  color: #1a1a1a;
+}
+
+.capability-overview .co-ic-value.med {
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.capability-overview .co-ic-value .co-ic-suffix {
+  font-size: 14px;
+  font-weight: 400;
+  color: #888;
+}
+
+/* Card Subtitle */
+.capability-overview .co-ic-sub {
+  font-size: 12px;
+  color: #555;
+  margin-top: 4px;
+}
+
+.capability-overview .co-ic-sub.good {
+  color: #2d7a2d;
+}
+
+.capability-overview .co-ic-sub.warn {
+  color: #996600;
+}
+
+/* Bar Chart (skill distribution) */
+.capability-overview .co-bar-chart {
+  margin-top: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.capability-overview .co-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.capability-overview .co-bar-row-label {
+  font-size: 11px;
+  color: #555;
+  width: 140px;
+  flex-shrink: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.capability-overview .co-bar-track {
+  flex: 1;
+  height: 6px;
+  background: #e8e8e8;
+  border-radius: 3px;
+}
+
+.capability-overview .co-bar-fill {
+  height: 100%;
+  border-radius: 3px;
+  background: #1a1a1a;
+  opacity: 0.25;
+}
+
+.capability-overview .co-bar-fill.hi {
+  opacity: 0.7;
+}
+
+.capability-overview .co-bar-count {
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+  font-size: 10px;
+  color: #888;
+  width: 28px;
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* What to explore card */
+.capability-overview .co-explore-card {
+  background: #fff;
+  border: 1.5px solid #d0d0d0;
+  border-radius: 6px;
+  padding: 14px 16px;
+}
+
+.capability-overview .co-explore-content {
+  font-size: 13px;
+  color: #555;
+  line-height: 1.7;
+  margin-top: 4px;
+}
+
+.capability-overview .co-explore-content strong {
+  color: #1a1a1a;
+}
+
+/* Legacy Panel Header - keep for skill detail view */
 .capability-overview .co-panel-header {
   padding: 14px 14px 10px;
   border-bottom: 1px solid var(--co-border);
@@ -943,20 +1421,20 @@
 
 .capability-overview .co-panel-header-title h2 {
   margin: 0;
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 700;
   letter-spacing: -0.01em;
 }
 
 .capability-overview .co-panel-breadcrumb {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   font-weight: 800;
 }
 
 .capability-overview .co-panel-subtitle {
   margin: 6px 0 0;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
 }
 
@@ -974,7 +1452,7 @@
 .capability-overview .co-detail > p {
   margin: 0 0 12px;
   color: var(--co-muted);
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .capability-overview .co-summary-grid {
@@ -992,7 +1470,7 @@
 }
 
 .capability-overview .co-summary-card-label {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   font-weight: 800;
   margin-bottom: 6px;
@@ -1007,7 +1485,7 @@
 
 .capability-overview .co-summary-card-hint {
   margin-top: 6px;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
 }
 
@@ -1041,42 +1519,44 @@
 }
 
 .capability-overview .co-hint-text {
-  font-size: 13px;
+  font-size: 14px;
   color: #334155;
   font-weight: 750;
 }
 
 .capability-overview .co-hint-subtext {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--co-muted);
   font-weight: 650;
   margin-top: 2px;
 }
 
 /* =========================
-   11) TREE VIEW
+   11) TREE VIEW (matches capabilityOverview.html wireframe)
    ========================= */
 .capability-overview .co-tree {
-  padding: 10px 8px 14px;
+  padding: 8px 0;
 }
 
 .capability-overview .co-tree-node {
-  margin: 4px 6px;
-  border-radius: 12px;
+  margin: 0;
+  border-radius: 0;
   overflow: hidden;
 }
 
+/* Category row */
 .capability-overview .co-tree-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 9px 10px;
-  border-radius: 12px;
+  gap: 8px;
+  padding: 0 16px;
+  height: 40px;
   cursor: pointer;
-  transition: background 0.15s, box-shadow 0.15s, transform 0.05s;
-  border: 1px solid transparent;
+  transition: background 0.1s;
+  border: none;
+  border-left: 3px solid transparent;
   background: transparent;
   width: 100%;
   text-align: left;
@@ -1084,11 +1564,11 @@
 }
 
 .capability-overview .co-tree-row:hover {
-  background: #f8fafc;
+  background: #ececec;
 }
 
 .capability-overview .co-tree-row:active {
-  transform: translateY(1px);
+  transform: none;
 }
 
 .capability-overview .co-tree-row:focus {
@@ -1096,17 +1576,17 @@
 }
 
 .capability-overview .co-tree-row:focus-visible {
-  box-shadow: 0 0 0 2px var(--co-primary);
+  background: #ececec;
 }
 
 .capability-overview .co-tree-row.selected {
-  background: var(--co-primary-soft);
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.12);
-  border: 1px solid rgba(37, 99, 235, 0.25);
+  background: #f0f0f0;
+  border-left-color: #1a1a1a;
+  box-shadow: none;
 }
 
 .capability-overview .co-tree-row.selected .co-tree-name {
-  color: #1e3a8a;
+  color: #1a1a1a;
 }
 
 .capability-overview .co-tree-left {
@@ -1114,55 +1594,47 @@
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1;
 }
 
+/* Toggle chevron */
 .capability-overview .co-tree-chev {
-  width: 18px;
-  height: 18px;
+  width: 14px;
+  height: 14px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 6px;
-  border: 1px solid var(--co-border);
-  background: white;
-  color: #475569;
+  border-radius: 3px;
+  border: 1.5px solid #bbb;
+  background: transparent;
+  color: #888;
   flex: 0 0 auto;
-  font-size: 11px;
+  font-size: 10px;
+  transition: transform 0.2s;
 }
 
 .capability-overview .co-tree-chev.hidden {
   visibility: hidden;
 }
 
+/* Hide the type badge for cleaner wireframe look */
 .capability-overview .co-tree-type {
-  font-size: 12px;
-  color: var(--co-muted);
-  font-weight: 800;
-  background: #f1f5f9;
-  border: 1px solid var(--co-border);
-  padding: 2px 8px;
-  border-radius: 999px;
-  flex: 0 0 auto;
-}
-
-.capability-overview .co-tree-type.skill {
-  background: #eff6ff;
-  border-color: rgba(37, 99, 235, 0.2);
-  color: #1e3a8a;
+  display: none;
 }
 
 .capability-overview .co-tree-name {
-  font-size: 13px;
-  font-weight: 900;
-  letter-spacing: -0.01em;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
-  color: var(--co-text);
+  color: #1a1a1a;
 }
 
 .capability-overview .co-tree-row.skill .co-tree-name {
-  font-weight: 800;
+  font-weight: 400;
+  color: #555;
 }
 
 .capability-overview .co-tree-meta {
@@ -1172,18 +1644,13 @@
   flex: 0 0 auto;
 }
 
+/* Skill count badge - HIDDEN per wireframe */
 .capability-overview .co-tree-badge {
-  font-size: 12px;
-  font-weight: 900;
-  color: #3730a3;
-  background: #eef2ff;
-  border: 1px solid rgba(55, 48, 163, 0.12);
-  padding: 3px 8px;
-  border-radius: 999px;
+  display: none;
 }
 
 .capability-overview .co-tree-pill {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 900;
   color: #0f172a;
   background: rgba(15, 23, 42, 0.04);
@@ -1192,11 +1659,26 @@
   border-radius: 999px;
 }
 
+/* Sub-category and skill rows - indented */
 .capability-overview .co-tree-children {
-  margin-left: 18px;
-  padding-left: 10px;
-  border-left: 1px dashed #dbe2ef;
+  background: #fafafa;
+  border-top: 1px solid #e8e8e8;
+  border-bottom: 1px solid #e8e8e8;
 }
+
+/* Sub-category row styling */
+.capability-overview .co-tree-children .co-tree-row {
+  padding-left: 42px;
+  height: 34px;
+}
+
+/* Skill row - deeper indentation */
+.capability-overview .co-tree-children .co-tree-children .co-tree-row {
+  padding-left: 60px;
+  height: 32px;
+}
+
+/* Skill rows don't have expand chevrons (already hidden via .hidden class) */
 
 .capability-overview .co-tree-highlight {
   background: rgba(245, 158, 11, 0.18);
@@ -1225,7 +1707,7 @@
 }
 
 .capability-overview .co-tree-empty-subtitle {
-  font-size: 14px;
+  font-size: 15px;
   color: var(--co-muted);
   margin: 0;
 }
@@ -1267,7 +1749,7 @@
   color: #0f172a;
   text-decoration: none;
   font-weight: 600;
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1;
   cursor: pointer;
 }
@@ -1300,7 +1782,7 @@
   background: #e8efff;
   color: #2563eb;
   font-weight: 800;
-  font-size: 12px;
+  font-size: 13px;
   border: 1px solid #d7e4ff;
   white-space: nowrap;
 }
@@ -1308,7 +1790,7 @@
 /* Subtitle row */
 .capability-overview .ve-sub {
   margin-top: 6px;
-  font-size: 13px;
+  font-size: 14px;
   color: #64748b;
   display: flex;
   gap: 10px;
@@ -1326,7 +1808,7 @@
 }
 
 .capability-overview .ve-hint {
-  font-size: 12px;
+  font-size: 13px;
   color: #64748b;
   font-weight: 800;
   white-space: nowrap;
@@ -1348,7 +1830,7 @@
   padding: 9px 12px;
   border-radius: 12px;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 14px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -1399,7 +1881,7 @@
 }
 
 .capability-overview .ve-kpi-label {
-  font-size: 12px;
+  font-size: 13px;
   color: #64748b;
   font-weight: 800;
 }
@@ -1412,7 +1894,7 @@
 
 /* Tags */
 .capability-overview .ve-tag {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 900;
   padding: 4px 8px;
   border-radius: 999px;
@@ -1475,7 +1957,7 @@
   border: none;
   outline: none;
   width: 100%;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .capability-overview .ve-right-controls {

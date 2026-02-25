@@ -8,15 +8,15 @@
  * 
  * Note: This may redirect to or replace the existing AdvancedQueryPage.
  */
+import PageHeader from '../../components/PageHeader';
 
 const TalentFinderPage = () => {
   return (
     <main style={{ padding: '22px' }}>
-      <div className="pagehead">
-        <h1 style={{ fontSize: '20px', fontWeight: 600, color: '#1e293b', margin: 0 }}>
-          Talent Finder
-        </h1>
-      </div>
+      <PageHeader
+        title="Talent Finder"
+        subtitle="Search and discover talent across your organization"
+      />
       
       <div style={{
         marginTop: '24px',

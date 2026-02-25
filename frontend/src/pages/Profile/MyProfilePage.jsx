@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { employeeApi } from '../../services/api/employeeApi.js';
 import employeeProfileExportService from '../../services/employeeProfileExportService.js';
 import employeeProfilePdfExportService from '../../services/employeeProfilePdfExportService.js';
+import PageHeader from '../../components/PageHeader';
 import './EmployeeProfile.css';
 
 // Empty State Component - matches HTML wireframe exactly
@@ -366,11 +367,10 @@ const MyProfilePage = () => {
     <div className="employee-profile">
       {/* Main Content - matches .main { padding: 22px } */}
       <main className="ep-main">
-        {/* Page Header - matches .pagehead */}
-        <div className="pagehead">
-          <h1>Employee Profile</h1>
-          <p>Search and view detailed employee skill profiles</p>
-        </div>
+        <PageHeader
+          title="Employee Profile"
+          subtitle="Search and view detailed employee skill profiles"
+        />
 
         {/* Search Card - matches HTML exactly */}
         <section className="card" style={{ marginTop: '14px' }}>

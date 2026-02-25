@@ -1,0 +1,123 @@
+/* PageHeader.css - Standardized page header styling
+ * Matches headerstyle.html wireframe specification EXACTLY
+ * 
+ * Layout Consistency Rules:
+ * - Fixed min-height ensures identical header silhouette on all pages
+ * - Subtitle container always rendered (preserves vertical space)
+ * - Actions container always rendered (preserves horizontal layout)
+ */
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 20px 4px 14px;
+  border-bottom: 1px solid var(--border, #e5e7eb);
+  margin-bottom: 14px;
+  /* Fixed min-height ensures consistent header height regardless of content */
+  min-height: 62px;
+}
+
+.header-left {
+  min-width: 0;
+  flex: 1;
+}
+
+.page-title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--text, #111827);
+}
+
+.page-subtitle {
+  margin: 4px 0 0;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--muted, #6b7280);
+  line-height: 1.5;
+  max-width: 720px;
+  /* Fixed min-height preserves space even when empty */
+  min-height: 18px;
+}
+
+/* Empty subtitle state - preserve space but hide content */
+.page-subtitle--empty {
+  visibility: hidden;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  flex-shrink: 0;
+  /* Minimum width to prevent layout shift when empty */
+  min-width: 0;
+}
+
+/* Empty actions state - preserve container but collapse gracefully */
+.header-right--empty {
+  visibility: hidden;
+  width: 0;
+  min-width: 0;
+  gap: 0;
+}
+
+/* ==========================================================================
+   PAGE-SPECIFIC PADDING FIXES
+   
+   Some pages (Dashboard) wrap PageHeader in a container with horizontal padding.
+   Other pages (Skill Coverage, Talent Finder) render PageHeader as direct child
+   with no padding wrapper. These context-aware rules ensure consistent alignment.
+   ========================================================================== */
+
+/* Skill Coverage (CapabilityOverview) - add horizontal padding to match Dashboard */
+.capability-overview > .page-header {
+  padding-left: 22px;
+  padding-right: 22px;
+}
+
+/* Talent Finder (CapabilityFinder) - add horizontal padding to match Dashboard */
+.capability-finder > .page-header {
+  padding-left: 26px;
+  padding-right: 26px;
+}
+
+/* ==========================================================================
+   GOVERNANCE PAGES - Consistent header padding
+   ========================================================================== */
+
+/* Employees (Employee Management) - add horizontal padding */
+.employees-page > .page-header {
+  padding-left: 26px;
+  padding-right: 26px;
+}
+
+/* Bulk Import (Import Data) - add horizontal padding */
+.bulk-import-page > .page-header {
+  padding-left: 26px;
+  padding-right: 26px;
+}
+
+/* Skill Library - add horizontal padding */
+.skill-library > .page-header {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+/* Organization Hierarchy - add horizontal padding */
+.org-hierarchy > .page-header {
+  padding-left: 20px;
+  padding-right: 20px;
+}
+
+/* Role Catalog (master-data-page) - add horizontal padding */
+.master-data-page .details-panel > .page-header {
+  padding-left: 24px;
+  padding-right: 24px;
+}

@@ -6,6 +6,7 @@
  * Uses custom layout matching Skill Library styling (OrgStructure.html wireframe)
  */
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import PageHeader from '../../components/PageHeader';
 import './orgHierarchy.css';
 import { fetchOrgHierarchy, createSegment, createSubSegment, createProject, createTeam, updateSegmentName, updateSubSegmentName, updateProjectName, updateTeamName, checkCanDeleteSegment, checkCanDeleteSubSegment, deleteSegment, deleteSubSegment, checkCanDeleteProject, deleteProject, deleteTeam } from '../../services/api/orgHierarchyApi';
 import {
@@ -1546,25 +1547,25 @@ const OrgHierarchyPage = () => {
 
   return (
     <div className="org-hierarchy">
-      {/* Topbar */}
-      <header className="oh-topbar">
-        <div className="oh-topbar-left">
-          <div className="oh-title">Organization Hierarchy</div>
-          <div className="oh-subtitle">Define segments, sub-segments, projects, and teams for consistent governance.</div>
-        </div>
-        <div className="oh-topbar-actions">
-          <button
-            className="oh-btn"
-            onClick={() => {
-              setCreateType('segment');
-              setCreateError(null);
-              setCreateModalOpen(true);
-            }}
-          >
-            + Add Segment
-          </button>
-        </div>
-      </header>
+      {/* Header wrapper with consistent padding matching Dashboard */}
+      <div style={{ padding: '0 20px' }}>
+        <PageHeader
+          title="Organization Hierarchy"
+          subtitle="Define segments, sub-segments, projects, and teams for consistent governance."
+          actions={
+            <button
+              className="oh-btn"
+              onClick={() => {
+                setCreateType('segment');
+                setCreateError(null);
+                setCreateModalOpen(true);
+              }}
+            >
+              + Add Segment
+            </button>
+          }
+        />
+      </div>
 
       {/* Error banner */}
       {error && (

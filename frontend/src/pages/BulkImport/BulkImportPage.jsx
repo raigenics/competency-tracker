@@ -406,11 +406,14 @@ const BulkImportPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      <PageHeader 
-        title="Bulk Import – Employee & Skill Data"
-        subtitle="Upload an Excel file to bulk add or update employee and skill records."
-      />
+    <div className="bulk-import-page bg-[#f8f7f5]">
+      {/* Header wrapper with consistent padding matching Dashboard */}
+      <div style={{ padding: '0 26px' }}>
+        <PageHeader 
+          title="Bulk Import – Employee & Skill Data"
+          subtitle="Upload an Excel file to bulk add or update employee and skill records."
+        />
+      </div>
 
       <div className="px-8 py-8">
         <div className="max-w-[1200px] mx-auto">

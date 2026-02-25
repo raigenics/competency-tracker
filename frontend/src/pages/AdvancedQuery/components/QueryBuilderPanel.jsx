@@ -265,12 +265,12 @@ const QueryBuilderPanel = ({ query, onQueryChange, onSearch, onClearFilters, isL
           disabled={isLoading || !query.skills || query.skills.length === 0}
           className="cf-btn primary"
         >
-          {isLoading ? 'Searching...' : '🔍 Search'}
+          {isLoading ? 'Searching...' : 'Search'}
         </button>
         <button
           type="button"
           onClick={onClearFilters}
-          className="cf-btn link"
+          className="cf-btn ghost"
         >
           Reset
         </button>

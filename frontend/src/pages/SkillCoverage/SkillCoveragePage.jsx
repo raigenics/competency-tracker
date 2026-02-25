@@ -6,15 +6,15 @@
  * Route: /skill-coverage
  * Section: INSIGHTS
  */
+import PageHeader from '../../components/PageHeader';
 
 const SkillCoveragePage = () => {
   return (
-    <main style={{ padding: '22px' }}>
-      <div className="pagehead">
-        <h1 style={{ fontSize: '20px', fontWeight: 600, color: '#1e293b', margin: 0 }}>
-          Skill Coverage
-        </h1>
-      </div>
+    <main style={{ padding: '0 26px 40px' }}>
+      <PageHeader
+        title="Skill Coverage"
+        subtitle="Monitor skill coverage across your organization"
+      />
       
       <div style={{
         marginTop: '24px',

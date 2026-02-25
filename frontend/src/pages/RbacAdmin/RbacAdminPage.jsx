@@ -34,11 +34,10 @@ const RbacAdminPage = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="bg-gray-50">
       <PageHeader
         title="RBAC Super Admin Panel"
         subtitle="Manage users, roles, and access permissions"
-        icon={Shield}
       />
 
       <div className="max-w-7xl mx-auto px-4 py-6">

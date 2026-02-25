@@ -24,6 +24,7 @@ import {
   DependencyModal,
   ImportModal
 } from './components';
+import PageHeader from '../../components/PageHeader';
 import '../MasterData/contentPage.css';
 import rolesApi from '../../services/api/rolesApi';
 import { API_BASE_URL } from '../../config/apiConfig';
@@ -435,29 +436,31 @@ const RolesPage = () => {
   return (
     <div className="master-data-page" style={{ height: '100%' }}>
       <div className="details-panel" style={{ flex: 1 }}>
-        {/* Header - uses existing .details-header class with border-bottom */}
-        <div className="details-header">
-          <div className="content-title-section">
-            <h1 className="details-title" style={{ marginBottom: 0 }}>Roles</h1>
-          </div>
-          <div className="action-buttons">
-            <a 
-              className="btn btn-secondary" 
-              href={templateUrl}
-              download="RoleMasterData_Template.xlsx"
-              title="Download Excel template to add roles in bulk"
-              style={{ textDecoration: 'none' }}
-            >
-              📥 Download Template
-            </a>
-            <button 
-              className="btn btn-outline" 
-              onClick={() => setImportModalOpen(true)}
-              title="Upload completed template to import roles"
-            >
-              📤 Import Roles
-            </button>
-          </div>
+        {/* Header wrapper with consistent padding matching Dashboard */}
+        <div style={{ padding: '0 24px' }}>
+          <PageHeader
+            title="Roles"
+            actions={
+              <>
+                <a 
+                  className="btn btn-secondary" 
+                  href={templateUrl}
+                  download="RoleMasterData_Template.xlsx"
+                  title="Download Excel template to add roles in bulk"
+                  style={{ textDecoration: 'none' }}
+                >
+                  📥 Download Template
+                </a>
+                <button 
+                  className="btn btn-outline" 
+                  onClick={() => setImportModalOpen(true)}
+                  title="Upload completed template to import roles"
+                >
+                  📤 Import Roles
+                </button>
+              </>
+            }
+          />
         </div>
 
         {/* Content wrapper with max-width for better readability */}

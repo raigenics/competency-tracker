@@ -5,7 +5,7 @@
 
 /* === DESIGN TOKENS (scoped via .employee-profile) === */
 .employee-profile {
-  --ep-bg: #f6f8fb;
+  --ep-bg: #f8f7f5;
   --ep-card: #fff;
   --ep-line: #e6eaf0;
   --ep-text: #0f172a;
@@ -17,12 +17,12 @@
   --ep-radius: 14px;
 
   background: var(--ep-bg);
-  min-height: 100vh;
+  /* Removed min-height: 100vh - MainLayout now owns viewport height */
 }
 
 /* === MAIN CONTENT AREA (matches .main in HTML) === */
 .employee-profile .ep-main {
-  padding: 22px;
+  padding: 0 22px 22px;
 }
 
 /* === PAGE HEADER (matches .pagehead in HTML) === */

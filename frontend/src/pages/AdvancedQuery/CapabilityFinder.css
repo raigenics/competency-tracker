@@ -7,7 +7,7 @@
    1) DESIGN TOKENS (scoped via .capability-finder)
    ========================= */
 .capability-finder {
-  --cf-bg: #f6f8fb;
+  --cf-bg: #f8f7f5;
   --cf-card: #ffffff;
   --cf-border: #e6eaf0;
   --cf-text: #0f172a;
@@ -21,7 +21,7 @@
   --cf-radius-sm: 12px;
   
   background: var(--cf-bg);
-  min-height: 100vh;
+  /* Removed min-height: 100vh - MainLayout now owns viewport height */
 }
 
 /* =========================
@@ -172,7 +172,7 @@
 }
 
 /* =========================
-   8) BUTTONS
+   8) BUTTONS (matches TalentFinder.html wireframe exactly)
    ========================= */
 .capability-finder .cf-actions {
   display: flex;
@@ -180,30 +180,26 @@
   margin-top: 12px;
 }
 
-.capability-finder .cf-btn {
-  border: 1px solid var(--cf-border);
-  background: #fff;
-  border-radius: var(--cf-radius-sm);
-  padding: 10px 12px;
+/* Primary button (Search) - matches .btn-primary in wireframe */
+.capability-finder .cf-btn.primary {
+  flex: 1;
+  height: 40px;
+  border: none;
+  border-radius: 10px;
+  background: var(--cf-primary);
+  color: #fff;
   font-size: 14px;
   font-weight: 800;
   cursor: pointer;
   transition: background 0.15s;
 }
 
-.capability-finder .cf-btn:hover {
-  background: #f8fafc;
-}
-
-.capability-finder .cf-btn.primary {
-  flex: 1;
-  background: var(--cf-primary);
-  border-color: var(--cf-primary);
-  color: #fff;
-}
-
 .capability-finder .cf-btn.primary:hover {
   background: var(--cf-primary-hover);
+}
+
+.capability-finder .cf-btn.primary:active {
+  transform: translateY(1px);
 }
 
 .capability-finder .cf-btn.primary:disabled {
@@ -211,6 +207,32 @@
   cursor: not-allowed;
 }
 
+/* Ghost button (Reset) - matches .btn-ghost in wireframe */
+.capability-finder .cf-btn.ghost {
+  height: 40px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.capability-finder .cf-btn.ghost:hover {
+  border-color: #d1d5db;
+  background: #f9fafb;
+}
+
+.capability-finder .cf-btn.ghost:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Legacy link style (kept for backwards compat) */
 .capability-finder .cf-btn.link {
   border: none;
   background: transparent;
@@ -224,6 +246,34 @@
 
 .capability-finder .cf-btn.link:disabled {
   opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Export button - matches .btn-export in wireframe */
+.capability-finder .cf-btn-export {
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 10px;
+  border: 1px solid #e5e7eb;
+  background: #fff;
+  color: #374151;
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.capability-finder .cf-btn-export:hover:not(:disabled) {
+  border-color: #d1d5db;
+  background: #f9fafb;
+}
+
+.capability-finder .cf-btn-export:disabled {
+  background: #f3f4f6;
+  color: #9ca3af;
   cursor: not-allowed;
 }
 

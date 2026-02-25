@@ -6,8 +6,8 @@
 
 /* CSS Variables for Skill Library - Matching Wireframe */
 .skill-library {
-  --sl-pageBg: #f6f7fb;
-  --sl-bg: #f6f7fb;
+  --sl-pageBg: #f8f7f5;
+  --sl-bg: #f8f7f5;
   --sl-card: #ffffff;
   --sl-cardBorder: #e7e9f0;
   --sl-title: #0f172a;
@@ -203,22 +203,26 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 9px 10px;
-  border-radius: 12px;
+  gap: 8px;
+  padding: 0 16px;
+  height: 40px;
+  border-radius: 0;
   cursor: pointer;
-  border: 1px solid transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  background: transparent;
+  width: 100%;
   user-select: none;
+  transition: background 0.1s;
 }
 
 .skill-library .sl-node:hover {
-  background: var(--sl-rowHover);
-  border-color: #eef2ff;
+  background: #ececec;
 }
 
 .skill-library .sl-node.selected {
-  background: var(--sl-brand-soft);
-  border-color: #c7d2fe;
+  background: #f0f0f0;
+  border-left-color: #1a1a1a;
 }
 
 .skill-library .sl-node-left {
@@ -239,45 +243,53 @@
 
 /* Folder icon for categories */
 .skill-library .sl-folder-icon {
-  width: 18px;
-  height: 18px;
-  border-radius: 4px;
-  background: #fde68a;
-  border: 1px solid #f59e0b;
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: transparent;
+  border: 1.5px solid #bbb;
   flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 9px;
 }
 
 /* Dot icon for subcategories */
 .skill-library .sl-dot-icon {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: #93c5fd;
-  border: 1px solid #60a5fa;
-  flex-shrink: 0;
+  display: none;
 }
 
 .skill-library .sl-label {
-  font-weight: 850;
-  font-size: 13px;
-  color: var(--sl-title);
+  font-weight: 500;
+  font-size: 11px;
+  color: #1a1a1a;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  letter-spacing: 0;
 }
 
 .skill-library .sl-count {
   font-size: 12px;
-  color: var(--sl-sub);
-  font-weight: 850;
+  font-weight: 900;
+  color: #0f172a;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  padding: 3px 8px;
+  border-radius: 999px;
   flex-shrink: 0;
 }
 
 /* Subtree (subcategories) */
 .skill-library .sl-subtree {
-  margin: 4px 0 6px 26px;
-  padding-left: 10px;
-  border-left: 2px dashed #e5e7eb;
+  margin: 0;
+  padding-left: 0;
+  border-left: none;
+  background: #fafafa;
+  border-top: 1px solid #e8e8e8;
+  border-bottom: 1px solid #e8e8e8;
 }
 
 /* Subcategory node */
@@ -285,22 +297,26 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 10px;
-  padding: 8px 10px;
-  margin: 4px 0;
-  border-radius: 12px;
+  gap: 8px;
+  padding: 0 16px 0 42px;
+  height: 34px;
+  margin: 0;
+  border-radius: 0;
   cursor: pointer;
-  border: 1px solid transparent;
+  border: none;
+  border-left: 3px solid transparent;
+  background: transparent;
+  width: 100%;
+  transition: background 0.1s;
 }
 
 .skill-library .sl-subnode:hover {
-  background: var(--sl-rowHover);
-  border-color: #f3f4f6;
+  background: #ececec;
 }
 
 .skill-library .sl-subnode.selected {
-  background: #ecfeff;
-  border-color: #a5f3fc;
+  background: #f0f0f0;
+  border-left-color: #1a1a1a;
 }
 
 .skill-library .sl-subnode-left {

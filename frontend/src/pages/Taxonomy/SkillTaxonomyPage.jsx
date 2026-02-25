@@ -46,7 +46,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Search, X } from 'lucide-react';
 import TaxonomyTree from './components/TaxonomyTree';
 import SkillDetailsPanel from './components/SkillDetailsPanel';
-import PageHeader from '../../components/PageHeader.jsx';
+import TwoPaneLayout from '../../layouts/TwoPaneLayout.jsx';
 import { skillApi } from '../../services/api/skillApi';
 import { dropdownApi } from '../../services/api/dropdownApi';
 import useCapabilityOverviewStore from './capabilityOverviewStore';
@@ -145,6 +145,19 @@ const SkillTaxonomyPage = () => {
   const [categoryCoverageError, setCategoryCoverageError] = useState(null);
   // Derived: filtered for non-empty nodes
   const visibleTree = React.useMemo(() => filterCapabilityTree(filteredTree), [filteredTree]);
+
+  // Derived: category distribution for bar chart (sorted by skill_count desc)
+  const categoryDistribution = React.useMemo(() => {
+    if (!skillTree?.length) return [];
+    return skillTree
+      .filter(cat => cat.skill_count > 0)
+      .map(cat => ({
+        category_id: cat.category_id,
+        category_name: cat.name || cat.category_name,
+        skill_count: cat.skill_count
+      }))
+      .sort((a, b) => b.skill_count - a.skill_count);
+  }, [skillTree]);
 
   // If selected skill is not present in visible tree, clear selection
   React.useEffect(() => {
@@ -621,67 +634,68 @@ const SkillTaxonomyPage = () => {
 
   return (
     <div className="capability-overview">
-      <PageHeader 
-        title="Capability Overview"
-        subtitle={scopeSubtitle ? (
-          <span>
-            Scoped to: Sub-segments — {scopeSubtitle.subSegments || 'All'}
-            <span style={{ marginLeft: '24px', color: '#64748b' }}>
-              Employees: {scopeSubtitle.employees}
-            </span>
-            <span style={{ marginLeft: '16px', color: '#64748b' }}>
-              Projects: {scopeSubtitle.projects}
-            </span>
-          </span>
-        ) : 'Browse and explore organizational capabilities and skill structure'}
-      />
-      <div className="co-content">
-
-        {/* KPI Cards */}
-        <div className="co-kpis" style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
-          <div className="co-kpi">
-            <p className="co-kpi-num">
-              {kpiLoading ? '...' : (kpiError ? '—' : (kpiData?.total_skills ?? '—'))}
-            </p>
-            <p className="co-kpi-cap">TOTAL SKILLS</p>
-            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-              Skills with at least one mapped employee
-            </p>
-          </div>
-          <div className="co-kpi">
-            <p className="co-kpi-num">
-              {kpiLoading ? '...' : (kpiError ? '—' : (kpiData?.avg_proficiency != null ? kpiData.avg_proficiency.toFixed(2) : '—'))}
-            </p>
-            <p className="co-kpi-cap">AVG PROFICIENCY</p>
-            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-              Across mapped employees
-            </p>
-          </div>
-          <div className="co-kpi">
-            <p className="co-kpi-num">
-              {kpiLoading ? '...' : (kpiError ? '—' : (kpiData?.total_certifications ?? '—'))}
-            </p>
-            <p className="co-kpi-cap">TOTAL CERTIFICATIONS</p>
-            <p style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-              Certifications within the current scope
+      {/* Header matching capabilityOverview.html wireframe */}
+      <header className="co-page-header">
+        <div className="co-page-header-top">
+          <div className="co-page-header-left">
+            <h1 className="co-page-title">Capability Overview</h1>
+            <p className="co-page-description">
+              Browse active capabilities across your organisation. Select a category or skill to explore depth and coverage.
             </p>
           </div>
         </div>
+        {/* Metrics strip - shows key stats inline (replaces KPI cards) */}
+        <div className="co-metrics-strip">
+          <span className="co-metrics-scope">ADT - AU</span>
+          <div className="co-metrics-item">
+            <span className="co-metrics-value">
+              {kpiLoading ? '...' : (kpiError ? '—' : (kpiData?.total_skills ?? '—'))}
+            </span>
+            <span className="co-metrics-label">skills</span>
+          </div>
+          <div className="co-metrics-sep" />
+          <div className="co-metrics-item">
+            <span className="co-metrics-value">
+              {/* Employee count from scopeData */}
+              {scopeSubtitle?.employees ?? '—'}
+            </span>
+            <span className="co-metrics-label">employees</span>
+          </div>
+          <div className="co-metrics-sep" />
+          <div className="co-metrics-item">
+            <span className="co-metrics-value">
+              {kpiLoading ? '...' : (kpiError ? '—' : (kpiData?.avg_proficiency != null ? kpiData.avg_proficiency.toFixed(2) : '—'))}
+            </span>
+            <span className="co-metrics-label">aver. proficiency</span>
+          </div>
+          <div className="co-metrics-sep" />
+          <div className="co-metrics-item">
+            <span className="co-metrics-value">
+              {kpiLoading ? '...' : (kpiError ? '—' : (kpiData?.total_certifications ?? '—'))}
+            </span>
+            <span className="co-metrics-label">certifications</span>
+          </div>
+        </div>
+      </header>
+      <div className="co-content">
 
-        <div className="co-grid">
-          {/* LEFT: Skill Tree */}
-          <section className="co-card">
-            <div className="co-tree-header">
-              <div className="co-tree-header-title">
-                <h2>Capability Structure</h2>
-                <span className="co-tree-header-desc">Category → Sub-Category → Skills</span>
-              </div>
-
-              <div className="co-tree-search">
+        {/* Two-Pane Layout: Tree (left) + Details (right) */}
+        <TwoPaneLayout
+          leftWidth="420px"
+          gap="0"
+          leftScrollable={true}
+          rightScrollable={false}
+          leftPaneClassName="co-tree-panel"
+          rightPaneClassName="co-detail-pane"
+          minHeight="calc(100vh - 180px)"
+          leftHeader={
+            <div className="co-tree-toolbar">
+              {/* Search box */}
+              <div className="co-tree-search-box">
                 <Search className="co-tree-search-icon" />
                 <input
                   type="text"
-                  placeholder="Search skills, categories, technologies..."
+                  placeholder="Search categories, skills, technologies..."
                   value={searchTerm}
                   onChange={handleSearchChange}
                   disabled={isLoading}
@@ -692,18 +706,22 @@ const SkillTaxonomyPage = () => {
                     className="co-tree-search-clear"
                     aria-label="Clear search"
                   >
-                    <X style={{ width: '14px', height: '14px' }} />
+                    <X style={{ width: '12px', height: '12px' }} />
                   </button>
                 )}
               </div>
-
-              <div className="co-tree-controls">
-                <button className="co-tree-btn" onClick={handleExpandAll} disabled={isLoading}>
-                  Expand All
-                </button>
-                <button className="co-tree-btn" onClick={handleCollapseAll} disabled={isLoading}>
-                  Collapse All
-                </button>
+              
+              {/* Tree actions row */}
+              <div className="co-tree-actions-row">
+                <div className="co-tree-actions-left">
+                  <button className="co-tree-action-btn" onClick={handleExpandAll} disabled={isLoading}>
+                    Expand All
+                  </button>
+                  <button className="co-tree-action-btn" onClick={handleCollapseAll} disabled={isLoading}>
+                    Collapse All
+                  </button>
+                </div>
+                <span className="co-tree-path-legend">Category → Sub-Category → Skills</span>
               </div>
 
               {searchTerm && (
@@ -712,19 +730,24 @@ const SkillTaxonomyPage = () => {
                 </p>
               )}
             </div>
-
-            <div 
-              ref={leftPanelRef} 
-              style={{ 
-                maxHeight: 'calc(100vh - 340px)', 
-                overflowY: 'auto'
-              }}
-            >
+          }
+          leftPane={
+            <div ref={leftPanelRef} className="co-tree-body">
+              {/* Organisation Summary button */}
+              <button 
+                className={`co-org-summary-btn ${!selectedSkill ? 'active' : ''}`}
+                onClick={() => handleSkillSelect(null)}
+                type="button"
+              >
+                <span className="co-org-dot"></span>
+                Organisation Summary
+              </button>
+              
               {showSkeletons ? (
                 <TreeSkeleton />
               ) : showEmptyState ? (
                 <div style={{ textAlign: 'center', padding: '32px 0', color: '#64748b' }}>
-                  <p style={{ fontSize: '16px', fontWeight: '500' }}>No skills available to display.</p>
+                  <p style={{ fontSize: '14px', fontWeight: '500' }}>No skills available to display.</p>
                 </div>
               ) : (
                 <TaxonomyTree 
@@ -738,25 +761,30 @@ const SkillTaxonomyPage = () => {
                 />
               )}
             </div>
-          </section>
-
-          {/* RIGHT: Skill Details Panel */}
-          <div ref={rightPanelRef} style={{ minHeight: '320px' }}>
-            {showSkeletons ? (
-              <DetailsPanelSkeleton />
-            ) : (
-              <SkillDetailsPanel 
-                skill={selectedSkill}
-                showViewAll={showViewAll}
-                onViewAll={handleViewAll}
-                onBackToSummary={handleBackToSummary}
-                categoryCoverage={categoryCoverage}
-                categoryCoverageLoading={categoryCoverageLoading}
-                categoryCoverageError={categoryCoverageError}
-              />
-            )}
-          </div>
-        </div>
+          }
+          rightPane={
+            <div ref={rightPanelRef} style={{ minHeight: '320px', height: '100%', width: '100%', minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+              {showSkeletons ? (
+                <DetailsPanelSkeleton />
+              ) : (
+                <SkillDetailsPanel 
+                  skill={selectedSkill}
+                  showViewAll={showViewAll}
+                  onViewAll={handleViewAll}
+                  onBackToSummary={handleBackToSummary}
+                  categoryCoverage={categoryCoverage}
+                  categoryCoverageLoading={categoryCoverageLoading}
+                  categoryCoverageError={categoryCoverageError}
+                  kpiData={kpiData}
+                  kpiLoading={kpiLoading}
+                  kpiError={kpiError}
+                  employeeCount={scopeSubtitle?.employees}
+                  categoryDistribution={categoryDistribution}
+                />
+              )}
+            </div>
+          }
+        />
       </div>
     </div>
   );

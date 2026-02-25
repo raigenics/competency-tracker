@@ -5,6 +5,7 @@ import SkillDistributionTable from './components/SkillDistributionTable.jsx';
 import SkillUpdateActivity from './components/SkillUpdateActivity.jsx';
 import RoleDistribution from './components/RoleDistribution';
 import DataFreshnessKpi from './components/DataFreshnessKpi.jsx';
+import PageHeader from '../../components/PageHeader';
 import { dashboardApi } from '../../services/api/dashboardApi.js';
 import { dropdownApi } from '../../services/api/dropdownApi.js';
 import useDashboardStore from './dashboardStore.js';
@@ -397,24 +398,20 @@ const DashboardPage = () => {
   return (
     <div className="dashboard-page">
       {/* Main content area with padding */}
-      <main style={{ padding: '22px 26px 40px' }}>
-        {/* TOPBAR */}
-        <div className="db-topbar">
-          <div className="db-title">
-            <h2>Dashboard</h2>
-            <p>Competency overview and situational awareness — scoped by your org filters</p>
-          </div>
-          <div className="db-topbar-actions">
-            <span className="db-pill">Last updated: just now</span>
-            <button className="db-btn ghost">Export</button>
-            <button className="db-btn primary" onClick={handleAdvancedQueryClick}>
-              Advanced Query
-            </button>
-          </div>
-        </div>
+      <main style={{ padding: '0 26px 40px' }}>
+        <PageHeader
+          title="Dashboard"
+          subtitle="Competency overview and situational awareness — scoped by your org filters"
+          // actions={
+          //   <>
+          //     <span className="db-pill">Last updated: just now</span>
+          //     <button className="db-btn ghost">Export</button>
+          //   </>
+          // }
+        />
 
         {/* HERO CTA (smaller, not dominating) */}
-        <section className="db-hero">
+        {/* <section className="db-hero">
           <div className="db-hero-left">
             <div className="db-hero-badge">
               <Search size={18} style={{ color: 'var(--db-brand-700)' }} />
@@ -427,7 +424,7 @@ const DashboardPage = () => {
           <button className="db-btn primary" onClick={handleAdvancedQueryClick}>
             Launch
           </button>
-        </section>
+        </section> */}
 
         {/* MAIN GRID */}
         <div className="db-grid">

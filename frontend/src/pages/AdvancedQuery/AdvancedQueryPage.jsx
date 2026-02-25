@@ -3,6 +3,7 @@ import QueryBuilderPanel from './components/QueryBuilderPanel';
 import QueryResultsTable from './components/QueryResultsTable';
 import TalentExportMenu from '../../components/TalentExportMenu';
 import LoadingState from '../../components/LoadingState';
+import PageHeader from '../../components/PageHeader';
 import capabilityFinderApi from '../../services/api/capabilityFinderApi';
 import talentExportService from '../../services/talentExportService';
 import './CapabilityFinder.css';
@@ -128,10 +129,12 @@ const AdvancedQueryPage = () => {
   };
   return (
     <div className="capability-finder">
-      {/* Header - matches HTML wireframe */}
-      <div className="cf-header">
-        <h1>Capability Finder</h1>
-        <p>Select skills and optional filters to find matching employees.</p>
+      {/* Wrapper added to constrain PageHeader border width to match Dashboard (26px horizontal padding) */}
+      <div style={{ padding: '0 26px' }}>
+        <PageHeader
+          title="Capability Finder"
+          subtitle="Select skills and optional filters to find matching employees."
+        />
       </div>
 
       {/* Main Grid - 380px left, flex right */}
