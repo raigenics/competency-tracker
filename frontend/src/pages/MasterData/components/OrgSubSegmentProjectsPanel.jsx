@@ -65,6 +65,7 @@ const OrgSubSegmentProjectsPanel = ({
       });
       setSelectedIds(newSelection);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects]);
   
   // Focus input when entering edit mode

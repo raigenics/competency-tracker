@@ -65,6 +65,7 @@ const OrgSegmentSubSegmentsPanel = ({
       });
       setSelectedIds(newSelection);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subSegments]);
   
   // Focus input when entering edit mode

@@ -1,6 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Search, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import SkillDistributionTable from './components/SkillDistributionTable.jsx';
 import SkillUpdateActivity from './components/SkillUpdateActivity.jsx';
 import RoleDistribution from './components/RoleDistribution';
@@ -70,7 +69,6 @@ const ChartSkeleton = ({ height = 200 }) => (
 );
 
 const DashboardPage = () => {
-  const navigate = useNavigate();
   const isInitialized = useRef(false); // Track first successful load
   const loadingTimerRef = useRef(null); // Timer for flicker avoidance
 
@@ -337,9 +335,6 @@ const DashboardPage = () => {
 
   const filteredScope = getFilteredScope();
 
-  const handleAdvancedQueryClick = () => {
-    navigate('/query');
-  };
   // Handle sub-segment filter change
   const handleSubSegmentChange = (subSegmentId) => {
     // Reset dependent filters

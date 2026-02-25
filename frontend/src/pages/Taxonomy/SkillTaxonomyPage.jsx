@@ -213,6 +213,7 @@ const SkillTaxonomyPage = () => {
   
   useEffect(() => {
     loadSkillTaxonomy();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fetch scope data for header (sub-segments with fullnames + counts)
@@ -309,15 +310,18 @@ const SkillTaxonomyPage = () => {
   
   // Save scroll position when unmounting or navigating away
   useEffect(() => {
+    const leftPanel = leftPanelRef.current;
+    const rightPanel = rightPanelRef.current;
+    
     return () => {
       // Use getState() to avoid subscription loops during unmount
       const { setLeftPanelScrollTop, setRightPanelScrollTop } = useCapabilityOverviewStore.getState();
       
-      if (leftPanelRef.current) {
-        setLeftPanelScrollTop(leftPanelRef.current.scrollTop);
+      if (leftPanel) {
+        setLeftPanelScrollTop(leftPanel.scrollTop);
       }
-      if (rightPanelRef.current) {
-        setRightPanelScrollTop(rightPanelRef.current.scrollTop);
+      if (rightPanel) {
+        setRightPanelScrollTop(rightPanel.scrollTop);
       }
     };
   }, []);

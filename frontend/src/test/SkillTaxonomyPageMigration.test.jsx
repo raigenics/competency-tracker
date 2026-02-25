@@ -14,6 +14,9 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'fs';
 import { resolve } from 'path';
+import { fileURLToPath } from 'url';
+import { dirname } from 'path';
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Read the source file
 const sourceFile = resolve(__dirname, '../pages/Taxonomy/SkillTaxonomyPage.jsx');
