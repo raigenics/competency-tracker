@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import MiniProgressBar from './MiniProgressBar.jsx';
 
 /**
@@ -11,6 +11,28 @@ import MiniProgressBar from './MiniProgressBar.jsx';
  */
 const SkillUpdateActivity = ({ activityData, loading, onDaysChange, employeesInScope = 0 }) => {
   const [selectedDays, setSelectedDays] = useState(90);
+  const [isDimmed, setIsDimmed] = useState(false);
+
+  // Inject pulse keyframe once on mount
+  useEffect(() => {
+    if (document.getElementById('sua-pulse-style')) return;
+    const style = document.createElement('style');
+    style.id = 'sua-pulse-style';
+    style.textContent = '@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }';
+    document.head.appendChild(style);
+  }, []);
+
+  // Delay isDimmed by 150ms to avoid flash on fast responses
+  useEffect(() => {
+    if (!loading) {
+      setIsDimmed(false);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setIsDimmed(true);
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [loading]);
 
   const _handleDaysChange = (newDays) => {
     setSelectedDays(newDays);
@@ -25,52 +47,27 @@ const SkillUpdateActivity = ({ activityData, loading, onDaysChange, employeesInS
     return Math.round((count / employeesInScope) * 100);
   };
 
-  if (loading) {
-    return (
-      <section className="db-card db-activity-card" style={{ gridColumn: '2 / span 1' }}>
-        <div className="db-card-h">
-          <div className="left">
-            <h4>Skill Update Activity</h4>
-            <p>Loading...</p>
-          </div>
-        </div>
-        <div className="db-card-b">
-          <div className="db-activity">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="db-stat" style={{ opacity: 0.5 }}>
-                <div className="top">
-                  <b style={{ background: '#e2e8f0', width: '60px', height: '14px', display: 'block', borderRadius: '4px' }}></b>
-                </div>
-                <div style={{ background: '#e2e8f0', width: '50px', height: '28px', borderRadius: '6px', marginTop: '10px' }}></div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-    );
-  }
-
   const cards = [
     {
-      title: 'Updates',
-      value: activityData?.total_updates || 0,
-      caption: 'Employees with ≥ 1 update',
-      chipLabel: 'Active',
-      chipClass: 'ok',
-      progressVariant: 'success'
-    },
-    {
-      title: 'Active Learners',
-      value: activityData?.active_learners || 0,
-      caption: 'Employees with ≥ 2 updates',
+      title: 'Engaged',
+      value: activityData?.engaged || 0,
+      caption: `2+ updates in last ${selectedDays} days`,
       chipLabel: 'Engaged',
       chipClass: 'ok',
       progressVariant: 'success'
     },
     {
-      title: 'Low Activity',
-      value: activityData?.low_activity || 0,
-      caption: 'Employees with 0–1 update',
+      title: 'Active',
+      value: activityData?.active || 0,
+      caption: `Exactly 1 update in last ${selectedDays} days`,
+      chipLabel: 'Active',
+      chipClass: 'ok',
+      progressVariant: 'success'
+    },
+    {
+      title: 'Inactive',
+      value: activityData?.inactive || 0,
+      caption: `0 updates in last ${selectedDays} days`,
       chipLabel: 'Watch',
       chipClass: 'warn',
       progressVariant: 'warn'
@@ -78,7 +75,7 @@ const SkillUpdateActivity = ({ activityData, loading, onDaysChange, employeesInS
     {
       title: 'Stagnant',
       value: activityData?.stagnant_180_days || 0,
-      caption: 'No updates in 180+ days',
+      caption: 'No updates in 180+ days (risk indicator)',
       chipLabel: 'Risk',
       chipClass: 'risk',
       progressVariant: 'danger'
@@ -92,9 +89,50 @@ const SkillUpdateActivity = ({ activityData, loading, onDaysChange, employeesInS
           <h4>Skill Update Activity</h4>
           <p>Signals to spot engaged vs stagnant team members</p>
         </div>
-        <span className="db-pill">Last {selectedDays} days</span>
+        <select
+          className="db-pill"
+          value={selectedDays}
+          onChange={(e) => _handleDaysChange(Number(e.target.value))}
+          disabled={loading}
+          style={{ cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.6 : 1 }}
+        >
+          <option value={90}>Last 90 days</option>
+          <option value={60}>Last 60 days</option>
+          <option value={30}>Last 30 days</option>
+        </select>
       </div>
-      <div className="db-card-b">
+      <div
+        className="db-card-b"
+        style={{
+          opacity: isDimmed ? 0.45 : 1,
+          transition: 'opacity 0.2s ease',
+          pointerEvents: isDimmed ? 'none' : 'auto',
+          position: 'relative'
+        }}
+      >
+        {isDimmed && (
+          <div style={{
+            position: 'absolute',
+            inset: 0,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2,
+            pointerEvents: 'none'
+          }}>
+            <span style={{
+              fontSize: '12px',
+              color: '#64748b',
+              fontStyle: 'italic',
+              animation: 'pulse 1.2s ease-in-out infinite',
+              background: 'rgba(255,255,255,0.7)',
+              padding: '4px 12px',
+              borderRadius: '999px'
+            }}>
+              Updating...
+            </span>
+          </div>
+        )}
         <div className="db-activity">
           {cards.map((card, index) => (
             <div key={index} className="db-stat">

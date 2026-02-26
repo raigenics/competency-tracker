@@ -13,19 +13,21 @@ HELPERS:
 - _query_stagnant_employees() - Find employees with no recent updates
 - _build_response() - Format final response
 
-OUTPUT CONTRACT (MUST NOT CHANGE):
+OUTPUT CONTRACT:
 - Returns dict with keys:
   - days: Input days parameter (echoed back)
-  - total_updates: DISTINCT employees with >= 1 update in last N days
-  - active_learners: DISTINCT employees with >= 2 updates in last N days
-  - low_activity: DISTINCT employees with 0-1 updates in last N days
+  - engaged: DISTINCT employees with >= 2 updates in last N days (mutually exclusive)
+  - active: DISTINCT employees with exactly 1 update in last N days (mutually exclusive)
+  - inactive: DISTINCT employees with 0 updates in last N days (mutually exclusive)
   - stagnant_180_days: DISTINCT employees with no updates in last 180 days
 
 BUSINESS LOGIC:
 - All counts are of DISTINCT employees (not skills)
-- Active learner threshold: >= 2 updates
+- Engaged threshold: >= 2 updates
+- Active threshold: exactly 1 update
+- Inactive: 0 updates in last N days
 - Stagnant period: 180 days (fixed, not based on `days` parameter)
-- Low activity = total employees in scope - active learners
+- engaged + active + inactive == total employees in scope
 
 ISOLATION:
 - This file is self-contained and does NOT import from other dashboard sections.
@@ -68,9 +70,9 @@ def get_skill_update_activity(
     Returns:
         Dict with keys:
         - days: Input parameter echoed back
-        - total_updates: Count of distinct employees with >= 1 update
-        - active_learners: Count of distinct employees with >= 2 updates
-        - low_activity: Count of distinct employees with 0-1 updates
+        - engaged: Count of distinct employees with >= 2 updates
+        - active: Count of distinct employees with exactly 1 update
+        - inactive: Count of distinct employees with 0 updates
         - stagnant_180_days: Count of distinct employees with no updates in 180 days
     
     Raises:
@@ -91,9 +93,9 @@ def get_skill_update_activity(
     if not employee_ids:
         return {
             "days": days,
-            "total_updates": 0,
-            "active_learners": 0,
-            "low_activity": 0,
+            "engaged": 0,
+            "active": 0,
+            "inactive": 0,
             "stagnant_180_days": 0
         }
     
@@ -101,7 +103,7 @@ def get_skill_update_activity(
     update_counts = _query_updates_per_employee(db, employee_ids, cutoff_date)
     
     # Calculate activity metrics
-    total_updates, active_learners, low_activity = _calculate_activity_metrics(
+    engaged, active, inactive = _calculate_activity_metrics(
         employee_ids, update_counts
     )
     
@@ -112,7 +114,7 @@ def get_skill_update_activity(
     
     # Build response
     return _build_response(
-        days, total_updates, active_learners, low_activity, stagnant_count
+        days, engaged, active, inactive, stagnant_count
     )
 
 
@@ -227,31 +229,28 @@ def _calculate_activity_metrics(
     
     Pure function - unit testable.
     
-    BUSINESS RULES:
-    - total_updates: Employees with >= 1 update
-    - active_learners: Employees with >= 2 updates
-    - low_activity: Total employees - active learners
+    BUSINESS RULES (mutually exclusive buckets):
+    - engaged: Employees with >= 2 updates (mutually exclusive)
+    - active: Employees with exactly 1 update (mutually exclusive)
+    - inactive: Employees with 0 updates in last N days
     
     Args:
         employee_ids: All employee IDs in scope
         update_counts: Dict of employee_id -> update_count
     
     Returns:
-        Tuple of (total_updates, active_learners, low_activity)
+        Tuple of (engaged, active, inactive)
     """
-    # DISTINCT employees with >= 1 update in last N days
-    total_updates = len([
-        emp_id for emp_id, count in update_counts.items() if count >= 1
-    ])
+    # Engaged: DISTINCT employees with >= 2 updates
+    engaged = sum(1 for count in update_counts.values() if count >= 2)
     
-    # Active learners: DISTINCT employees with >= 2 updates in last N days
-    active_learners = sum(1 for count in update_counts.values() if count >= 2)
+    # Active: DISTINCT employees with exactly 1 update
+    active = sum(1 for count in update_counts.values() if count == 1)
     
-    # Low activity: DISTINCT employees with 0-1 updates in last N days
-    # (from total employees in scope)
-    low_activity = len(employee_ids) - active_learners
+    # Inactive: employees with 0 updates in last N days
+    inactive = len(employee_ids) - engaged - active
     
-    return total_updates, active_learners, low_activity
+    return engaged, active, inactive
 
 
 def _query_stagnant_employees(
@@ -288,9 +287,9 @@ def _query_stagnant_employees(
 
 def _build_response(
     days: int,
-    total_updates: int,
-    active_learners: int,
-    low_activity: int,
+    engaged: int,
+    active: int,
+    inactive: int,
     stagnant_count: int
 ) -> Dict[str, int]:
     """
@@ -300,9 +299,9 @@ def _build_response(
     
     Args:
         days: Input days parameter
-        total_updates: Count of employees with >= 1 update
-        active_learners: Count of employees with >= 2 updates
-        low_activity: Count of employees with 0-1 updates
+        engaged: Count of employees with >= 2 updates
+        active: Count of employees with exactly 1 update
+        inactive: Count of employees with 0 updates
         stagnant_count: Count of employees with no updates in 180 days
     
     Returns:
@@ -310,8 +309,8 @@ def _build_response(
     """
     return {
         "days": days,
-        "total_updates": total_updates,
-        "active_learners": active_learners,
-        "low_activity": low_activity,
+        "engaged": engaged,
+        "active": active,
+        "inactive": inactive,
         "stagnant_180_days": stagnant_count
     }

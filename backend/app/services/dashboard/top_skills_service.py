@@ -84,8 +84,8 @@ def _build_base_query(db: Session):
     query = db.query(
         Skill.skill_name,
         func.count(func.distinct(EmployeeSkill.employee_id)).label('total'),
-        func.sum(case((EmployeeSkill.proficiency_level_id >= 4, 1), else_=0)).label('expert'),
-        func.sum(case((EmployeeSkill.proficiency_level_id == 3, 1), else_=0)).label('proficient')
+        func.sum(case((EmployeeSkill.proficiency_level_id == 5, 1), else_=0)).label('expert'),
+        func.sum(case((EmployeeSkill.proficiency_level_id == 4, 1), else_=0)).label('proficient')
     ).join(EmployeeSkill, Skill.skill_id == EmployeeSkill.skill_id
     ).join(Employee, EmployeeSkill.employee_id == Employee.employee_id)
     

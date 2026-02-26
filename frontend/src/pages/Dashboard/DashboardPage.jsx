@@ -128,6 +128,7 @@ const DashboardPage = () => {
   const [skillDistribution, setSkillDistribution] = useState([]);
   const [updateActivity, setUpdateActivity] = useState({});
   const [activityDays, setActivityDays] = useState(90);
+  const activityDaysRef = useRef(90); // mirrors activityDays for stable callback reference
   const [activityLoading, setActivityLoading] = useState(false);
   
   // Data Freshness state (fetched together with activity data)
@@ -150,27 +151,31 @@ const DashboardPage = () => {
   }, [dashboardFilters]);
 
   // Load skill update activity - wrapped in useCallback for proper deps
-  const loadSkillUpdateActivity = useCallback(async (days) => {
-    const daysToUse = days ?? activityDays;
-    setActivityLoading(true);
-    setFreshnessLoading(true);
-    try {
-      // Fetch both activity and freshness data in parallel (same filter logic)
-      const [activityData, freshnessData] = await Promise.all([
-        dashboardApi.getSkillUpdateActivity(dashboardFilters, daysToUse),
-        dashboardApi.getDataFreshness(dashboardFilters, daysToUse)
-      ]);
-      setUpdateActivity(activityData);
-      setDataFreshness(freshnessData);
-    } catch (error) {
-      console.error('Failed to load skill update activity:', error);
-      // On error, set freshness to null so UI shows "—"
-      setDataFreshness(null);
-    } finally {
-      setActivityLoading(false);
-      setFreshnessLoading(false);
-    }
-  }, [dashboardFilters, activityDays]);
+  const loadSkillUpdateActivity = useCallback(
+    async (days, skipFreshnessLoading = false) => {
+      const daysToUse = days ?? activityDaysRef.current;  // use ref, not state
+      setActivityLoading(true);
+      if (!skipFreshnessLoading) setFreshnessLoading(true);
+      try {
+        // Fetch both activity and freshness data in parallel (same filter logic)
+        const FRESHNESS_WINDOW_DAYS = 90; // fixed, never follows activity dropdown
+        const [activityData, freshnessData] = await Promise.all([
+          dashboardApi.getSkillUpdateActivity(dashboardFilters, daysToUse),
+          dashboardApi.getDataFreshness(dashboardFilters, FRESHNESS_WINDOW_DAYS)
+        ]);
+        setUpdateActivity(activityData);
+        setDataFreshness(freshnessData);
+      } catch (error) {
+        console.error('Failed to load skill update activity:', error);
+        // On error, set freshness to null so UI shows "—"
+        setDataFreshness(null);
+      } finally {
+        setActivityLoading(false);
+        if (!skipFreshnessLoading) setFreshnessLoading(false);
+      }
+    },
+    [dashboardFilters]
+  );  // activityDays removed — ref keeps value stable
 
 // Load sub-segments on component mount (runs only once)
   useEffect(() => {
@@ -184,6 +189,7 @@ const DashboardPage = () => {
         setDataFreshness(cachedPayload.dataFreshness || null);
         setDropdownData(cachedPayload.dropdownData || { subSegments: [], projects: [], teams: [] });
         setActivityDays(cachedPayload.activityDays || 90);
+        activityDaysRef.current = cachedPayload.activityDays || 90;
         isInitialized.current = true;
         setLoading(false);
         return; // Skip API calls
@@ -299,7 +305,8 @@ const DashboardPage = () => {
   // Handle time window change for activity section
   const handleActivityDaysChange = (days) => {
     setActivityDays(days);
-    loadSkillUpdateActivity(days);
+    activityDaysRef.current = days;  // keep ref in sync
+    loadSkillUpdateActivity(days, true); // skip freshness loading — window is fixed at 90 days
   };
 
   // Determine scope level and employee count
@@ -520,7 +527,7 @@ const DashboardPage = () => {
                 {/* KPI 2: Data Freshness - Dynamic from API */}
                 <DataFreshnessKpi 
                   value={dataFreshness?.freshness_percent ?? null}
-                  windowDays={dataFreshness?.window_days ?? activityDays}
+                  windowDays={dataFreshness?.window_days ?? 90}
                   loading={freshnessLoading}
                 />
               </>

@@ -118,7 +118,9 @@ const SkillTaxonomyPage = () => {
   const setFilteredTreeStore = useCapabilityOverviewStore(s => s.setFilteredTree);
   const setSelectedSkillStore = useCapabilityOverviewStore(s => s.setSelectedSkill);
   const setSearchTermStore = useCapabilityOverviewStore(s => s.setSearchTerm);
-  const setShowViewAllStore = useCapabilityOverviewStore(s => s.setShowViewAll);
+  // DISABLED: showViewAll is now always true — summary view is skipped.
+  // Kept for reference in case summary view is re-enabled in future.
+  // const setShowViewAllStore = useCapabilityOverviewStore(s => s.setShowViewAll);
   
   // Refs for scroll restoration
   const leftPanelRef = useRef(null);
@@ -454,12 +456,22 @@ const SkillTaxonomyPage = () => {
         return category;
       });
       
+      // Preserve scroll position across re-render
+      const scrollTop = leftPanelRef.current?.scrollTop ?? 0;
+
       setSkillTree(updatedTree);
       setFilteredTree(updatedTree);
       
       // Update cache
       setSkillTreeStore(updatedTree);
       setFilteredTreeStore(updatedTree);
+
+      // Restore scroll after React re-renders the tree
+      requestAnimationFrame(() => {
+        if (leftPanelRef.current) {
+          leftPanelRef.current.scrollTop = scrollTop;
+        }
+      });
       
       console.log(`Loaded ${subcategories.length} subcategories for category ${categoryId}`);    } catch (error) {
       console.error(`Failed to load subcategories for category ${categoryId}:`, error);
@@ -499,13 +511,24 @@ const SkillTaxonomyPage = () => {
         return category;
       });
       
+      // Preserve scroll position across re-render
+      const scrollTop = leftPanelRef.current?.scrollTop ?? 0;
+
       setSkillTree(updatedTree);
       setFilteredTree(updatedTree);
       
       // Update cache
       setSkillTreeStore(updatedTree);
       setFilteredTreeStore(updatedTree);
-        console.log(`Loaded ${skills.length} skills for subcategory ${subcategoryId}`);
+
+      // Restore scroll after React re-renders the tree
+      requestAnimationFrame(() => {
+        if (leftPanelRef.current) {
+          leftPanelRef.current.scrollTop = scrollTop;
+        }
+      });
+
+      console.log(`Loaded ${skills.length} skills for subcategory ${subcategoryId}`);
     } catch (error) {
       console.error(`Failed to load skills for subcategory ${subcategoryId}:`, error);
     }
@@ -513,11 +536,13 @@ const SkillTaxonomyPage = () => {
 
   const handleSkillSelect = async (skill) => {
     setSelectedSkill(skill);
-    setShowViewAll(false); // Reset to summary view when selecting a new skill
+    // CHANGED: Go directly to employee list view — skip summary
+    setShowViewAll(true);
     
     // Update store
     setSelectedSkillStore(skill);
-    setShowViewAllStore(false);
+    // CHANGED: Store also set to true — skip summary view
+    // setShowViewAllStore(true); // DISABLED: setShowViewAllStore is commented out
     
     try {
       // Normalize skill ID - handle both 'id' (from mock data) and 'skill_id' (from API)
@@ -537,14 +562,21 @@ const SkillTaxonomyPage = () => {
       console.error('Failed to load skill details:', error);
     }
   };
-  const handleViewAll = () => {
-    setShowViewAll(true);
-    setShowViewAllStore(true);
-  };
+  // DISABLED: Summary view is skipped — skill click goes directly to employee list.
+  // handleViewAll is no longer called. Kept here for future reference.
+  // const handleViewAll = () => {
+  //   setShowViewAll(true);
+  //   setShowViewAllStore(true);
+  // };
   
   const handleBackToSummary = () => {
+    // CHANGED: Back button now clears the selected skill entirely
+    // (returns to empty right panel state — no skill selected)
+    // Previously this returned to the summary view; summary view is now skipped.
+    setSelectedSkill(null);
+    setSelectedSkillStore(null);
     setShowViewAll(false);
-    setShowViewAllStore(false);
+    // setShowViewAllStore(false); // DISABLED: setShowViewAllStore is commented out
   };
   
   // Update store when search term changes
@@ -771,10 +803,11 @@ const SkillTaxonomyPage = () => {
               {showSkeletons ? (
                 <DetailsPanelSkeleton />
               ) : (
+                // CHANGED: showViewAll is always true — summary view skipped.
+                // onViewAll prop removed — no longer needed since summary view is skipped.
                 <SkillDetailsPanel 
                   skill={selectedSkill}
-                  showViewAll={showViewAll}
-                  onViewAll={handleViewAll}
+                  showViewAll={true}
                   onBackToSummary={handleBackToSummary}
                   categoryCoverage={categoryCoverage}
                   categoryCoverageLoading={categoryCoverageLoading}
