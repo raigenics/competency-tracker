@@ -25,8 +25,8 @@ const SkillUpdateActivity = ({ activityData, loading, onDaysChange, employeesInS
   // Delay isDimmed by 150ms to avoid flash on fast responses
   useEffect(() => {
     if (!loading) {
-      setIsDimmed(false);
-      return;
+      const timer = setTimeout(() => setIsDimmed(false), 0);
+      return () => clearTimeout(timer);
     }
     const timer = setTimeout(() => {
       setIsDimmed(true);

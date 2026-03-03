@@ -2,11 +2,11 @@ import { createBrowserRouter } from 'react-router-dom';
 import MainLayout from '../layouts/MainLayout.jsx';
 import DashboardPage from '../pages/Dashboard/DashboardPage.jsx';
 import AdvancedQueryPage from '../pages/AdvancedQuery/AdvancedQueryPage.jsx';
-import SkillTaxonomyPage from '../pages/Taxonomy/SkillTaxonomyPage.jsx';
-import MyProfilePage from '../pages/Profile/MyProfilePage.jsx';
+import SkillCoveragePage from '../pages/Taxonomy/SkillCoveragePage.jsx';
+import EmployeeDirectory from '../pages/Profile/EmployeeDirectory.jsx';
 import EmployeeProfilePage from '../pages/Profile/EmployeeProfilePage.jsx';
 import ComparisonPage from '../pages/Comparison/ComparisonPage.jsx';
-import EmployeesPage from '../pages/Employees/EmployeesPage.jsx';
+import EmployeeManagement from '../pages/Employees/EmployeeManagement.jsx';
 import BulkImportPage from '../pages/BulkImport/BulkImportPage.jsx';
 import RbacAdminPage from '../pages/RbacAdmin/RbacAdminPage.jsx';
 import { FEATURE_FLAGS } from '../config/featureFlags';
@@ -41,9 +41,9 @@ export const router = createBrowserRouter([
         element: <DashboardPage />,
       },
       {
-        // Skill Coverage -> Organizational Skill Map (SkillTaxonomyPage)
+        // Skill Coverage -> Organizational Skill Map (SkillCoveragePage)
         path: "skill-coverage",
-        element: <SkillTaxonomyPage />,
+        element: <SkillCoveragePage />,
       },
       {
         // Talent Finder -> Skill Search (AdvancedQueryPage)
@@ -56,7 +56,7 @@ export const router = createBrowserRouter([
       // ============================================
       {
         path: "employees",
-        element: <EmployeesPage />,
+        element: <EmployeeManagement />,
       },
 
       // ============================================
@@ -96,11 +96,11 @@ export const router = createBrowserRouter([
       },
       {
         path: "taxonomy",
-        element: <SkillTaxonomyPage />,
+        element: <SkillCoveragePage />,
       },
       {
         path: "profile",
-        element: <MyProfilePage />,
+        element: <EmployeeDirectory />,
       },
       {
         path: "profile/employee/:id",

@@ -25,8 +25,8 @@ class TestGetSkillEmployeesList:
         mock_skill.skill_name = "Python"
         
         mock_employee_data = [
-            (1, "John Doe", "Core Engineering", "Team Alpha", 4, "Proficient", "AWS Certified", datetime(2024, 1, 15, tzinfo=timezone.utc)),
-            (2, "Jane Smith", "Data Science", "Team Beta", 3, "Competent", None, datetime(2024, 1, 10, tzinfo=timezone.utc)),
+            (1, "John Doe", "Core Engineering", "Project X", "Team Alpha", 4, "Proficient", "AWS Certified", datetime(2024, 1, 15, tzinfo=timezone.utc)),
+            (2, "Jane Smith", "Data Science", "Project Y", "Team Beta", 3, "Competent", None, datetime(2024, 1, 10, tzinfo=timezone.utc)),
         ]
         
         with patch.object(skill_employees_list_service, '_query_skill', return_value=mock_skill), \
@@ -79,7 +79,7 @@ class TestGetSkillEmployeesList:
         mock_skill.skill_name = "Python"
         
         mock_employee_data = [
-            (100, "Alice Johnson", "Engineering", "Team A", 5, "Expert", "Python Pro", datetime.now(timezone.utc) - timedelta(days=10)),
+            (100, "Alice Johnson", "Engineering", "Project A", "Team A", 5, "Expert", "Python Pro", datetime.now(timezone.utc) - timedelta(days=10)),
         ]
         
         with patch.object(skill_employees_list_service, '_query_skill', return_value=mock_skill), \
@@ -164,8 +164,8 @@ class TestBuildEmployeeListItems:
     def test_transforms_raw_data_to_schema_items(self):
         """Should transform raw tuples to SkillEmployeeListItem list."""
         raw_data = [
-            (1, "John Doe", "Engineering", "Team A", 4, "Proficient", "Cert", datetime.now(timezone.utc) - timedelta(days=5)),
-            (2, "Jane Smith", None, None, 2, "Adv. Beginner", None, None),
+            (1, "John Doe", "Engineering", "Project Alpha", "Team A", 4, "Proficient", "Cert", datetime.now(timezone.utc) - timedelta(days=5)),
+            (2, "Jane Smith", None, None, None, 2, "Adv. Beginner", None, None),
         ]
         
         result = skill_employees_list_service._build_employee_list_items(raw_data)
@@ -177,6 +177,7 @@ class TestBuildEmployeeListItems:
         assert result[0].employee_id == 1
         assert result[0].employee_name == "John Doe"
         assert result[0].sub_segment == "Engineering"
+        assert result[0].project_name == "Project Alpha"
         assert result[0].team_name == "Team A"
         assert result[0].proficiency_level == 4
         assert result[0].proficiency_label == "Proficient"
@@ -187,6 +188,7 @@ class TestBuildEmployeeListItems:
         assert result[1].employee_id == 2
         assert result[1].employee_name == "Jane Smith"
         assert result[1].sub_segment is None
+        assert result[1].project_name is None
         assert result[1].team_name is None
         assert result[1].proficiency_level == 2
         assert result[1].proficiency_label == "Adv. Beginner"

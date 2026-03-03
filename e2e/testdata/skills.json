@@ -1,0 +1,26 @@
+[
+  {
+    "id": 9001,
+    "name": "JavaScript",
+    "description": "JavaScript programming language",
+    "subcategoryId": 9001,
+    "categoryId": 9001,
+    "aliases": ["JS", "ECMAScript"]
+  },
+  {
+    "id": 9002,
+    "name": "TypeScript",
+    "description": "TypeScript programming language",
+    "subcategoryId": 9001,
+    "categoryId": 9001,
+    "aliases": ["TS"]
+  },
+  {
+    "id": 9003,
+    "name": "React",
+    "description": "React JavaScript library",
+    "subcategoryId": 9001,
+    "categoryId": 9001,
+    "aliases": ["ReactJS", "React.js"]
+  }
+]

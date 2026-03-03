@@ -176,3 +176,96 @@ class TestSanitizeIntegerField:
         
         # Assert
         assert result == 2147483647
+
+
+class TestNormalizeCertification:
+    """Tests for FieldSanitizer.normalize_certification method."""
+
+    def test_returns_none_for_none_input(self):
+        """Should return None when input is None."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification(None) is None
+
+    def test_returns_none_for_empty_string(self):
+        """Should return None when input is empty string."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("") is None
+
+    def test_returns_none_for_whitespace_only(self):
+        """Should return None when input is whitespace only."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("   ") is None
+
+    def test_returns_none_for_pandas_nan(self):
+        """Should return None for pandas NaN (float nan)."""
+        import math
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification(float('nan')) is None
+
+    def test_returns_none_for_placeholder_no(self):
+        """Should return None for placeholder 'no'."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("no") is None
+
+    def test_returns_none_for_placeholder_none(self):
+        """Should return None for placeholder 'none'."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("none") is None
+
+    def test_returns_none_for_placeholder_na(self):
+        """Should return None for placeholder 'na'."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("na") is None
+
+    def test_returns_none_for_placeholder_n_a(self):
+        """Should return None for placeholder 'n/a'."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("n/a") is None
+
+    def test_returns_none_for_placeholder_not_certified(self):
+        """Should return None for placeholder 'not certified'."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("not certified") is None
+
+    def test_returns_none_for_placeholder_no_certification(self):
+        """Should return None for placeholder 'no certification'."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("no certification") is None
+
+    def test_returns_none_for_placeholder_zero(self):
+        """Should return None for placeholder '0'."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("0") is None
+
+    def test_returns_none_for_placeholder_with_mixed_case(self):
+        """Should return None for placeholders regardless of case."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("NO") is None
+        assert sanitizer.normalize_certification("None") is None
+        assert sanitizer.normalize_certification("N/A") is None
+        assert sanitizer.normalize_certification("Not Certified") is None
+
+    def test_returns_none_for_placeholder_with_surrounding_whitespace(self):
+        """Should return None for placeholders with leading/trailing whitespace."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("  no  ") is None
+        assert sanitizer.normalize_certification("\tn/a\t") is None
+        assert sanitizer.normalize_certification("  Not Certified  ") is None
+
+    def test_returns_trimmed_valid_certification(self):
+        """Should return trimmed certification string for valid values."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("Azure AI Fundamentals") == "Azure AI Fundamentals"
+        assert sanitizer.normalize_certification("  AWS Solutions Architect  ") == "AWS Solutions Architect"
+
+    def test_preserves_certification_with_special_characters(self):
+        """Should preserve certifications containing special characters."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("PMP®") == "PMP®"
+        assert sanitizer.normalize_certification("TOGAF® 9.2") == "TOGAF® 9.2"
+
+    def test_preserves_certification_containing_na_substring(self):
+        """Should preserve certifications that contain 'na' as a substring."""
+        sanitizer = FieldSanitizer()
+        assert sanitizer.normalize_certification("Analytics Professional") == "Analytics Professional"
+        assert sanitizer.normalize_certification("National Board Certification") == "National Board Certification"

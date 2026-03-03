@@ -228,7 +228,10 @@ const SkillDetailsPanel = ({
         <div className="co-detail-header">
           <div>
             <h2 className="co-detail-title">Organisation Capability Summary</h2>
-            <p className="co-detail-sub">Snapshot of skill distribution across all sub-segments · ADT, AU</p>
+            <p className="co-detail-sub">
+              Snapshot of skill distribution across all sub-segments
+              <span className="co-scope-badge">ADT · AU</span>
+            </p>
           </div>
           {/* Note: Toggle buttons (Summary/Gaps/Trends) intentionally omitted per requirements */}
         </div>
@@ -251,14 +254,13 @@ const SkillDetailsPanel = ({
                 ) : categoryCoverage?.most_populated_category ? (
                   categoryCoverage.most_populated_category.category_name
                 ) : (
-                  'Programming'
+                  'No employees in scope'
                 )}
               </div>
               <div className="co-ic-sub good">
-                {/* TODO: replace with API-driven insights later */}
                 {categoryCoverage?.most_populated_category?.skill_count 
                   ? `${categoryCoverage.most_populated_category.skill_count} skills · highest employee concentration`
-                  : '14 skills · highest employee concentration'}
+                  : ''}
               </div>
             </div>
 
@@ -273,14 +275,13 @@ const SkillDetailsPanel = ({
                 ) : categoryCoverage?.least_populated_category ? (
                   categoryCoverage.least_populated_category.category_name
                 ) : (
-                  'Mobile Development'
+                  'No employees in scope'
                 )}
               </div>
               <div className="co-ic-sub warn">
-                {/* TODO: replace with API-driven insights later */}
                 {categoryCoverage?.least_populated_category?.skill_count 
                   ? `${categoryCoverage.least_populated_category.skill_count} skills · smaller bench vs peers`
-                  : '4 skills · smaller bench vs peers'}
+                  : ''}
               </div>
             </div>
 
@@ -302,7 +303,7 @@ const SkillDetailsPanel = ({
                           style={{ width: `${(cat.skill_count / maxSkillCount) * 100}%` }}
                         />
                       </div>
-                      <span className="co-bar-count">{cat.skill_count}</span>
+                      <span className={`co-bar-count ${idx < 3 ? 'hi' : ''}`}>{cat.skill_count}</span>
                     </div>
                   ))
                 )}
@@ -348,9 +349,9 @@ const SkillDetailsPanel = ({
           <div className="co-explore-card">
             <div className="co-ic-label">What to explore</div>
             <div className="co-explore-content">
-              → Click any category in the tree to see employee depth and proficiency distribution<br />
+              → Click any <strong>category in the tree</strong> to see employee depth and proficiency distribution<br />
               → Use <strong>search</strong> to jump directly to a technology or skill<br />
-              → Switch to <strong>Gaps</strong> view to identify under-resourced areas
+              → Switch to <strong>Gaps view</strong> to identify under-resourced areas
             </div>
           </div>
         </div>
@@ -361,11 +362,12 @@ const SkillDetailsPanel = ({
   // Show "View All" results view (View C: Employee List)
   if (showViewAll) {
     // Normalize skill ID - handle both 'id' (from mock data) and 'skill_id' (from API)
-    const skillId = skill?.skill_id || skill?.id;
-    
-    // Truncate skill name to max 10 characters for column header
+    const _skillId = skill?.skill_id || skill?.id;
     const skillName = skill?.name || 'Skill';
-    const truncatedSkillName = skillName.length > 10 ? `${skillName.slice(0, 10)}...` : skillName;
+    
+    // Get category/subcategory for breadcrumb
+    const categoryLabel = (typeof skill.category === 'object' ? skill.category?.category_name : skill.category) || '';
+    const subcategoryLabel = skill.subcategory || '';
     
     // Filter employees based on search (local filtering)
     const filteredEmployees = searchValue.trim() 
@@ -374,114 +376,168 @@ const SkillDetailsPanel = ({
           return (
             emp.employee_name?.toLowerCase().includes(searchLower) ||
             emp.team_name?.toLowerCase().includes(searchLower) ||
-            emp.sub_segment?.toLowerCase().includes(searchLower)
+            emp.sub_segment?.toLowerCase().includes(searchLower) ||
+            emp.project_name?.toLowerCase().includes(searchLower)
           );
         })
       : employeeResults;
     
+    // Compute KPI values from employeeResults (unfiltered) — guaranteed skill-scoped
+    const totalEmployees = employeeResults.length;
+    const certifiedCount = employeeResults.filter(e => e.certified).length;
+    const avgProficiency = totalEmployees > 0 
+      ? (employeeResults.reduce((sum, e) => sum + (e.proficiency_level || 0), 0) / totalEmployees).toFixed(1)
+      : '—';
+    const uniqueTeams = new Set(employeeResults.map(e => e.team_name).filter(Boolean)).size;
+    const certCoverage = totalEmployees > 0 ? Math.round((certifiedCount / totalEmployees) * 100) : 0;
+    
+    // Helper context strings
+    const avgProfContext = avgProficiency !== '—' && parseFloat(avgProficiency) < 3.0 ? 'warn' : 'ok';
+    const _certContext = certifiedCount === 0 ? 'alert' : 'ok';
+    const teamsContext = uniqueTeams === totalEmployees ? 'All unique' : `${uniqueTeams} teams`;
+    const certCoverageContext = certCoverage === 0 ? 'alert' : certCoverage < 50 ? 'warn' : 'ok';
+    
     // Helper to get proficiency level CSS class
     const getProficiencyDotClass = (level) => {
       const levelMap = {
-        1: 'co-level-dot--novice',
-        2: 'co-level-dot--beginner',
-        3: 'co-level-dot--competent',
-        4: 'co-level-dot--proficient',
-        5: 'co-level-dot--expert'
+        1: 'dp-level-dot--novice',
+        2: 'dp-level-dot--beginner',
+        3: 'dp-level-dot--competent',
+        4: 'dp-level-dot--proficient',
+        5: 'dp-level-dot--expert'
       };
-      return levelMap[level] || 'co-level-dot--novice';
-    };
-    
-    const handleClearSearch = () => {
-      setSearchValue('');
+      return levelMap[level] || 'dp-level-dot--novice';
     };
     
     return (
       <div className="co-card capability-overview co-details-panel">
-        {/* View Employees Header Component */}
-        <ViewEmployeesHeader
-          skillId={skillId}
-          skillName={skill.name}
-          onBack={handleBackClick}
-          onExport={handleExportAll}
-          employeeResults={filteredEmployees}
-          onSearchChange={setSearchValue}
-          searchValue={searchValue}
-          onClear={handleClearSearch}
-        />
+        {/* Top Bar: Back + Breadcrumb + Export */}
+        <div className="dp-top-bar">
+          <button className="dp-back-btn" onClick={handleBackClick}>
+            <ArrowLeft size={14} /> Back
+          </button>
+          
+          {(categoryLabel || subcategoryLabel) && (
+            <div className="dp-breadcrumb">
+              {categoryLabel && <span>{categoryLabel}</span>}
+              {categoryLabel && subcategoryLabel && <span className="sep">›</span>}
+              {subcategoryLabel && <span>{subcategoryLabel}</span>}
+              {(categoryLabel || subcategoryLabel) && <span className="sep">›</span>}
+              <span className="current">{skillName}</span>
+            </div>
+          )}
+          
+          <button className="dp-export-btn" onClick={handleExportAll}>
+            ↓ Export list
+          </button>
+        </div>
 
-        {/* Results Table */}
+        {/* Skill Header */}
+        <div className="dp-skill-header">
+          <div className="dp-skill-title-row">
+            <span className="dp-skill-label">Employees with</span>
+            <span className="dp-skill-badge">{skillName}</span>
+            <span className="dp-result-count">
+              <strong>{totalEmployees}</strong> {totalEmployees === 1 ? 'employee' : 'employees'}
+            </span>
+          </div>
+          
+          {/* KPI Strip */}
+          <div className="dp-kpi-strip">
+            <div className="dp-kpi-cell">
+              <div className="dp-kpi-label">Avg Proficiency</div>
+              <div className="dp-kpi-value">{avgProficiency}</div>
+              <div className={`dp-kpi-context ${avgProfContext}`}>
+                {avgProficiency !== '—' && parseFloat(avgProficiency) < 3.0 ? 'Below 3.0 target' : 'On target'}
+              </div>
+            </div>
+            
+            <div className="dp-kpi-cell">
+              <div className="dp-kpi-label">Teams covered</div>
+              <div className="dp-kpi-value">{uniqueTeams}</div>
+              <div className="dp-kpi-context ok">{teamsContext}</div>
+            </div>
+            <div className="dp-kpi-cell">
+              <div className="dp-kpi-label">Cert coverage</div>
+              <div className="dp-kpi-value">{certCoverage}%</div>
+              <div className={`dp-kpi-context ${certCoverageContext}`}>
+                {certifiedCount} of {totalEmployees} employees
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Search Row */}
+        <div className="dp-search-row">
+          <input
+            className="dp-search-input"
+            type="text"
+            placeholder="Search employee, role, team, sub-segment…"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+          />
+        </div>
+
+        {/* Table Area */}
         {isLoading ? (
-          <div style={{ textAlign: 'center', padding: '48px 0' }}>
-            <div style={{ 
-              width: '32px', 
-              height: '32px', 
-              border: '4px solid #2563eb', 
-              borderTopColor: 'transparent', 
-              borderRadius: '50%', 
-              margin: '0 auto 16px',
-              animation: 'spin 1s linear infinite'
-            }}></div>
-            <p style={{ color: '#64748b' }}>Loading employees...</p>
+          <div className="dp-loading">
+            <div className="dp-spinner"></div>
+            <p className="dp-loading-text">Loading employees...</p>
           </div>
         ) : error ? (
-          <div style={{ textAlign: 'center', padding: '48px 0' }}>
-            <p style={{ color: '#dc2626', marginBottom: '8px' }}>Failed to load employees</p>
-            <p style={{ fontSize: '14px', color: '#64748b' }}>{error}</p>
+          <div className="dp-error">
+            <p className="dp-error-title">Failed to load employees</p>
+            <p className="dp-error-text">{error}</p>
           </div>
         ) : filteredEmployees.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '48px 0' }}>
-            <Users style={{ width: '48px', height: '48px', margin: '0 auto 16px', color: '#9ca3af' }} />
-            <p style={{ color: '#64748b' }}>No employees found with this skill</p>
+          <div className="dp-empty">
+            <Users className="dp-empty-icon" />
+            <p className="dp-empty-text">No employees found with this skill</p>
           </div>
         ) : (
-          <table className="co-table">
-            <thead>
-              <tr>
-                <th>Employee</th>
-                <th className="co-skill-header">
-                  <strong title={skillName}>{truncatedSkillName}</strong> Level
-                </th>
-                <th>Sub-Segment</th>
-                <th>Team</th>
-                <th>Certification</th>
-                <th>Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {filteredEmployees.map((emp, index) => (
-                <tr key={emp.employee_id}>
-                  <td>
-                    <div className="co-empname">{emp.employee_name}</div>
-                    <div className="co-empsub">
-                      Skill updated: {emp.skill_last_updated_days !== null ? `${emp.skill_last_updated_days} days ago` : '—'}
-                    </div>
-                  </td>
-                  <td>
-                    <div className="co-level">
-                      <span className={`co-level-dot ${getProficiencyDotClass(emp.proficiency_level)}`}></span>
-                      <span>{emp.proficiency_label}</span>
-                    </div>
-                  </td>
-                  <td>{emp.sub_segment || '—'}</td>
-                  <td>{emp.team_name || '—'}</td>
-                  <td>
-                    <span className={`co-cert ${emp.certified ? 'co-cert--yes' : 'co-cert--no'}`}>
-                      {emp.certified ? 'Yes' : 'No'}
-                    </span>
-                  </td>
-                  <td>
-                    <button
-                      onClick={() => handleViewProfile(index)}
-                      className="co-link"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
-                    >
-                      View Profile
-                    </button>
-                  </td>
+          <div className="dp-table-area">
+            <table className="dp-table">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Level</th>
+                  <th>Sub-Segment</th>
+                  <th>Project</th>
+                  <th>Team</th>
+                  <th></th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {filteredEmployees.map((emp, index) => (
+                  <tr key={emp.employee_id} onClick={() => handleViewProfile(index)}>
+                    <td>
+                      <div className="dp-emp-name">{emp.employee_name}</div>
+                      <div className="dp-emp-meta">
+                        Updated {emp.skill_last_updated_days !== null ? `${emp.skill_last_updated_days} days ago` : '—'}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="dp-level-cell">
+                        <span className={`dp-level-dot ${getProficiencyDotClass(emp.proficiency_level)}`}></span>
+                        {emp.proficiency_label}
+                      </div>
+                    </td>
+                    <td>{emp.sub_segment || '—'}</td>
+                    <td>{emp.project_name || '—'}</td>
+                    <td>{emp.team_name || '—'}</td>
+                    <td>
+                      <button
+                        className="dp-view-btn"
+                        onClick={(e) => { e.stopPropagation(); handleViewProfile(index); }}
+                      >
+                        View Profile
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
         
         {/* Employee Profile Drawer */}

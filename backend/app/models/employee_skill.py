@@ -27,7 +27,10 @@ class EmployeeSkill(Base):
     # New columns added for soft delete and audit tracking
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), default=func.now())
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
+    created_by = Column(String, nullable=False, server_default='')
+    deleted_by = Column(String, nullable=False, server_default='')
     # Relationships
     employee = relationship("Employee", back_populates="employee_skills")
     skill = relationship("Skill", back_populates="employee_skills")

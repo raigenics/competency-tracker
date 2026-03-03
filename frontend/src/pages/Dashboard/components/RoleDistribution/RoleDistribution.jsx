@@ -161,7 +161,10 @@ const EmptyState = () => (
  * Uses existing useRoleDistribution hook - NO API CHANGES
  */
 const RoleDistribution = ({ dashboardFilters }) => {
-  const { data, isLoading, error, refetch } = useRoleDistribution(dashboardFilters);
+  // Pass segmentId explicitly from dashboardFilters to ensure segment scope is respected
+  const { data, isLoading, error, refetch } = useRoleDistribution(dashboardFilters, {
+    segmentId: dashboardFilters.segment
+  });
 
   // Loading state
   if (isLoading) {

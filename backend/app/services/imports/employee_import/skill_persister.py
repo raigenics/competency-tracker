@@ -302,7 +302,7 @@ class SkillPersister:
                 existing_skill.years_experience = years_experience
                 existing_skill.last_used = last_used
                 existing_skill.started_learning_from = started_learning_from
-                existing_skill.certification = row.get('certification')
+                existing_skill.certification = self.field_sanitizer.normalize_certification(row.get('certification'))
                 existing_skill.comment = row.get('comment')
                 existing_skill.interest_level = interest_level
                 existing_skill.updated_at = import_timestamp
@@ -321,7 +321,7 @@ class SkillPersister:
                     years_experience=years_experience,
                     last_used=last_used,
                     started_learning_from=started_learning_from,
-                    certification=row.get('certification'),
+                    certification=self.field_sanitizer.normalize_certification(row.get('certification')),
                     comment=row.get('comment'),
                     interest_level=interest_level,
                     created_at=import_timestamp

@@ -19,7 +19,7 @@ import { dirname } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
 // Read the source file
-const sourceFile = resolve(__dirname, '../pages/Taxonomy/SkillTaxonomyPage.jsx');
+const sourceFile = resolve(__dirname, '../pages/Taxonomy/SkillCoveragePage.jsx');
 const sourceCode = readFileSync(sourceFile, 'utf-8');
 
 describe('SkillTaxonomyPage - TwoPaneLayout Migration Regression', () => {

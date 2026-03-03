@@ -97,7 +97,7 @@ vi.mock('@/rbac/permissions.js', () => {
 });
 
 // Import after mocks are set up
-import EmployeesPage from '@/pages/Employees/EmployeesPage.jsx';
+import EmployeesPage from '@/pages/Employees/EmployeeManagement.jsx';
 
 // Mock react-router-dom
 vi.mock('react-router-dom', async () => {

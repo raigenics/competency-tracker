@@ -32,7 +32,7 @@ const DEBUG_EMPLOYEES = typeof window !== 'undefined'
   && import.meta.env.DEV 
   && localStorage.getItem("DEBUG_EMPLOYEES") === "1";
 
-const EmployeesPage = () => {
+const EmployeeManagement = () => {
   const navigate = useNavigate();
   
   // Diagnostic timing refs
@@ -1093,4 +1093,4 @@ const EmployeesPage = () => {
   );
 };
 
-export default EmployeesPage;
+export default EmployeeManagement;

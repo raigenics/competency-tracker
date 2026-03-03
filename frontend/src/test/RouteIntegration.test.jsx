@@ -99,7 +99,7 @@ vi.mock('../config/featureFlags', () => ({
 
 // Import pages after mocks
 import MainLayout from '../layouts/MainLayout.jsx';
-import SkillTaxonomyPage from '../pages/Taxonomy/SkillTaxonomyPage.jsx';
+import SkillCoveragePage from '../pages/Taxonomy/SkillCoveragePage.jsx';
 import AdvancedQueryPage from '../pages/AdvancedQuery/AdvancedQueryPage.jsx';
 
 // Helper to create router with specific route
@@ -119,7 +119,7 @@ describe('Route Integration', () => {
   });
 
   describe('/skill-coverage route', () => {
-    it('should render SkillTaxonomyPage (Capability Overview), not "Coming Soon"', async () => {
+    it('should render SkillCoveragePage (Capability Overview), not "Coming Soon"', async () => {
       const routes = [
         {
           path: '/',
@@ -127,7 +127,7 @@ describe('Route Integration', () => {
           children: [
             {
               path: 'skill-coverage',
-              element: <SkillTaxonomyPage />,
+              element: <SkillCoveragePage />,
             },
           ],
         },
@@ -155,7 +155,7 @@ describe('Route Integration', () => {
           children: [
             {
               path: 'skill-coverage',
-              element: <SkillTaxonomyPage />,
+              element: <SkillCoveragePage />,
             },
           ],
         },
@@ -236,7 +236,7 @@ describe('Route Integration', () => {
           children: [
             {
               path: 'skill-coverage',
-              element: <SkillTaxonomyPage />,
+              element: <SkillCoveragePage />,
             },
           ],
         },

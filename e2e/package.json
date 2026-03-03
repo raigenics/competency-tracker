@@ -1,0 +1,29 @@
+{
+  "name": "competencyiq-e2e",
+  "version": "1.0.0",
+  "description": "CompetencyIQ E2E Automation Suite using Playwright + TypeScript",
+  "scripts": {
+    "test": "playwright test",
+    "test:smoke": "playwright test --grep @smoke",
+    "test:regression": "playwright test --grep @regression",
+    "test:headed": "playwright test --headed",
+    "seed": "npx ts-node testdata/api-seed.ts",
+    "cleanup": "npx ts-node testdata/cleanup.ts"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.42.0",
+    "@types/node": "^20.11.0",
+    "dotenv": "^16.4.0",
+    "typescript": "^5.3.0",
+    "xlsx": "^0.18.5"
+  },
+  "keywords": [
+    "playwright",
+    "e2e",
+    "automation",
+    "competencyiq"
+  ],
+  "author": "CompetencyIQ QA Team",
+  "license": "UNLICENSED",
+  "private": true
+}

@@ -1,4 +1,5 @@
 import httpClient from './httpClient.js';
+import { DEFAULT_DASHBOARD_CONTEXT } from '../../config/featureFlags.js';
 
 /**
  * Dashboard API service for fetching dashboard metrics and analytics.
@@ -139,7 +140,7 @@ export const dashboardApi = {
   async getRoleDistribution(filters = {}, options = {}) {
     try {
       const {
-        segmentId = 1, // Default to DTS segment
+        segmentId = DEFAULT_DASHBOARD_CONTEXT.SEGMENT_ID,
         topN = 3,
         maxRoles = 10,
         includeEmpty = true

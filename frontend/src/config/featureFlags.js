@@ -23,6 +23,30 @@ export const FEATURE_FLAGS = {
 
 
 /* =============================================================================
+ * DEFAULT DASHBOARD CONTEXT
+ * =============================================================================
+ * 
+ * Default values for Dashboard page when no user session/auth is available.
+ * Dashboard uses these to scope initial data loading to a known segment.
+ * 
+ * IMPORTANT: This is a TEMPORARY default until login/authentication is built.
+ * Once auth is implemented, these will be replaced by user's actual context.
+ * 
+ * Current defaults assume DTS segment (segment_id = 1) with SUPER_ADMIN role.
+ * ============================================================================= */
+
+export const DEFAULT_DASHBOARD_CONTEXT = {
+  // SEGMENT_CODE: 'DTS',
+  // SEGMENT_ID: 1,
+  SEGMENT_CODE: 'DTS',
+  SEGMENT_ID: 1,
+  ROLE_CODE: 'SUPER_ADMIN',
+  SCOPE_TYPE: 'SEGMENT',
+  SCOPE_ID: 1
+};
+
+
+/* =============================================================================
  * RBAC (Role-Based Access Control) Configuration
  * =============================================================================
  * 

@@ -39,6 +39,7 @@ class SubSegment(Base):
         default=func.now()
     )
     created_by = Column(String(100), nullable=False, default="system", index=True)
+    updated_at = Column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     
     # Soft delete columns
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)

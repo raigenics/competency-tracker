@@ -1,6 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { Download, Share2 } from 'lucide-react';
-import { skillApi } from '../../../services/api/skillApi';
 
 /**
  * ViewEmployeesHeader - Header section for View Employees screen
@@ -10,7 +9,7 @@ import { skillApi } from '../../../services/api/skillApi';
  * - Title with skill name pill
  * - Subtitle with employee count and tip
  * - Export button
- * - KPI strip (3 cards: Avg proficiency, Certified, Teams)
+ * - KPI strip (2 cards: Avg proficiency, Certification Coverage)
  * - Search section with results count
  * 
  * Props:
@@ -18,47 +17,36 @@ import { skillApi } from '../../../services/api/skillApi';
  * - skillName: string - The skill name
  * - onBack: function - Callback when back is clicked
  * - onExport: function - Callback when export is clicked
- * - employeeResults: array - Current employee results for filtering
+ * - employeeResults: array - Current employee results for filtering (used for KPI computation)
  * - onSearchChange: function - Callback when search input changes
  * - searchValue: string - Current search value
  * - onClear: function - Callback when clear is clicked
+ * - isLoading: boolean - Loading state for employee data
  */
 const ViewEmployeesHeader = ({
-  skillId,
+  skillId: _skillId,
   skillName,
   onBack,
   onExport,
   employeeResults = [],
   onSearchChange,
   searchValue = '',
-  onClear
+  onClear,
+  isLoading = false
 }) => {
-  const [summaryData, setSummaryData] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  // Compute KPIs from employeeResults — guaranteed skill-scoped
+  const total = employeeResults.length;
 
-  // Fetch employees summary when skillId changes
-  useEffect(() => {
-    // Check for null/undefined, but allow skillId = 0 as valid
-    if (skillId == null) {
-      setSummaryData(null);
-      return;
-    }
+  // 1. Avg Proficiency (proficiency_level is 1–5 per selected skill)
+  const avgProficiency = total > 0
+    ? employeeResults.reduce((sum, emp) => sum + (emp.proficiency_level ?? 0), 0) / total
+    : null;
 
-    const fetchSummary = async () => {
-      setIsLoading(true);
-      try {
-        const data = await skillApi.getEmployeesSummary(skillId);
-        setSummaryData(data);
-      } catch (err) {
-        console.error('[ViewEmployeesHeader] Error fetching employees summary:', err);
-        setSummaryData(null);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchSummary();
-  }, [skillId]);
+  // 2. Cert Coverage % (emp.certified is boolean set by skill_employees_list_service.py)
+  const certifiedCount = employeeResults.filter(emp => emp.certified).length;
+  const certCoveragePct = total > 0
+    ? Math.round((certifiedCount / total) * 100)
+    : 0;
 
   // Determine tag styling for avg proficiency
   const getAvgProficiencyTag = (avg) => {
@@ -69,26 +57,16 @@ const ViewEmployeesHeader = ({
     return { text: 'Low', className: 'tagRisk' };
   };
 
-  // Determine tag styling for certified count
-  const getCertifiedTag = (count, total) => {
-    if (count === 0) return { text: 'Gap', className: 'tagRisk' };
-    const ratio = total > 0 ? count / total : 0;
-    if (ratio >= 0.5) return { text: 'Strong', className: 'tagHealthy' };
-    if (ratio >= 0.25) return { text: 'Partial', className: 'tagWarn' };
+  // Determine tag styling for cert coverage
+  const getCertCoverageTag = (pct) => {
+    if (pct === 0) return { text: 'Gap', className: 'tagRisk' };
+    if (pct >= 50) return { text: 'Strong', className: 'tagHealthy' };
+    if (pct >= 25) return { text: 'Partial', className: 'tagWarn' };
     return { text: 'Few', className: 'tagWarn' };
   };
 
-  // Determine tag styling for team count
-  const getTeamsTag = (count) => {
-    if (count >= 3) return { text: 'Distributed', className: 'tagHealthy' };
-    if (count === 2) return { text: 'Limited', className: 'tagWarn' };
-    if (count === 1) return { text: 'Single team', className: 'tagRisk' };
-    return { text: 'None', className: 'tagRisk' };
-  };
-
-  const avgTag = getAvgProficiencyTag(summaryData?.avg_proficiency);
-  const certTag = getCertifiedTag(summaryData?.certified_count ?? 0, summaryData?.employee_count ?? 0);
-  const teamsTag = getTeamsTag(summaryData?.team_count ?? 0);
+  const avgTag = getAvgProficiencyTag(avgProficiency);
+  const certTag = getCertCoverageTag(certCoveragePct);
 
   return (
     <>
@@ -115,7 +93,7 @@ const ViewEmployeesHeader = ({
           {/* Subtitle */}
           <div className="ve-sub">
             <span>
-              <strong>{isLoading ? '...' : (summaryData?.employee_count ?? employeeResults.length)}</strong> employees found
+              <strong>{isLoading ? '...' : total}</strong> employees found
             </span>
             <span className="ve-meta-dot"></span>
             <span className="ve-hint">Tip: Click a row to expand</span>
@@ -134,44 +112,31 @@ const ViewEmployeesHeader = ({
         </div>
       </div>
 
-      {/* KPI Strip - 3 cards */}
-      <div className="ve-insight-strip">
+      {/* KPI Strip - 2 cards */}
+      <div className="ve-insight-strip" style={{ gridTemplateColumns: '1fr 1fr' }}>
         {/* Avg proficiency */}
         <div className="ve-kpi">
           <div className="ve-kpi-top">
             <div>
               <div className="ve-kpi-label">Avg proficiency</div>
               <div className="ve-kpi-value">
-                {isLoading ? '...' : (summaryData?.avg_proficiency?.toFixed(1) ?? '—')}
+                {isLoading ? '...' : (avgProficiency?.toFixed(1) ?? '—')}
               </div>
             </div>
             <span className={`ve-tag ${avgTag.className}`}>{avgTag.text}</span>
           </div>
         </div>
 
-        {/* Certified */}
+        {/* Certification Coverage */}
         <div className="ve-kpi">
           <div className="ve-kpi-top">
             <div>
-              <div className="ve-kpi-label">Certified</div>
+              <div className="ve-kpi-label">Certification Coverage</div>
               <div className="ve-kpi-value">
-                {isLoading ? '...' : (summaryData?.certified_count ?? 0)}
+                {isLoading ? '...' : `${certCoveragePct}%`}
               </div>
             </div>
             <span className={`ve-tag ${certTag.className}`}>{certTag.text}</span>
-          </div>
-        </div>
-
-        {/* Teams */}
-        <div className="ve-kpi">
-          <div className="ve-kpi-top">
-            <div>
-              <div className="ve-kpi-label">Teams</div>
-              <div className="ve-kpi-value">
-                {isLoading ? '...' : (summaryData?.team_count ?? 0)}
-              </div>
-            </div>
-            <span className={`ve-tag ${teamsTag.className}`}>{teamsTag.text}</span>
           </div>
         </div>
       </div>

@@ -299,6 +299,7 @@ class SkillEmployeeListItem(BaseModel):
     employee_id: int = Field(description="Employee ID")
     employee_name: str = Field(description="Employee full name")
     sub_segment: Optional[str] = Field(default=None, description="Sub-segment name via team->project->sub_segment chain")
+    project_name: Optional[str] = Field(default=None, description="Project name via team->project chain")
     team_name: Optional[str] = Field(default=None, description="Team name the employee belongs to")
     proficiency_level: int = Field(description="Proficiency level ID (1-5)")
     proficiency_label: str = Field(description="Proficiency level label (Novice/Adv. Beginner/Competent/Proficient/Expert)")

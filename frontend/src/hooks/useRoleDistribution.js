@@ -23,7 +23,9 @@ export function useRoleDistribution(filters, options = {}) {
   const abortControllerRef = useRef(null);
   
   // Create stable filter key to detect changes
-  const filterKey = `${filters.subSegment || ''}-${filters.project || ''}-${filters.team || ''}`;
+  // Include segment from options so segment changes trigger refetch
+  const segmentId = options.segmentId;
+  const filterKey = `${segmentId || ''}-${filters.subSegment || ''}-${filters.project || ''}-${filters.team || ''}`;
   
   const fetchData = useCallback(async () => {
     // Cancel any in-flight request

@@ -434,8 +434,8 @@ const RolesPage = () => {
   const templateUrl = `${backendBaseUrl}/static/templates/RoleMasterData_Template.xlsx`;
 
   return (
-    <div className="master-data-page" style={{ height: '100%' }}>
-      <div className="details-panel" style={{ flex: 1 }}>
+    <div className="master-data-page" data-page="role-catalog" style={{ height: 'auto', minHeight: '100%' }}>
+      <div className="details-panel" style={{ flex: 1, overflow: 'visible' }}>
         {/* Header wrapper with consistent padding matching Dashboard */}
         <div style={{ padding: '0 24px' }}>
           <PageHeader
@@ -464,7 +464,7 @@ const RolesPage = () => {
         </div>
 
         {/* Content wrapper with max-width for better readability */}
-        <div className="details-content" style={{ maxWidth: '1400px', width: '100%', margin: '0 auto', padding: 'var(--spacing-lg)' }}>
+        <div className="details-content" style={{ maxWidth: '1400px', width: '100%', margin: '0 auto', padding: 'var(--spacing-lg)', overflowY: 'visible' }}>
           
           {/* Loading State */}
           {loading && (

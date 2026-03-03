@@ -190,7 +190,7 @@ const SkillTaxonomyPage = () => {
   }, [visibleTree, selectedSkill, setSelectedSkillStore]);
   
   // Always start with summary view, not employee list
-  const [showViewAll, setShowViewAll] = useState(false);
+  const [_showViewAll, setShowViewAll] = useState(false);
 
   // Flicker avoidance: delay showing loading UI by 200ms to avoid flash on fast loads
   useEffect(() => {

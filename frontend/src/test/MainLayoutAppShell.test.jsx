@@ -114,8 +114,8 @@ describe('AppShell Height Model - Phase 2 Regression', () => {
   // =========================================================================
   describe('Page Height Declarations (Regression)', () => {
     const pageSources = {
-      'EmployeesPage': readFileSync(
-        resolve(__dirname, '../pages/Employees/EmployeesPage.jsx'),
+      'EmployeeManagement': readFileSync(
+        resolve(__dirname, '../pages/Employees/EmployeeManagement.jsx'),
         'utf-8'
       ),
       'BulkImportPage': readFileSync(

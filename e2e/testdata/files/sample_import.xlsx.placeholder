@@ -1,0 +1,11 @@
+This is a placeholder file for sample_import.xlsx
+
+Replace this file with a valid Excel (.xlsx) file containing sample employee/skill
+import data for testing the Import Data functionality.
+
+Expected format:
+- Sheet 1: Employees with columns (GID, Full Name, Email, Role, Team)
+- Sheet 2: Skills with columns (Skill Name, Category, Subcategory)
+- Sheet 3: Employee Skills with columns (Employee GID, Skill Name, Proficiency Level)
+
+Use test data IDs >= 9000 to maintain isolation from production data.

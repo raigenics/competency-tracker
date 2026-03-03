@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,300;9..144,400&family=DM+Mono:wght@400;500&display=swap');
+
 /*
  * Capability Overview page scoped CSS
  * Matches capabilityOverview.html wireframe
@@ -1239,16 +1241,20 @@
 }
 
 .capability-overview .co-detail-title {
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: -0.01em;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 22px;
+  font-weight: 300;
+  letter-spacing: -0.3px;
   color: #1a1a1a;
   margin: 0;
 }
 
 .capability-overview .co-detail-sub {
-  font-size: 13px;
-  color: #555;
+  font-size: 12.5px;
+  color: #6b6560;
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-top: 3px;
 }
 
@@ -1293,31 +1299,35 @@
 
 /* Card Label (monospace uppercase) */
 .capability-overview .co-ic-label {
-  font-family: ui-monospace, 'IBM Plex Mono', monospace;
-  font-size: 10px;
-  color: #888;
-  letter-spacing: 0.08em;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 500;
+  color: #9c9892;
+  letter-spacing: 0.04em;
   text-transform: uppercase;
   margin-bottom: 6px;
 }
 
 /* Card Value (large number/text) */
 .capability-overview .co-ic-value {
-  font-size: 22px;
-  font-weight: 600;
-  letter-spacing: -0.02em;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 34px;
+  font-weight: 300;
+  letter-spacing: -1px;
   color: #1a1a1a;
 }
 
 .capability-overview .co-ic-value.med {
-  font-size: 15px;
-  font-weight: 600;
+  font-family: 'Fraunces', Georgia, serif;
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: -0.2px;
 }
 
 .capability-overview .co-ic-value .co-ic-suffix {
   font-size: 14px;
-  font-weight: 400;
-  color: #888;
+  font-weight: 300;
+  color: #c4c1bb;
 }
 
 /* Card Subtitle */
@@ -1328,11 +1338,11 @@
 }
 
 .capability-overview .co-ic-sub.good {
-  color: #2d7a2d;
+  color: #1a6640;
 }
 
 .capability-overview .co-ic-sub.warn {
-  color: #996600;
+  color: #8a4f10;
 }
 
 /* Bar Chart (skill distribution) */
@@ -1351,8 +1361,8 @@
 
 .capability-overview .co-bar-row-label {
   font-size: 11px;
-  color: #555;
-  width: 140px;
+  color: #6b6560;
+  width: 180px;
   flex-shrink: 0;
   white-space: nowrap;
   overflow: hidden;
@@ -1369,18 +1379,18 @@
 .capability-overview .co-bar-fill {
   height: 100%;
   border-radius: 3px;
-  background: #1a1a1a;
-  opacity: 0.25;
+  background: #1a3a5c;
+  opacity: 0.2;
 }
 
 .capability-overview .co-bar-fill.hi {
-  opacity: 0.7;
+  opacity: 0.85;
 }
 
 .capability-overview .co-bar-count {
-  font-family: ui-monospace, 'IBM Plex Mono', monospace;
-  font-size: 10px;
-  color: #888;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 11px;
+  color: #9c9892;
   width: 28px;
   text-align: right;
   flex-shrink: 0;
@@ -1402,7 +1412,28 @@
 }
 
 .capability-overview .co-explore-content strong {
-  color: #1a1a1a;
+  color: #2d5f8a;
+}
+
+/* Scope tag badge — sits inline in the panel subtitle */
+.capability-overview .co-scope-badge {
+  display: inline-flex;
+  align-items: center;
+  background: #1a3a5c;
+  color: #ffffff;
+  font-family: 'DM Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  padding: 2px 7px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+
+/* Top-3 bar row count — more prominent */
+.capability-overview .co-bar-count.hi {
+  color: #18181a;
+  font-weight: 500;
 }
 
 /* Legacy Panel Header - keep for skill detail view */
@@ -1978,3 +2009,328 @@
   }
 }
 
+/* =========================
+   10) DETAIL PANEL V2 — Employee List Redesign
+   ========================= */
+
+/* Top Bar */
+.capability-overview .dp-top-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 12px;
+  border-bottom: 1px solid var(--co-border);
+  background: var(--co-surface);
+  flex-shrink: 0;
+}
+
+.capability-overview .dp-back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--co-primary);
+  cursor: pointer;
+  border: none;
+  background: none;
+  padding: 0;
+  transition: opacity 0.15s;
+}
+.capability-overview .dp-back-btn:hover { opacity: 0.7; }
+
+.capability-overview .dp-breadcrumb {
+  font-size: 11.5px;
+  color: #a09890;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+}
+.capability-overview .dp-breadcrumb span { color: #6b6560; font-weight: 500; }
+.capability-overview .dp-breadcrumb .sep { color: var(--co-border); }
+.capability-overview .dp-breadcrumb .current { color: #1a1a1a; font-weight: 600; }
+
+.capability-overview .dp-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #6b6560;
+  border: 1px solid var(--co-border);
+  background: var(--co-surface);
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.capability-overview .dp-export-btn:hover { background: #f3f0eb; border-color: #ccc; }
+
+/* Skill Header */
+.capability-overview .dp-skill-header {
+  padding: 16px 20px 14px;
+  border-bottom: 1px solid #f0ede8;
+  background: var(--co-surface);
+  flex-shrink: 0;
+}
+
+.capability-overview .dp-skill-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.capability-overview .dp-skill-label {
+  font-size: 15px;
+  font-weight: 400;
+  color: #6b6560;
+}
+
+.capability-overview .dp-skill-badge {
+  display: inline-flex;
+  align-items: center;
+  background: #e8f0fe;
+  color: #1a56db;
+  font-size: 14px;
+  font-weight: 600;
+  padding: 3px 12px;
+  border-radius: 20px;
+  letter-spacing: -0.01em;
+}
+
+.capability-overview .dp-result-count {
+  margin-left: auto;
+  font-size: 12px;
+  color: #a09890;
+  font-family: ui-monospace, 'IBM Plex Mono', monospace;
+}
+.capability-overview .dp-result-count strong { color: #1a1a1a; font-weight: 600; }
+
+/* KPI Strip */
+.capability-overview .dp-kpi-strip {
+  display: flex;
+  gap: 0;
+  border: 1px solid var(--co-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.capability-overview .dp-kpi-cell {
+  flex: 1;
+  padding: 10px 14px;
+  border-right: 1px solid var(--co-border);
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.capability-overview .dp-kpi-cell:last-child { border-right: none; }
+
+.capability-overview .dp-kpi-label {
+  font-size: 10.5px;
+  color: #a09890;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 500;
+}
+
+.capability-overview .dp-kpi-value {
+  font-size: 20px;
+  font-weight: 600;
+  color: #1a1a1a;
+  line-height: 1;
+  margin: 2px 0;
+}
+
+.capability-overview .dp-kpi-context {
+  font-size: 11px;
+  color: #a09890;
+}
+.capability-overview .dp-kpi-context.warn { color: #d97706; font-weight: 500; }
+.capability-overview .dp-kpi-context.ok { color: #16a34a; font-weight: 500; }
+.capability-overview .dp-kpi-context.alert { color: #dc2626; font-weight: 500; }
+
+/* Search Row */
+.capability-overview .dp-search-row {
+  padding: 10px 20px;
+  border-bottom: 1px solid #f0ede8;
+  background: var(--co-surface);
+  flex-shrink: 0;
+}
+
+.capability-overview .dp-search-input {
+  width: 100%;
+  max-width: 380px;
+  padding: 7px 12px 7px 32px;
+  border: 1px solid var(--co-border);
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'DM Sans', system-ui, sans-serif;
+  color: #1a1a1a;
+  background: #f8f7f5 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%23a09890' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.35-4.35'/%3E%3C/svg%3E") no-repeat 10px center;
+  outline: none;
+  transition: border-color 0.15s;
+}
+.capability-overview .dp-search-input:focus { border-color: var(--co-primary); }
+.capability-overview .dp-search-input::placeholder { color: #a09890; }
+
+/* Table Area */
+.capability-overview .dp-table-area {
+  flex: 1;
+  overflow-y: auto;
+  background: var(--co-surface);
+}
+
+.capability-overview .dp-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.capability-overview .dp-table thead tr {
+  background: #f3f0eb;
+  border-bottom: 1px solid var(--co-border);
+}
+
+.capability-overview .dp-table th {
+  padding: 9px 16px;
+  text-align: left;
+  font-size: 11px;
+  font-weight: 600;
+  color: #6b6560;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.capability-overview .dp-table td {
+  padding: 13px 16px;
+  border-bottom: 1px solid #f0ede8;
+  font-size: 13px;
+  vertical-align: middle;
+}
+
+.capability-overview .dp-table tbody tr {
+  cursor: pointer;
+  transition: background 0.12s;
+}
+.capability-overview .dp-table tbody tr:hover { background: #faf9f7; }
+.capability-overview .dp-table tbody tr:last-child td { border-bottom: none; }
+
+.capability-overview .dp-emp-name {
+  font-weight: 600;
+  font-size: 13.5px;
+  color: #1a1a1a;
+  margin-bottom: 2px;
+}
+
+.capability-overview .dp-emp-meta {
+  font-size: 11px;
+  color: #a09890;
+}
+
+/* Level Cell with Dot */
+.capability-overview .dp-level-cell {
+  display: flex;
+  align-items: center;
+}
+
+.capability-overview .dp-level-dot {
+  display: inline-block;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  margin-right: 6px;
+  flex-shrink: 0;
+}
+
+.capability-overview .dp-level-dot--novice { background: #9ca3af; }
+.capability-overview .dp-level-dot--beginner { background: #f59e0b; }
+.capability-overview .dp-level-dot--competent { background: #16a34a; }
+.capability-overview .dp-level-dot--proficient { background: #2563eb; }
+.capability-overview .dp-level-dot--expert { background: #7c3aed; }
+
+/* View Profile Button */
+.capability-overview .dp-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--co-primary);
+  border: 1px solid #c7d7fd;
+  background: #eff4ff;
+  border-radius: 5px;
+  padding: 4px 10px;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.capability-overview .dp-view-btn:hover { background: #dbeafe; border-color: #93b4fb; }
+
+/* Loading State */
+.capability-overview .dp-loading {
+  text-align: center;
+  padding: 48px 0;
+}
+
+.capability-overview .dp-spinner {
+  width: 32px;
+  height: 32px;
+  border: 4px solid var(--co-primary);
+  border-top-color: transparent;
+  border-radius: 50%;
+  margin: 0 auto 16px;
+  animation: spin 1s linear infinite;
+}
+
+.capability-overview .dp-loading-text {
+  color: #64748b;
+}
+
+/* Empty State */
+.capability-overview .dp-empty {
+  text-align: center;
+  padding: 48px 0;
+}
+
+.capability-overview .dp-empty-icon {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto 16px;
+  color: #9ca3af;
+}
+
+.capability-overview .dp-empty-text {
+  color: #64748b;
+}
+
+/* Error State */
+.capability-overview .dp-error {
+  text-align: center;
+  padding: 48px 0;
+}
+
+.capability-overview .dp-error-title {
+  color: #dc2626;
+  margin-bottom: 8px;
+}
+
+.capability-overview .dp-error-text {
+  font-size: 14px;
+  color: #64748b;
+}
+
+/* Responsive */
+@media (max-width: 700px) {
+  .capability-overview .dp-kpi-strip {
+    flex-wrap: wrap;
+  }
+  .capability-overview .dp-kpi-cell {
+    flex: 1 1 50%;
+    border-bottom: 1px solid var(--co-border);
+  }
+  .capability-overview .dp-kpi-cell:nth-child(2) { border-right: none; }
+  .capability-overview .dp-kpi-cell:nth-child(3),
+  .capability-overview .dp-kpi-cell:nth-child(4) { border-bottom: none; }
+}

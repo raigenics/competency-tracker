@@ -110,6 +110,34 @@ describe('SkillDetailsPanel', () => {
       expect(screen.getByText(/use search to jump to technologies/i)).toBeInTheDocument();
       expect(screen.getByText(/expand categories to compare skill density/i)).toBeInTheDocument();
     });
+
+    it('shows "No employees in scope" when categoryCoverage returns null categories', () => {
+      // When API returns null for both most_populated_category and least_populated_category
+      renderWithRouter(
+        <SkillDetailsPanel 
+          skill={null}
+          showViewAll={false}
+          onViewAll={() => {}}
+          onBackToSummary={() => {}}
+          categoryCoverage={{
+            most_populated_category: null,
+            least_populated_category: null
+          }}
+          categoryCoverageLoading={false}
+          categoryCoverageError={null}
+        />
+      );
+
+      // Hardcoded fallbacks should NOT be rendered
+      expect(screen.queryByText('Programming')).not.toBeInTheDocument();
+      expect(screen.queryByText('Mobile Development')).not.toBeInTheDocument();
+      expect(screen.queryByText(/14 skills/i)).not.toBeInTheDocument();
+      expect(screen.queryByText(/4 skills/i)).not.toBeInTheDocument();
+
+      // "No employees in scope" should be rendered for both cards
+      const noEmployeesMessages = screen.getAllByText('No employees in scope');
+      expect(noEmployeesMessages).toHaveLength(2);
+    });
   });
 
   describe('Skill Selected State', () => {

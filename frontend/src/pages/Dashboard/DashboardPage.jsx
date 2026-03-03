@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Search, Loader2 } from 'lucide-react';
 import SkillDistributionTable from './components/SkillDistributionTable.jsx';
 import SkillUpdateActivity from './components/SkillUpdateActivity.jsx';
@@ -8,6 +9,7 @@ import PageHeader from '../../components/PageHeader';
 import { dashboardApi } from '../../services/api/dashboardApi.js';
 import { dropdownApi } from '../../services/api/dropdownApi.js';
 import useDashboardStore from './dashboardStore.js';
+import { DEFAULT_DASHBOARD_CONTEXT } from '../../config/featureFlags.js';
 import './Dashboard.css';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -77,6 +79,8 @@ const DashboardPage = () => {
   const cachedPayload = useDashboardStore(s => s.cachedPayload);
   const setCachedPayload = useDashboardStore(s => s.setCachedPayload);
   
+  const navigate = useNavigate();
+  
   // Check cache validity once on mount (avoid calling function in useState)
   const initialCacheValid = useRef(isCacheValid());
 
@@ -105,10 +109,15 @@ const DashboardPage = () => {
     };
   }, [loading]);
   const [dashboardFilters, setDashboardFilters] = useState({
+    segment: DEFAULT_DASHBOARD_CONTEXT.SEGMENT_ID,
     subSegment: '',
     project: '',
     team: ''
   });
+
+  // Empty state: shown when DEFAULT segment has no sub-segments or is invalid
+  // Prevents loading org-wide data when segment scoping is required
+  const [isEmptyState, setIsEmptyState] = useState(false);
   
   // Dropdown data state
   const [dropdownData, setDropdownData] = useState({
@@ -197,13 +206,39 @@ const DashboardPage = () => {
 
       setLoading(true);
       try {
-        await loadSubSegments();
-        // Load initial dashboard data
+        // Load sub-segments for the default segment
+        // If no sub-segments exist OR segment is invalid, show empty state and skip data load
+        const segmentId = DEFAULT_DASHBOARD_CONTEXT.SEGMENT_ID;
+        
+        if (!segmentId) {
+          // Invalid/missing segment ID - show empty state
+          setIsEmptyState(true);
+          setLoading(false);
+          return;
+        }
+        
+        // Fetch sub-segments for the default segment
+        const subSegments = await dropdownApi.getSubSegmentsBySegment(segmentId);
+        setDropdownData(prev => ({ ...prev, subSegments }));
+        
+        if (!subSegments || subSegments.length === 0) {
+          // No sub-segments for this segment - show empty state
+          // Do NOT load dashboard data to avoid returning org-wide data
+          setIsEmptyState(true);
+          isInitialized.current = true;
+          setLoading(false);
+          return;
+        }
+        
+        // Segment has sub-segments - proceed with normal dashboard load
+        setIsEmptyState(false);
         await loadDashboardData();
         await loadSkillUpdateActivity();
         isInitialized.current = true; // Mark as initialized after first successful load
       } catch (error) {
         console.error('Failed to initialize dashboard:', error);
+        // On error, show empty state to avoid showing stale/incorrect data
+        setIsEmptyState(true);
       } finally {
         setLoading(false);
       }
@@ -250,19 +285,6 @@ const DashboardPage = () => {
 
     refreshData();
   }, [dashboardFilters, loadDashboardData, loadSkillUpdateActivity]);
-
-  // Load sub-segments dropdown data
-  const loadSubSegments = async () => {
-    setDropdownLoading(prev => ({ ...prev, subSegments: true }));
-    try {
-      const subSegments = await dropdownApi.getSubSegments();
-      setDropdownData(prev => ({ ...prev, subSegments }));
-    } catch (error) {
-      console.error('Failed to load sub-segments:', error);
-    } finally {
-      setDropdownLoading(prev => ({ ...prev, subSegments: false }));
-    }
-  };
 
   // Load projects for selected sub-segment
   const loadProjects = async (subSegmentId) => {
@@ -387,7 +409,7 @@ const DashboardPage = () => {
   };
 
   const clearFilters = () => {
-    setDashboardFilters({ subSegment: '', project: '', team: '' });
+    setDashboardFilters({ segment: DEFAULT_DASHBOARD_CONTEXT.SEGMENT_ID, subSegment: '', project: '', team: '' });
     setDropdownData(prev => ({ ...prev, projects: [], teams: [] }));
   };
 
@@ -397,10 +419,18 @@ const DashboardPage = () => {
   // Determine if we should show skeletons (loading AND past the 200ms delay)
   const showSkeletons = loading && showLoadingUI;
 
+  // Show empty state when:
+  // - DEFAULT segment has no sub-segments / invalid segment (isEmptyState=true)
+  // - OR segment is valid but has no employees in scope (totalEmployees===0)
+  const showEmptyState = !loading && (isEmptyState || totalEmployees === 0);
+
   return (
     <div className="dashboard-page">
       {/* Main content area with padding */}
-      <main style={{ padding: '0 26px 40px' }}>
+      <main 
+        className={showEmptyState ? 'empty-state-main' : ''} 
+        style={{ padding: '0 26px 40px' }}
+      >
         <PageHeader
           title="Dashboard"
           subtitle="Competency overview and situational awareness — scoped by your org filters"
@@ -411,6 +441,112 @@ const DashboardPage = () => {
           //   </>
           // }
         />
+
+        {/* EMPTY STATE - shown when no sub-segments exist for segment OR no employees in scope */}
+        {showEmptyState && (
+          <>
+            {/* Muted scope banner */}
+            <div className="scope-banner">
+              <span className="scope-banner-label">Current scope</span>
+              <span className="scope-pill">Organization-Wide</span>
+              <span className="scope-banner-note">Filters available once employees are added</span>
+            </div>
+
+            {/* Empty content */}
+            <div className="empty-content">
+              <div className="empty-icon-bg">
+                <svg width="36" height="36" viewBox="0 0 36 36" fill="none">
+                  <rect x="5" y="20" width="6" height="10" rx="2" fill="#e8e5e0"/>
+                  <rect x="15" y="13" width="6" height="17" rx="2" fill="#c4c1bb"/>
+                  <rect x="25" y="7" width="6" height="23" rx="2" fill="#1a3a5c" opacity="0.35"/>
+                  <circle cx="28" cy="5" r="2.5" fill="#2d5f8a" opacity="0.5"/>
+                </svg>
+              </div>
+
+              <div className="empty-heading">Your dashboard is ready</div>
+              <div className="empty-body">
+                Add employees and their skills to start seeing proficiency coverage,
+                team distribution, and skill trends across your organisation.
+              </div>
+
+              <div className="action-row">
+                <button className="btn-primary" onClick={() => navigate('/system/import')}>
+                  Go to Import Data
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                  </svg>
+                </button>
+                <button className="btn-secondary" onClick={() => navigate('/employees')}>
+                  Go to Employee Management
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="5" y1="12" x2="19" y2="12"/>
+                    <polyline points="12 5 19 12 12 19"/>
+                  </svg>
+                </button>
+              </div>
+              <div className="btn-nav-hint">Both pages are also accessible from the Governance section in the side navigation</div>
+
+              {/* Setup progress checklist */}
+              <div className="checklist">
+                <div className="check-item done">
+                  <div className="check-dot"></div>
+                  Organisation structure configured
+                </div>
+                <div className="check-item done">
+                  <div className="check-dot"></div>
+                  Skill library ready
+                </div>
+                <div className="check-item">
+                  <div className="check-dot"></div>
+                  Employees added
+                </div>
+                <div className="check-item">
+                  <div className="check-dot"></div>
+                  Skills mapped
+                </div>
+              </div>
+
+              {/* Prerequisite notice */}
+              <div className="prereq-notice">
+                <svg className="prereq-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/>
+                  <line x1="12" y1="9" x2="12" y2="13"/>
+                  <line x1="12" y1="17" x2="12.01" y2="17"/>
+                </svg>
+                <div className="prereq-body">
+                  <div className="prereq-title">Before importing employees</div>
+                  <div className="prereq-text">
+                    Ensure your master data is set up first. Employee imports require your
+                    organisation structure, skill library, and role catalog to already exist
+                    in the system — otherwise assignments will fail.
+                    Set these up from the <strong>Governance section in the side navigation</strong>.
+                  </div>
+                  <div className="prereq-links">
+                    <button className="prereq-link" onClick={() => navigate('/governance/org-structure')}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6"/>
+                      </svg>
+                      Organization Structure
+                    </button>
+                    <button className="prereq-link" onClick={() => navigate('/governance/skill-library')}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6"/>
+                      </svg>
+                      Skill Library
+                    </button>
+                    <button className="prereq-link" onClick={() => navigate('/governance/role-catalog')}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="9 18 15 12 9 6"/>
+                      </svg>
+                      Role Catalog
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </>
+        )}
 
         {/* HERO CTA (smaller, not dominating) */}
         {/* <section className="db-hero">
@@ -428,7 +564,8 @@ const DashboardPage = () => {
           </button>
         </section> */}
 
-        {/* MAIN GRID */}
+        {/* MAIN GRID - hidden when empty state is shown */}
+        {!showEmptyState && (
         <div className="db-grid">
           {/* LEFT COLUMN - Dashboard Context Filters */}
           <section className="db-card db-filters-card">
@@ -569,6 +706,7 @@ const DashboardPage = () => {
             )}
           </div>
         </div>
+        )}
       </main>
     </div>
   );

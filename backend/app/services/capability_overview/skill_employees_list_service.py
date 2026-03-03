@@ -82,7 +82,7 @@ def _query_employee_skill_data(db: Session, skill_id: int) -> List[Tuple]:
     Query employee-skill mappings with related data for a skill.
     
     Returns list of tuples containing:
-    (employee_id, employee_name, sub_segment_name, team_name, 
+    (employee_id, employee_name, sub_segment_name, project_name, team_name, 
      proficiency_level_id, level_name, certification, last_updated)
     
     Uses canonical chain: employee -> team -> project -> sub_segment
@@ -93,6 +93,7 @@ def _query_employee_skill_data(db: Session, skill_id: int) -> List[Tuple]:
         Employee.employee_id,
         Employee.full_name,
         SubSegment.sub_segment_name,
+        Project.project_name,
         Team.team_name,
         EmployeeSkill.proficiency_level_id,
         ProficiencyLevel.level_name,
@@ -168,13 +169,14 @@ def _build_employee_list_items(raw_data: List[Tuple]) -> List[SkillEmployeeListI
     items = []
     
     for row in raw_data:
-        (employee_id, full_name, sub_segment_name, team_name,
+        (employee_id, full_name, sub_segment_name, project_name, team_name,
          proficiency_level_id, level_name, certification, last_updated) = row
         
         items.append(SkillEmployeeListItem(
             employee_id=employee_id,
             employee_name=full_name,
             sub_segment=sub_segment_name,
+            project_name=project_name,
             team_name=team_name,
             proficiency_level=proficiency_level_id,
             proficiency_label=level_name,
