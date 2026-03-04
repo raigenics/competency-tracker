@@ -1,0 +1,1084 @@
+/**
+ * Organization Hierarchy page styles
+ * Matches Skill Library styling pattern from OrgStructure.html wireframe
+ * Scoped under .org-hierarchy to avoid global style leakage
+ */
+
+/* CSS Variables for Org Hierarchy - Matching Skill Library */
+.org-hierarchy {
+  --oh-pageBg: #f8f7f5;
+  --oh-bg: #f8f7f5;
+  --oh-card: #ffffff;
+  --oh-cardBorder: #e7e9f0;
+  --oh-title: #0f172a;
+  --oh-sub: #64748b;
+  --oh-muted2: #94a3b8;
+  --oh-btn: #2563eb;
+  --oh-primary: #2563eb;
+  --oh-btnText: #fff;
+  --oh-btnGhost: #ffffff;
+  --oh-btnGhostText: #0f172a;
+  --oh-btnBorder: #e7e9f0;
+  --oh-brand-soft: #eef2ff;
+  --oh-radius: 14px;
+  --oh-shadow: 0 1px 0 rgba(0,0,0,.04), 0 10px 30px rgba(15,23,42,.06);
+  --oh-rowHover: #f8fafc;
+  --oh-danger: #ef4444;
+}
+
+/* Topbar */
+.org-hierarchy .oh-topbar {
+  background: var(--oh-card);
+  border-bottom: 1px solid var(--oh-cardBorder);
+  padding: 18px 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.org-hierarchy .oh-topbar .oh-title {
+  font-size: 20px;
+  font-weight: 950;
+  color: var(--oh-title);
+  line-height: 1.2;
+}
+
+.org-hierarchy .oh-topbar .oh-subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--oh-sub);
+}
+
+.org-hierarchy .oh-topbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.org-hierarchy .oh-topbar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Buttons - Wireframe matching */
+.org-hierarchy .oh-btn {
+  border: 1px solid var(--oh-primary);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--oh-primary);
+  color: var(--oh-btnText);
+  box-shadow: 0 10px 20px rgba(37,99,235,.18);
+  transition: transform 0.1s;
+}
+
+.org-hierarchy .oh-btn:active {
+  transform: translateY(1px);
+}
+
+.org-hierarchy .oh-btn.ghost {
+  background: var(--oh-btnGhost);
+  color: var(--oh-btnGhostText);
+  border-color: var(--oh-btnBorder);
+  box-shadow: none;
+}
+
+.org-hierarchy .oh-btn.subtle {
+  background: var(--oh-brand-soft);
+  border-color: #c7d2fe;
+  color: #1e40af;
+  box-shadow: none;
+}
+
+.org-hierarchy .oh-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Content area */
+.org-hierarchy .oh-content {
+  padding: 18px 20px 22px;
+}
+
+/* Grid layout */
+.org-hierarchy .oh-grid {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+/* Card */
+.org-hierarchy .oh-card {
+  background: var(--oh-card);
+  border: 1px solid var(--oh-cardBorder);
+  border-radius: var(--oh-radius);
+  box-shadow: var(--oh-shadow);
+  overflow: hidden;
+}
+
+.org-hierarchy .oh-card-h {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--oh-cardBorder);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.org-hierarchy .oh-card-h .oh-h-title {
+  font-size: 14px;
+  font-weight: 950;
+  color: var(--oh-title);
+}
+
+.org-hierarchy .oh-card-h .oh-h-sub {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--oh-sub);
+  margin-top: 4px;
+}
+
+.org-hierarchy .oh-card-h-left {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Search - Wireframe matching */
+.org-hierarchy .oh-search {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  align-items: center;
+}
+
+.org-hierarchy .oh-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--oh-cardBorder);
+  outline: none;
+  font-size: 13px;
+  font-weight: 650;
+  background: #fff;
+}
+
+.org-hierarchy .oh-input::placeholder {
+  color: var(--oh-muted2);
+  font-weight: 650;
+}
+
+.org-hierarchy .oh-input:focus {
+  border-color: var(--oh-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+/* Tree - Wireframe matching */
+.org-hierarchy .oh-tree {
+  padding: 6px 8px 12px;
+  max-height: 72vh;
+  overflow: auto;
+}
+
+.org-hierarchy .oh-tree ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.org-hierarchy .oh-tree > ul {
+  padding-left: 0;
+}
+
+/* Segment node (folder-like neutral icon) */
+.org-hierarchy .oh-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  user-select: none;
+}
+
+.org-hierarchy .oh-node:hover {
+  background: var(--oh-rowHover);
+  border-color: #eef2ff;
+}
+
+.org-hierarchy .oh-node.selected {
+  background: var(--oh-brand-soft);
+  border-color: #c7d2fe;
+}
+
+.org-hierarchy .oh-node-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.org-hierarchy .oh-caret {
+  width: 14px;
+  text-align: center;
+  color: var(--oh-muted2);
+  font-weight: 900;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Neutral square icon for nodes (segments) - per wireframe */
+.org-hierarchy .oh-node-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  background: #dbeafe;
+  border: 1px solid #93c5fd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 900;
+  color: #1e40af;
+  flex-shrink: 0;
+}
+
+/* Dot icon for child nodes (sub-segments, projects, teams) */
+.org-hierarchy .oh-dot-icon {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: #93c5fd;
+  border: 1px solid #60a5fa;
+  flex-shrink: 0;
+}
+
+.org-hierarchy .oh-label {
+  font-weight: 850;
+  font-size: 13px;
+  color: var(--oh-title);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.org-hierarchy .oh-count {
+  font-size: 12px;
+  color: var(--oh-sub);
+  font-weight: 850;
+  flex-shrink: 0;
+}
+
+/* Subtree (sub-segments, projects, teams) */
+.org-hierarchy .oh-subtree {
+  margin: 4px 0 6px 26px;
+  padding-left: 10px;
+  border-left: 2px dashed #e5e7eb;
+}
+
+/* Sub-node (children in tree) */
+.org-hierarchy .oh-subnode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 8px 10px;
+  margin: 4px 0;
+  border-radius: 12px;
+  cursor: pointer;
+  border: 1px solid transparent;
+}
+
+.org-hierarchy .oh-subnode:hover {
+  background: var(--oh-rowHover);
+  border-color: #f3f4f6;
+}
+
+.org-hierarchy .oh-subnode.selected {
+  background: #ecfeff;
+  border-color: #a5f3fc;
+}
+
+.org-hierarchy .oh-subnode-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Right panel */
+.org-hierarchy .oh-panel {
+  padding: 0;
+  min-height: 520px;
+}
+
+.org-hierarchy .oh-panel-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--oh-cardBorder);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.org-hierarchy .oh-crumb {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--oh-sub);
+  margin-bottom: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.org-hierarchy .oh-panel-title {
+  font-size: 18px;
+  font-weight: 950;
+  margin: 0;
+  color: var(--oh-title);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.2;
+}
+
+.org-hierarchy .oh-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--oh-brand-soft);
+  color: #1e40af;
+  border: 1px solid #c7d2fe;
+  font-weight: 900;
+}
+
+.org-hierarchy .oh-iconbtn {
+  border: 1px solid var(--oh-cardBorder);
+  background: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  color: #334155;
+}
+
+.org-hierarchy .oh-iconbtn.oh-iconbtn-sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.org-hierarchy .oh-iconbtn:hover {
+  background: var(--oh-rowHover);
+}
+
+.org-hierarchy .oh-iconbtn-danger {
+  color: var(--oh-danger);
+  border-color: #fee2e2;
+}
+
+.org-hierarchy .oh-iconbtn-danger:hover {
+  background: #fef2f2;
+}
+
+/* Inline Title Edit */
+.org-hierarchy .oh-title-text {
+  font-weight: 800;
+  color: var(--oh-title);
+}
+
+.org-hierarchy .oh-title-actions {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.org-hierarchy .oh-title-edit-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.org-hierarchy .oh-title-input {
+  font-size: 18px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  min-width: 200px;
+  height: 36px;
+  background: #fff;
+  color: var(--oh-title);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.org-hierarchy .oh-title-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15);
+}
+
+.org-hierarchy .oh-iconbtn-save {
+  color: #22c55e;
+}
+
+.org-hierarchy .oh-iconbtn-save:hover {
+  background: #f0fdf4;
+}
+
+.org-hierarchy .oh-panel-body {
+  padding: 18px 16px 18px;
+  min-height: 420px;
+}
+
+/* Empty state */
+.org-hierarchy .oh-empty {
+  padding: 40px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  color: #475569;
+}
+
+.org-hierarchy .oh-empty .oh-doc-icon {
+  width: 44px;
+  height: 52px;
+  border-radius: 10px;
+  border: 1px solid var(--oh-cardBorder);
+  background: #f9fafb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9ca3af;
+  font-size: 20px;
+  font-weight: 950;
+}
+
+.org-hierarchy .oh-empty h3 {
+  margin: 8px 0 0;
+  font-size: 16px;
+  font-weight: 950;
+  color: #0f172a;
+}
+
+.org-hierarchy .oh-empty p {
+  margin: 4px 0 0;
+  max-width: 540px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--oh-sub);
+}
+
+.org-hierarchy .oh-steps {
+  margin-top: 14px;
+  width: min(560px, 92%);
+  border: 1px solid var(--oh-cardBorder);
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: #fff;
+  text-align: left;
+}
+
+.org-hierarchy .oh-steps h4 {
+  margin: 0 0 8px;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #374151;
+  font-weight: 950;
+}
+
+.org-hierarchy .oh-steps ul {
+  margin: 0;
+  padding-left: 18px;
+  color: #374151;
+  font-weight: 750;
+  font-size: 13px;
+}
+
+.org-hierarchy .oh-steps li {
+  margin: 6px 0;
+}
+
+.org-hierarchy .oh-note {
+  margin-top: 10px;
+  color: var(--oh-muted2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+/* Loading state */
+.org-hierarchy .oh-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  gap: 14px;
+}
+
+.org-hierarchy .oh-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid var(--oh-cardBorder);
+  border-top-color: var(--oh-primary);
+  border-radius: 50%;
+  animation: oh-spin 0.8s linear infinite;
+}
+
+@keyframes oh-spin {
+  to { transform: rotate(360deg); }
+}
+
+.org-hierarchy .oh-loading-text {
+  font-size: 14px;
+  color: var(--oh-sub);
+  font-weight: 600;
+}
+
+/* Error state */
+.org-hierarchy .oh-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  gap: 12px;
+  text-align: center;
+}
+
+.org-hierarchy .oh-error-icon {
+  font-size: 32px;
+}
+
+.org-hierarchy .oh-error-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--oh-title);
+}
+
+.org-hierarchy .oh-error-message {
+  font-size: 14px;
+  color: var(--oh-danger);
+}
+
+/* Error banner */
+.org-hierarchy .oh-error-banner {
+  padding: 12px 20px;
+  background: #fef2f2;
+  border-bottom: 1px solid #fee2e2;
+  color: var(--oh-danger);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.org-hierarchy .oh-error-banner button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: var(--oh-danger);
+  padding: 4px 8px;
+}
+
+/* Team search fallback */
+.org-hierarchy .oh-team-search-notice {
+  padding: 24px;
+  text-align: center;
+}
+
+.org-hierarchy .oh-team-search-notice p {
+  color: var(--oh-sub);
+  font-size: 14px;
+  margin: 8px 0 0;
+}
+
+.org-hierarchy .oh-team-search-notice .oh-hint {
+  color: var(--oh-muted2);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* Key-value details box - Matching Skill Library pattern */
+.org-hierarchy .oh-kv {
+  border: 1px solid var(--oh-cardBorder);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+}
+
+.org-hierarchy .oh-kv .oh-k {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--oh-sub);
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.org-hierarchy .oh-kv-grid {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  row-gap: 10px;
+  column-gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  align-items: start;
+}
+
+.org-hierarchy .oh-kv-grid .oh-key {
+  color: #334155;
+  font-weight: 800;
+  padding-top: 2px;
+}
+
+.org-hierarchy .oh-kv-grid .oh-val {
+  color: var(--oh-title);
+  font-weight: 900;
+}
+
+.org-hierarchy .oh-kv-grid .oh-val-muted {
+  color: var(--oh-sub);
+  font-style: italic;
+  font-weight: 700;
+}
+
+/* Spacing for content sections */
+.org-hierarchy .oh-kv + .info-section,
+.org-hierarchy .oh-kv + div[class*="panel"] {
+  margin-top: 16px;
+}
+
+/* ==========================================================================
+   INFO SECTION - Sub-segments/projects table container (matches Skill Library)
+   ========================================================================== */
+
+.org-hierarchy .info-section {
+  margin-top: 14px;
+  border: 1px solid var(--oh-cardBorder);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.org-hierarchy .info-section-header {
+  padding: 12px 12px;
+  border-bottom: 1px solid var(--oh-cardBorder);
+  margin-bottom: 0;
+}
+
+.org-hierarchy .info-section-title {
+  font-weight: 950;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1f2937;
+  margin: 0;
+}
+
+/* Mini search in table header - matching Skill Library */
+.org-hierarchy .oh-mini-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--oh-cardBorder);
+  border-radius: 12px;
+  padding: 8px 10px;
+  min-width: 220px;
+  background: #fff;
+  color: var(--oh-sub);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.org-hierarchy .oh-mini-search input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-weight: 750;
+  font-size: 12px;
+  background: transparent;
+  color: var(--oh-title);
+}
+
+.org-hierarchy .oh-mini-search input::placeholder {
+  color: var(--oh-muted2);
+  font-weight: 650;
+}
+
+/* Table styles - matching Skill Library wireframe */
+.org-hierarchy .info-section table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border: none;
+  border-radius: 0;
+  background: #fff;
+}
+
+.org-hierarchy .info-section thead th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--oh-sub);
+  font-weight: 900;
+  padding: 10px 12px;
+  background: #fbfcff;
+  border-bottom: 1px solid var(--oh-cardBorder);
+}
+
+.org-hierarchy .info-section tbody td {
+  padding: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+  font-weight: 750;
+  color: #111827;
+  vertical-align: middle;
+}
+
+.org-hierarchy .info-section tbody tr:hover {
+  background: var(--oh-rowHover);
+}
+
+.org-hierarchy .info-section tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.org-hierarchy .info-section tbody tr.selected {
+  background: var(--oh-brand-soft);
+}
+
+/* Empty state in info section */
+.org-hierarchy .info-section .oh-empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--oh-sub);
+}
+
+.org-hierarchy .info-section .oh-empty-state .empty-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+
+/* Inline add/edit button styles - matching Skill Library */
+.org-hierarchy .oh-inline-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  background: transparent;
+}
+
+.org-hierarchy .oh-inline-btn-save {
+  background: var(--oh-primary);
+  color: #fff;
+  border-color: var(--oh-primary);
+}
+
+.org-hierarchy .oh-inline-btn-save:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.org-hierarchy .oh-inline-btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.org-hierarchy .oh-inline-btn-cancel {
+  background: var(--oh-card);
+  color: var(--oh-sub);
+  border-color: var(--oh-cardBorder);
+}
+
+.org-hierarchy .oh-inline-btn-cancel:hover:not(:disabled) {
+  background: var(--oh-bg);
+  color: var(--oh-title);
+}
+
+.org-hierarchy .oh-inline-btn-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Row actions in table */
+.org-hierarchy .info-section .row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.org-hierarchy .info-section .row-actions .action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 4px 0;
+  color: var(--oh-primary);
+  transition: color 0.15s ease;
+}
+
+.org-hierarchy .info-section .row-actions .action-link:hover {
+  color: #1d4ed8;
+  text-decoration: underline;
+}
+
+.org-hierarchy .info-section .row-actions .action-link.danger {
+  color: var(--oh-danger);
+}
+
+.org-hierarchy .info-section .row-actions .action-link.danger:hover {
+  color: #dc2626;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MODAL STYLES (for CreateEditModal, DeleteConfirmModal, etc.)
+   These match the class names used by MasterData modal components
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.org-hierarchy .modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.org-hierarchy .modal-overlay.active {
+  display: flex;
+  animation: ohFadeIn 0.2s;
+}
+
+@keyframes ohFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes ohSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.org-hierarchy .modal {
+  background: var(--oh-card);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.18);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: ohSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible;
+}
+
+.org-hierarchy .modal-header {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--oh-cardBorder);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.org-hierarchy .modal-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--oh-title);
+}
+
+.org-hierarchy .modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 20px;
+  color: var(--oh-sub);
+}
+
+.org-hierarchy .modal-close:hover {
+  background: var(--oh-bg);
+}
+
+.org-hierarchy .modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+
+.org-hierarchy .modal-footer {
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--oh-cardBorder);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+/* Form Elements for modals */
+.org-hierarchy .form-group {
+  margin-bottom: 14px;
+}
+
+.org-hierarchy .form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--oh-title);
+  margin-bottom: 6px;
+}
+
+.org-hierarchy .form-label .required {
+  color: #ef4444;
+}
+
+.org-hierarchy .form-input,
+.org-hierarchy .form-textarea,
+.org-hierarchy .form-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--oh-cardBorder);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--oh-card);
+  color: var(--oh-title);
+  transition: border 0.15s, box-shadow 0.15s;
+}
+
+.org-hierarchy .form-input:focus,
+.org-hierarchy .form-textarea:focus,
+.org-hierarchy .form-select:focus {
+  outline: none;
+  border-color: var(--oh-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.org-hierarchy .form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.org-hierarchy .form-help {
+  font-size: 12px;
+  color: var(--oh-sub);
+  margin-top: 4px;
+}
+
+.org-hierarchy .form-error {
+  color: #dc3545;
+  font-size: 13px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background-color: #fef2f2;
+  border-radius: 4px;
+}
+
+/* Modal buttons */
+.org-hierarchy .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+}
+
+.org-hierarchy .btn-primary {
+  background: var(--oh-primary);
+  color: #fff;
+  border-color: var(--oh-primary);
+}
+
+.org-hierarchy .btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.org-hierarchy .btn-secondary {
+  background: var(--oh-card);
+  color: var(--oh-title);
+  border-color: var(--oh-cardBorder);
+}
+
+.org-hierarchy .btn-secondary:hover {
+  background: var(--oh-bg);
+}
+
+.org-hierarchy .btn-danger {
+  background: #fef2f2;
+  color: #ef4444;
+  border: 1px solid #fecaca;
+}
+
+.org-hierarchy .btn-danger:hover {
+  background: #fee2e2;
+}
+
+.org-hierarchy .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* Responsive */
+@media (max-width: 1120px) {
+  .org-hierarchy .oh-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .org-hierarchy .oh-tree {
+    max-height: 320px;
+  }
+}

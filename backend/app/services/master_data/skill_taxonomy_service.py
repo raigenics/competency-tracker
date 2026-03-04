@@ -139,7 +139,7 @@ def get_skill_taxonomy(
         dto = TaxonomySubCategoryDTO(
             id=subcat.subcategory_id,
             name=subcat.subcategory_name,
-            description=None,  # Subcategories table doesn't have description column
+            description=getattr(subcat, 'description', None),
             created_at=subcat.created_at,
             created_by=subcat.created_by,
             skills=skills_by_subcategory.get(subcat.subcategory_id, []),
@@ -154,7 +154,7 @@ def get_skill_taxonomy(
         dto = TaxonomyCategoryDTO(
             id=cat.category_id,
             name=cat.category_name,
-            description=None,  # Categories table doesn't have description column
+            description=getattr(cat, 'description', None),  # May be None if column not populated
             created_at=cat.created_at,
             created_by=cat.created_by,
             subcategories=subcategories_by_category.get(cat.category_id, []),

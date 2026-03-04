@@ -1,0 +1,1077 @@
+/*
+ * Dashboard-scoped CSS with design tokens from wireframe
+ * 
+ * NOTE: These styles are ONLY for the Dashboard page.
+ * Do NOT use these tokens globally without explicit approval.
+ */
+
+/* Font imports for Dashboard empty state (matching detail.html wireframe) */
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&family=Fraunces:opsz,wght@9..144,300;9..144,400&display=swap');
+
+/* =========================
+   1) DESIGN TOKENS (Dashboard-scoped via .dashboard-page)
+   ========================= */
+.dashboard-page {
+  /* Surfaces */
+  --db-bg: #f8f7f5;
+  --db-surface: #ffffff;
+  --db-surface-2: #fbfcff;
+  --db-border: #e6e9f2;
+
+  /* Text */
+  --db-text: #0f172a;
+  --db-muted: #516074;
+  --db-muted-2: #7a889d;
+  --db-link: #2b6cff;
+
+  /* Brand - used ONLY for primary actions/CTA */
+  --db-brand-700: #1f49ff;
+  --db-brand-800: #1737d1;
+  --db-brand-50: #eef3ff;
+
+  /* Data colors (NOT brand) - separated from brand */
+  --db-expert: #0f9d73;        /* emerald-ish for Expert */
+  --db-proficient: #0ea5b7;    /* teal/cyan-ish for Proficient */
+  --db-beginner: #94a3b8;      /* slate-400 for Intermediate/Beginner */
+
+  /* Status colors */
+  --db-warning: #f59e0b;
+  --db-danger: #ef4444;
+  --db-ok: #22c55e;
+
+  /* Shadows & radius */
+  --db-r-lg: 16px;
+  --db-r-md: 12px;
+  --db-shadow-1: 0 8px 24px rgba(15, 23, 42, 0.08);
+  --db-shadow-2: 0 2px 10px rgba(15, 23, 42, 0.06);
+
+  /* Spacing */
+  --db-s-1: 8px;
+  --db-s-2: 12px;
+  --db-s-3: 16px;
+  --db-s-4: 20px;
+  --db-s-5: 24px;
+  --db-s-6: 32px;
+
+  /* Apply base styles */
+  background: var(--db-bg);
+  color: var(--db-text);
+  /* Removed min-height: 100vh - MainLayout now owns viewport height */
+}
+
+/* =========================
+   2) TOPBAR
+   ========================= */
+.dashboard-page .db-topbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+.dashboard-page .db-topbar .db-title h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--db-text);
+}
+
+.dashboard-page .db-topbar .db-title p {
+  margin: 6px 0 0;
+  color: var(--db-muted);
+  font-size: 13px;
+}
+
+.dashboard-page .db-topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.dashboard-page .db-pill {
+  font-size: 12px;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--db-border);
+  background: var(--db-surface);
+  color: var(--db-muted);
+}
+
+/* =========================
+   3) BUTTONS
+   ========================= */
+.dashboard-page .db-btn {
+  border: 0;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 500;
+  transition: all 0.15s ease;
+}
+
+.dashboard-page .db-btn.primary {
+  background: var(--db-brand-700);
+  color: #fff;
+  box-shadow: 0 10px 22px rgba(31, 73, 255, 0.24);
+}
+
+.dashboard-page .db-btn.primary:hover {
+  background: var(--db-brand-800);
+}
+
+.dashboard-page .db-btn.ghost {
+  background: var(--db-surface);
+  border: 1px solid var(--db-border);
+  color: var(--db-text);
+}
+
+.dashboard-page .db-btn.ghost:hover {
+  background: var(--db-surface-2);
+}
+
+/* =========================
+   4) HERO CTA (Smaller, not dominating)
+   ========================= */
+.dashboard-page .db-hero {
+  background: linear-gradient(135deg, var(--db-brand-50), #ffffff);
+  border: 1px solid rgba(31, 73, 255, 0.14);
+  border-radius: var(--db-r-lg);
+  padding: 16px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  box-shadow: var(--db-shadow-2);
+  margin-bottom: 16px;
+}
+
+.dashboard-page .db-hero-left {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  min-width: 0;
+}
+
+.dashboard-page .db-hero-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: rgba(31, 73, 255, 0.14);
+  border: 1px solid rgba(31, 73, 255, 0.18);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.dashboard-page .db-hero h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--db-text);
+}
+
+.dashboard-page .db-hero p {
+  margin: 4px 0 0;
+  color: var(--db-muted);
+  font-size: 12px;
+}
+
+/* =========================
+   5) GRID LAYOUT
+   ========================= */
+.dashboard-page .db-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 0.9fr;
+  gap: 16px;
+  align-items: stretch;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-page .db-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* =========================
+   6) CARD
+   ========================= */
+.dashboard-page .db-card {
+  background: var(--db-surface);
+  border: 1px solid var(--db-border);
+  border-radius: var(--db-r-lg);
+  box-shadow: var(--db-shadow-2);
+}
+
+.dashboard-page .db-card-h {
+  padding: 16px 16px 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid var(--db-border);
+  background: linear-gradient(180deg, var(--db-surface), var(--db-surface-2));
+  border-top-left-radius: var(--db-r-lg);
+  border-top-right-radius: var(--db-r-lg);
+}
+
+.dashboard-page .db-card-h .left h4 {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  color: var(--db-text);
+}
+
+.dashboard-page .db-card-h .left p {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--db-muted);
+}
+
+.dashboard-page .db-card-b {
+  padding: 14px 16px 20px; /* +4px bottom padding to reduce gap below Filters card */
+}
+
+/* =========================
+   7) FILTERS
+   ========================= */
+.dashboard-page .db-filters {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr auto;
+  gap: 10px;
+  align-items: end;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-page .db-filters {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+.dashboard-page .db-filters label {
+  display: block;
+  font-size: 11px;
+  color: var(--db-muted-2);
+  margin-bottom: 6px;
+  font-weight: 500;
+}
+
+.dashboard-page .db-filters select {
+  width: 100%;
+  padding: 10px 10px;
+  border-radius: 12px;
+  border: 1px solid var(--db-border);
+  background: #fff;
+  color: var(--db-text);
+  font-size: 13px;
+  outline: none;
+}
+
+.dashboard-page .db-filters select:focus {
+  border-color: var(--db-brand-700);
+  box-shadow: 0 0 0 2px rgba(31, 73, 255, 0.1);
+}
+
+.dashboard-page .db-scope {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #f7f9ff;
+  border: 1px solid rgba(31, 73, 255, 0.14);
+}
+
+.dashboard-page .db-scope .mini {
+  font-size: 12px;
+  color: var(--db-muted);
+}
+
+.dashboard-page .db-scope .tag {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(31, 73, 255, 0.12);
+  color: #2442c8;
+  border: 1px solid rgba(31, 73, 255, 0.18);
+  font-weight: 500;
+}
+
+/* Filters card specific: flush "Current view" row to bottom */
+.dashboard-page .db-filters-card .db-card-b {
+  padding-bottom: 14px;
+}
+
+.dashboard-page .db-filters-card .db-scope {
+  margin-top: 51px;
+}
+
+@media (max-width: 1100px) {
+  .dashboard-page .db-filters-card .db-card-b {
+    padding-bottom: 12px;
+  }
+  .dashboard-page .db-filters-card .db-scope {
+    margin-top: 49px;
+  }
+}
+
+/* Apply button + inline loading row */
+.dashboard-page .db-apply-row {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.dashboard-page .db-inline-loading {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--db-muted);
+  justify-content: center;
+}
+
+.dashboard-page .db-spinner {
+  animation: db-spin 0.8s linear infinite;
+}
+
+@keyframes db-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Disabled state for Apply button during fetch */
+.dashboard-page .db-btn.primary:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* =========================
+   8) KPI CARDS (UPDATED: vertical stack)
+   ========================= */
+.dashboard-page .db-kpis {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  /* Match height with Dashboard Context Filters card */
+  height: 100%;
+}
+
+.dashboard-page .db-kpi {
+  padding: 14px 14px;
+  border-radius: 16px;
+  border: 1px solid var(--db-border);
+  background: var(--db-surface);
+  box-shadow: var(--db-shadow-2);
+  /* CHANGE #1: Allow KPI cards to stretch vertically */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.dashboard-page .db-kpi .meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  color: var(--db-muted);
+  font-size: 12px;
+}
+
+.dashboard-page .db-kpi .value {
+  font-size: 28px;
+  margin: 6px 0 2px; /* reduced top margin by 2px */
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: var(--db-text);
+}
+
+.dashboard-page .db-kpi .sub {
+  margin: 0;
+  color: var(--db-muted);
+  font-size: 12px;
+}
+
+.dashboard-page .db-badge {
+  font-size: 11px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--db-border);
+  background: #fff;
+  color: var(--db-muted);
+}
+
+/* =========================
+   9) TOP SKILLS TABLE
+   ========================= */
+.dashboard-page .db-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.dashboard-page .db-table th,
+.dashboard-page .db-table td {
+  text-align: left;
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--db-border);
+  vertical-align: middle;
+}
+
+.dashboard-page .db-table th {
+  font-size: 11px;
+  color: var(--db-muted-2);
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.dashboard-page .db-table .skill-name {
+  font-weight: 700;
+  color: var(--db-text);
+}
+
+.dashboard-page .db-table .count {
+  display: inline-flex;
+  min-width: 44px;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: #0b1220;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.dashboard-page .db-table .mini {
+  font-size: 12px;
+  color: var(--db-muted);
+}
+
+.dashboard-page .db-bar {
+  height: 10px;
+  border-radius: 999px;
+  background: #eef2f7;
+  overflow: hidden;
+  border: 1px solid #e4eaf3;
+  display: flex;
+}
+
+.dashboard-page .db-bar .seg {
+  height: 100%;
+}
+
+.dashboard-page .db-bar .seg.expert {
+  background: var(--db-expert);
+}
+
+.dashboard-page .db-bar .seg.prof {
+  background: var(--db-proficient);
+}
+
+.dashboard-page .db-bar .seg.beg {
+  background: var(--db-beginner);
+}
+
+.dashboard-page .db-legend {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  margin-top: 10px;
+  color: var(--db-muted);
+  font-size: 12px;
+  flex-wrap: wrap;
+}
+
+.dashboard-page .db-legend .key {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.dashboard-page .db-legend .swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}
+
+.dashboard-page .db-legend .swatch.expert {
+  background: var(--db-expert);
+}
+
+.dashboard-page .db-legend .swatch.prof {
+  background: var(--db-proficient);
+}
+
+.dashboard-page .db-legend .swatch.beg {
+  background: var(--db-beginner);
+}
+
+/* =========================
+   10) ACTIVITY CARDS
+   ========================= */
+.dashboard-page .db-card.db-activity-card {
+  /* Flex column to fill height and align with Top Skills card */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.dashboard-page .db-activity-card .db-card-b {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboard-page .db-activity {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  flex: 1;
+}
+
+.dashboard-page .db-stat {
+  padding: 10px 14px 10px 14px; /* Reduced bottom padding for tighter integration */
+  border-radius: 16px;
+  border: 1px solid var(--db-border);
+  background: var(--db-surface);
+  /* Stretch to fill grid cell, center content vertically */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.dashboard-page .db-stat .top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px; /* Consistent gap below title row */
+}
+
+.dashboard-page .db-stat .top b {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--db-text);
+}
+
+.dashboard-page .db-stat .stat-value {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.02em; /* Tighter letter-spacing for premium feel */
+  color: var(--db-text);
+  min-height: 32px; /* Consistent height for single/double digit alignment */
+  line-height: 1;
+  display: flex;
+  align-items: center;
+}
+
+.dashboard-page .db-stat .sub {
+  margin: 6px 0 0; /* Slightly reduced gap above supporting text */
+  color: var(--db-muted);
+  font-size: 12px;
+}
+
+.dashboard-page .db-chip {
+  font-size: 11px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--db-border);
+  background: #fff;
+  color: var(--db-muted);
+  font-weight: 500;
+  /* Standardized chip sizing */
+  min-width: 52px;
+  height: 24px;
+  line-height: 14px;
+  text-align: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.dashboard-page .db-chip.warn {
+  border-color: rgba(245, 158, 11, 0.35);
+  background: rgba(245, 158, 11, 0.10);
+  color: #8a5a00;
+}
+
+.dashboard-page .db-chip.risk {
+  border-color: rgba(239, 68, 68, 0.35);
+  background: rgba(239, 68, 68, 0.10);
+  color: #8a1c1c;
+}
+
+.dashboard-page .db-chip.ok {
+  border-color: rgba(34, 197, 94, 0.35);
+  background: rgba(34, 197, 94, 0.10);
+  color: #14532d;
+}
+
+/* Mini Progress Bar (Skill Update Activity only) */
+.dashboard-page .db-progress-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px; /* Spacing from supporting text */
+}
+
+.dashboard-page .db-progress-track {
+  flex: 1;
+  min-width: 0;
+  height: 5px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.10); /* Subtle neutral track */
+  overflow: hidden;
+}
+
+.dashboard-page .db-progress-pct {
+  flex-shrink: 0;
+  min-width: 32px; /* Fixed width for alignment across blocks */
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--db-muted);
+  text-align: right;
+}
+
+.dashboard-page .db-progress-fill {
+  height: 100%;
+  border-radius: 999px;
+  transition: width 0.3s ease;
+}
+
+.dashboard-page .db-progress-success {
+  background: rgba(34, 197, 94, 0.45); /* Muted green */
+}
+
+.dashboard-page .db-progress-warn {
+  background: rgba(245, 158, 11, 0.50); /* Muted amber */
+}
+
+.dashboard-page .db-progress-danger {
+  background: rgba(239, 68, 68, 0.45); /* Muted red */
+}
+
+/* =========================
+   11) ROLE DISTRIBUTION
+   ========================= */
+.dashboard-page .db-roles details {
+  border-bottom: 1px solid var(--db-border);
+  padding: 10px 0;
+}
+
+.dashboard-page .db-roles summary {
+  list-style: none;
+  cursor: pointer;
+  display: grid;
+  grid-template-columns: 140px 90px 1fr 70px;
+  gap: 12px;
+  align-items: center;
+  padding: 8px 8px;
+  border-radius: 12px;
+}
+
+.dashboard-page .db-roles summary:hover {
+  background: #f7f9ff;
+  border: 1px solid rgba(31, 73, 255, 0.12);
+  margin: -1px;
+}
+
+.dashboard-page .db-roles summary::-webkit-details-marker {
+  display: none;
+}
+
+.dashboard-page .db-roles .seg-name {
+  font-weight: 800;
+  color: var(--db-text);
+}
+
+.dashboard-page .db-roles .count {
+  display: inline-flex;
+  min-width: 44px;
+  justify-content: center;
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: #0b1220;
+  color: #fff;
+  font-weight: 700;
+  font-size: 12px;
+}
+
+.dashboard-page .db-roles .chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.dashboard-page .db-roles .role-chip {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--db-border);
+  background: #fff;
+  color: var(--db-text);
+  display: inline-flex;
+  gap: 6px;
+  align-items: center;
+  white-space: nowrap;
+}
+
+.dashboard-page .db-roles .role-chip b {
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.dashboard-page .db-roles .more {
+  font-size: 12px;
+  color: var(--db-muted);
+}
+
+.dashboard-page .db-roles .chev {
+  justify-self: end;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
+  border: 1px solid var(--db-border);
+  display: grid;
+  place-items: center;
+  background: #fff;
+  color: var(--db-muted);
+  font-weight: 900;
+  transition: transform 0.2s ease;
+}
+
+.dashboard-page .db-roles details[open] .chev {
+  transform: rotate(90deg);
+}
+
+.dashboard-page .db-roles .detail {
+  margin: 8px 8px 10px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: #fbfcff;
+  border: 1px solid var(--db-border);
+  color: var(--db-muted);
+  font-size: 12px;
+}
+
+.dashboard-page .db-roles .detail b {
+  color: var(--db-text);
+}
+
+.dashboard-page .db-roles .detail ul {
+  margin: 8px 0 0 18px;
+  padding: 0;
+}
+
+.dashboard-page .db-roles .detail li {
+  margin-bottom: 4px;
+}
+
+/* Link styling */
+.dashboard-page .db-link {
+  color: var(--db-link);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.dashboard-page .db-link:hover {
+  text-decoration: underline;
+}
+
+/* =========================
+   EMPTY STATE (matching detail.html wireframe)
+   ========================= */
+
+/* Empty state design tokens */
+.dashboard-page {
+  --empty-page-bg: #f5f4f1;
+  --empty-surface: #ffffff;
+  --empty-border: #e8e5e0;
+  --empty-border-light: #f0ede8;
+  --empty-text-primary: #18181a;
+  --empty-text-secondary: #5c5a57;
+  --empty-text-muted: #9c9892;
+  --empty-text-ghost: #c4c1bb;
+  --empty-accent: #1a3a5c;
+  --empty-accent-mid: #2d5f8a;
+  --empty-green: #15803d;
+  --empty-amber: #b45309;
+  --empty-amber-soft: #fffbeb;
+  --empty-amber-border: #fde68a;
+  --empty-font: 'DM Sans', sans-serif;
+  --empty-font-display: 'Fraunces', Georgia, serif;
+  --empty-font-mono: 'DM Mono', monospace;
+}
+
+/* Main container when showing empty state */
+.dashboard-page main.empty-state-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: calc(100vh - 60px); /* Account for sidebar/header */
+}
+
+/* Scope Banner */
+.dashboard-page .scope-banner {
+  margin: 16px 2px 0; /* 2px horizontal + 26px parent padding = 28px total */
+  padding: 10px 0;
+  background: #faf9f7;
+  border: 1px solid var(--empty-border-light);
+  border-radius: 7px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.dashboard-page .scope-banner-label {
+  font-size: 11px;
+  color: var(--empty-text-ghost);
+  font-weight: 500;
+}
+
+.dashboard-page .scope-pill {
+  font-family: var(--empty-font-mono);
+  font-size: 10px;
+  background: var(--empty-border-light);
+  color: var(--empty-text-muted);
+  padding: 2px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.04em;
+}
+
+.dashboard-page .scope-banner-note {
+  font-size: 11px;
+  color: var(--empty-text-ghost);
+  margin-left: auto;
+  font-style: italic;
+}
+
+/* Empty Content Container */
+.dashboard-page .empty-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 48px 40px 40px;
+}
+
+.dashboard-page .empty-icon-bg {
+  width: 80px;
+  height: 80px;
+  background: var(--empty-surface);
+  border: 1.5px solid var(--empty-border);
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  margin-bottom: 24px;
+}
+
+.dashboard-page .empty-heading {
+  font-family: var(--empty-font-display);
+  font-size: 22px;
+  font-weight: 300;
+  color: var(--empty-text-primary);
+  letter-spacing: -0.3px;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.dashboard-page .empty-body {
+  font-family: var(--empty-font);
+  font-size: 14px;
+  color: var(--empty-text-secondary);
+  text-align: center;
+  max-width: 440px;
+  line-height: 1.7;
+  margin-bottom: 32px;
+}
+
+/* Action Buttons */
+.dashboard-page .action-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 6px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.dashboard-page .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--empty-accent);
+  color: #fff;
+  font-family: var(--empty-font);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 18px;
+  border-radius: 7px;
+  border: none;
+  cursor: pointer;
+  transition: opacity 0.15s;
+  text-decoration: none;
+}
+
+.dashboard-page .btn-primary:hover {
+  opacity: 0.87;
+}
+
+.dashboard-page .btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  background: var(--empty-surface);
+  color: var(--empty-text-secondary);
+  font-family: var(--empty-font);
+  font-size: 13px;
+  font-weight: 500;
+  padding: 9px 16px;
+  border-radius: 7px;
+  border: 1.5px solid #d0cdc7;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+  text-decoration: none;
+}
+
+.dashboard-page .btn-secondary:hover {
+  background: #f9f8f6;
+  border-color: #d4d0ca;
+}
+
+.dashboard-page .btn-nav-hint {
+  font-family: var(--empty-font);
+  font-size: 11px;
+  color: var(--empty-text-ghost);
+  text-align: center;
+  margin-bottom: 22px;
+  font-style: italic;
+}
+
+/* Checklist */
+.dashboard-page .checklist {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  justify-content: center;
+  margin-bottom: 28px;
+}
+
+.dashboard-page .check-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-family: var(--empty-font);
+  font-size: 13px;
+  color: var(--empty-text-muted);
+}
+
+.dashboard-page .check-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--empty-border);
+  flex-shrink: 0;
+}
+
+.dashboard-page .check-item.done .check-dot {
+  background: var(--empty-green);
+}
+
+.dashboard-page .check-item.done {
+  color: var(--empty-green);
+}
+
+/* Prerequisite Notice */
+.dashboard-page .prereq-notice {
+  width: 100%;
+  max-width: 640px;
+  background: var(--empty-amber-soft);
+  border: 1px solid var(--empty-amber-border);
+  border-radius: 8px;
+  padding: 14px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.dashboard-page .prereq-icon {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--empty-amber);
+}
+
+.dashboard-page .prereq-body {
+  flex: 1;
+}
+
+.dashboard-page .prereq-title {
+  font-family: var(--empty-font);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--empty-amber);
+  margin-bottom: 5px;
+  line-height: 1;
+}
+
+.dashboard-page .prereq-text {
+  font-family: var(--empty-font);
+  font-size: 12px;
+  color: #78350f;
+  line-height: 1.65;
+  margin-bottom: 10px;
+}
+
+.dashboard-page .prereq-text strong {
+  font-weight: 600;
+}
+
+.dashboard-page .prereq-links {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dashboard-page .prereq-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: var(--empty-font);
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--empty-amber);
+  background: rgba(180, 83, 9, 0.08);
+  border: 1px solid rgba(180, 83, 9, 0.2);
+  border-radius: 5px;
+  padding: 3px 9px;
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.12s;
+}
+
+.dashboard-page .prereq-link:hover {
+  background: rgba(180, 83, 9, 0.14);
+}
+
+.dashboard-page .prereq-link svg {
+  opacity: 0.7;
+}

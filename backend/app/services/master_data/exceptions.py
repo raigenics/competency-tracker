@@ -60,3 +60,13 @@ class ValidationError(MasterDataError):
             message=message,
             details={"field": field}
         )
+
+
+class EmbeddingError(MasterDataError):
+    """Embedding generation/persistence exception."""
+    
+    def __init__(self, message: str):
+        super().__init__(
+            message=message,
+            details={"error_type": "embedding"}
+        )

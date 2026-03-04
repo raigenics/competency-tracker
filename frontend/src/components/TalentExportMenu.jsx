@@ -10,6 +10,7 @@ import { Download, ChevronDown } from 'lucide-react';
  * @param {Function} onExportSelected - Callback when "Export Selected" is clicked
  * @param {boolean} isExporting - Whether export is in progress
  * @param {string} exportError - Error message to display (if any)
+ * @param {boolean} disabled - Whether the export button should be disabled (e.g., no results)
  */
 const TalentExportMenu = ({
   totalCount = 0,
@@ -17,10 +18,14 @@ const TalentExportMenu = ({
   onExportAll,
   onExportSelected,
   isExporting = false,
-  exportError = null
+  exportError = null,
+  disabled = false
 }) => {
   const [showMenu, setShowMenu] = useState(false);
   const menuRef = useRef(null);
+
+  // Determine if button should be disabled (no results or exporting)
+  const isButtonDisabled = disabled || isExporting || totalCount === 0;
 
   // Close menu when clicking outside or pressing Escape
   useEffect(() => {
@@ -62,29 +67,29 @@ const TalentExportMenu = ({
     <div className="flex flex-col items-end gap-2">
       <div className="relative" ref={menuRef}>
         <button
-          onClick={() => setShowMenu(!showMenu)}
-          disabled={isExporting}
-          className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-            isExporting
-              ? 'bg-blue-400 cursor-not-allowed'
-              : 'bg-blue-600 hover:bg-blue-700'
-          } text-white`}
+          onClick={() => !isButtonDisabled && setShowMenu(!showMenu)}
+          disabled={isButtonDisabled}
+          className={`flex items-center gap-2 h-9 px-3 rounded-[10px] border text-sm font-extrabold transition-colors ${
+            isButtonDisabled
+              ? 'bg-gray-100 text-gray-400 border-gray-200 cursor-not-allowed'
+              : 'bg-white text-gray-700 border-gray-200 hover:bg-gray-50 hover:border-gray-300 cursor-pointer'
+          }`}
         >
           {isExporting ? (
             <>
-              <div className="animate-spin h-4 w-4 border-2 border-white border-t-transparent rounded-full"></div>
+              <div className="animate-spin h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full"></div>
               Exporting...
             </>
           ) : (
             <>
               <Download className="h-4 w-4" />
               {buttonLabel}
-              <ChevronDown className="h-4 w-4" />
+              {!isButtonDisabled && <ChevronDown className="h-4 w-4" />}
             </>
           )}
         </button>
         
-        {showMenu && !isExporting && (
+        {showMenu && !isButtonDisabled && (
           <div className="absolute right-0 mt-2 w-56 bg-white rounded-lg shadow-lg border border-slate-200 py-2 z-10">
             <button
               onClick={handleExportAll}

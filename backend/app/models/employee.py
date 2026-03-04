@@ -36,6 +36,8 @@ class Employee(Base):
     deleted_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now(), default=func.now())
     updated_at = Column(DateTime(timezone=True), nullable=True, onupdate=func.now())
+    created_by = Column(String, nullable=False, server_default='')
+    deleted_by = Column(String, nullable=False, server_default='')
     
     # Relationships
     team = relationship("Team", back_populates="employees")

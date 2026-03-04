@@ -31,7 +31,7 @@ const AddUserModal = ({ onClose, onUserCreated }) => {
     if (linkEmployee && employees.length === 0) {
       loadEmployees();
     }
-  }, [linkEmployee]);
+  }, [linkEmployee, employees.length]);
 
   /**
    * Load employee list for dropdown

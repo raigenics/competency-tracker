@@ -1,12 +1,30 @@
 """
 Service for tracking employee skill changes and history.
 """
-from typing import Optional
+from typing import Optional, Union, Mapping, Any
 from sqlalchemy.orm import Session
 from datetime import datetime
 import uuid
 
 from app.models.employee_skill import EmployeeSkill
+
+
+def _get_field(obj: Optional[Union["EmployeeSkill", Mapping[str, Any]]], field: str) -> Any:
+    """
+    Safely retrieve a field from either an ORM object or a dict snapshot.
+    
+    Args:
+        obj: Either an EmployeeSkill ORM object or a dict snapshot
+        field: The field name to retrieve
+        
+    Returns:
+        The field value, or None if obj is None
+    """
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        return obj.get(field)
+    return getattr(obj, field, None)
 from app.models.skill_history import EmployeeSkillHistory, ChangeAction, ChangeSource
 from app.db.session import SessionLocal
 
@@ -21,7 +39,7 @@ class SkillHistoryService:
         self,
         employee_id: int,
         skill_id: int,
-        old_skill_record: Optional[EmployeeSkill],
+        old_skill_record: Optional[Union[EmployeeSkill, Mapping[str, Any]]],
         new_skill_record: EmployeeSkill,
         change_source: ChangeSource = ChangeSource.UI,
         changed_by: Optional[str] = None,
@@ -64,11 +82,11 @@ class SkillHistoryService:
             change_reason=change_reason,
             batch_id=batch_id,
             
-            # Old state
-            old_proficiency_level_id=old_skill_record.proficiency_level_id if old_skill_record else None,
-            old_years_experience=old_skill_record.years_experience if old_skill_record else None,
-            old_last_used=old_skill_record.last_used if old_skill_record else None,
-            old_certification=old_skill_record.certification if old_skill_record else None,
+            # Old state (supports both ORM objects and dict snapshots)
+            old_proficiency_level_id=_get_field(old_skill_record, 'proficiency_level_id'),
+            old_years_experience=_get_field(old_skill_record, 'years_experience'),
+            old_last_used=_get_field(old_skill_record, 'last_used'),
+            old_certification=_get_field(old_skill_record, 'certification'),
             
             # New state  
             new_proficiency_level_id=new_skill_record.proficiency_level_id if new_skill_record else None,

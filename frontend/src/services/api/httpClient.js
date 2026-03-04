@@ -249,7 +249,17 @@ class HttpClient {
       }
       
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Parse error response for structured error messages
+        let errorData;
+        try {
+          errorData = JSON.parse(text);
+        } catch {
+          errorData = { detail: text || `HTTP error! status: ${response.status}` };
+        }
+        const error = new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        error.status = response.status;
+        error.data = errorData;
+        throw error;
       }
       return JSON.parse(text);
     } catch (error) {

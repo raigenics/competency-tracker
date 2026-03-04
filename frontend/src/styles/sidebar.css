@@ -1,0 +1,186 @@
+/**
+ * Sidebar Navigation Styles
+ * ========================
+ * Exact replication of HTML wireframe styles.
+ * DO NOT modify colors, spacing, or typography.
+ */
+
+/* CSS Variables - sidebar-specific */
+.sidebar {
+  --bg: #0f172a;          /* sidebar background */
+  --bg-2: #111c36;        /* hover */
+  --text: #e5e7eb;        /* primary text */
+  --muted: #94a3b8;       /* section label */
+  --border: rgba(255,255,255,.08);
+  --active: #3b82f6;      /* accent */
+  --active-bg: rgba(59,130,246,.18);
+  --radius: 10px;
+}
+
+.sidebar {
+  width: 280px;
+  height: 100%;
+  background: var(--bg);
+  color: var(--text);
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+/* Brand Section */
+.brand {
+  padding: 18px 18px 14px;
+  border-bottom: 1px solid var(--border);
+}
+
+.brand__title {
+  font-weight: 700;
+  letter-spacing: .2px;
+  font-size: 18px;
+}
+
+.brand__subtitle {
+  color: var(--muted);
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+/* Nav Container */
+.nav {
+  padding: 14px 10px 18px;
+  overflow: auto;
+}
+
+/* Section */
+.section {
+  margin: 10px 0 14px;
+}
+
+.section__label {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  padding: 8px 10px;
+}
+
+/* Collapsible Section (details/summary) */
+details.section__collapsible {
+  border-radius: var(--radius);
+  padding: 0;
+}
+
+details.section__collapsible > summary {
+  list-style: none;
+  cursor: pointer;
+  user-select: none;
+  padding: 8px 10px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+details.section__collapsible > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Chevron Icon */
+.chev {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+details[open] .chev {
+  transform: rotate(180deg);
+}
+
+/* Nav List */
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 6px 6px 6px;
+}
+
+/* Nav Item (link) */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 10px;
+  border-radius: var(--radius);
+  color: var(--text);
+  text-decoration: none;
+  border: 1px solid transparent;
+}
+
+.nav-item:hover {
+  background: var(--bg-2);
+  border-color: var(--border);
+}
+
+/* Nav Item Icon */
+.nav-item__icon {
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: .95;
+  color: var(--muted);
+}
+
+/* Nav Item Text */
+.nav-item__text {
+  font-size: 14px;
+  line-height: 1.1;
+}
+
+/* Active State */
+.nav-item.is-active {
+  background: var(--active-bg);
+  border-color: rgba(59,130,246,.35);
+}
+
+.nav-item.is-active .nav-item__icon {
+  color: #bfdbfe;
+}
+
+.nav-item.is-active .nav-item__text {
+  color: #ffffff;
+  font-weight: 600;
+}
+
+.nav-item.is-active::before {
+  content: "";
+  width: 3px;
+  height: 18px;
+  background: var(--active);
+  border-radius: 999px;
+  margin-right: 6px;
+}
+
+/* Divider */
+.divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 10px;
+}
+
+/* RBAC: hide elements via hidden attribute */
+[hidden] {
+  display: none !important;
+}

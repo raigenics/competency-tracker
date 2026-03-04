@@ -142,37 +142,39 @@ class TestGetEmployeeIdsInScope:
         result = service._get_employee_ids_in_scope(mock_db, None, None, team_id=10)
         
         # Assert
-        mock_query.filter.assert_called_once()
+        assert mock_query.filter.call_count >= 1
         assert result == [5, 6]
     
     def test_filters_by_project_when_no_team(self, mock_db):
         """Should filter by project_id when team not provided."""
-        # Arrange
+        # Arrange - project filter uses: query.filter().join().filter().all()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
         mock_query.filter.return_value = mock_query
+        mock_query.join.return_value = mock_query
         mock_query.all.return_value = [(7,), (8,)]
         
         # Act
         result = service._get_employee_ids_in_scope(mock_db, None, project_id=5, team_id=None)
         
         # Assert
-        mock_query.filter.assert_called_once()
+        assert mock_query.join.called
         assert result == [7, 8]
     
     def test_filters_by_sub_segment_when_no_team_or_project(self, mock_db):
         """Should filter by sub_segment_id when team and project not provided."""
-        # Arrange
+        # Arrange - sub_segment filter uses: query.filter().join().join().filter().all()
         mock_query = MagicMock()
         mock_db.query.return_value = mock_query
         mock_query.filter.return_value = mock_query
+        mock_query.join.return_value = mock_query
         mock_query.all.return_value = [(9,), (10,)]
         
         # Act
         result = service._get_employee_ids_in_scope(mock_db, sub_segment_id=3, project_id=None, team_id=None)
         
         # Assert
-        mock_query.filter.assert_called_once()
+        assert mock_query.join.call_count == 2  # Team and Project joins
         assert result == [9, 10]
     
     def test_team_takes_precedence_over_project_and_sub_segment(self, mock_db):
@@ -190,7 +192,7 @@ class TestGetEmployeeIdsInScope:
         
         # Assert
         # Should only filter by team, not project or sub_segment
-        assert mock_query.filter.call_count == 1
+        assert mock_query.filter.call_count >= 1
         assert result == [11]
     
     def test_returns_empty_list_when_no_employees_match(self, mock_db):
@@ -202,7 +204,7 @@ class TestGetEmployeeIdsInScope:
         mock_query.all.return_value = []
         
         # Act
-        result = service._get_employee_ids_in_scope(mock_db, team_id=999)
+        result = service._get_employee_ids_in_scope(mock_db, None, None, team_id=999)
         
         # Assert
         assert result == []

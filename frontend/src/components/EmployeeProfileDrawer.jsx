@@ -88,7 +88,7 @@ const EmployeeProfileDrawer = ({
     
     setIsExporting(true);
     try {
-      // Reuse the same PDF export method used in MyProfilePage
+      // Reuse the same PDF export method used in EmployeeDirectory
       await employeeProfilePdfExportService.exportEmployeeProfile(profile, employees[currentIndex]);
     } catch (err) {
       console.error('PDF export failed:', err);

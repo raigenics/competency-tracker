@@ -94,32 +94,54 @@ export async function fetchSkillTaxonomy({ signal, search } = {}) {
  */
 
 /**
- * Update a category name.
+ * @typedef {Object} AliasCreateResponse
+ * @property {number} id - Alias ID (note: uses 'id' not 'alias_id')
+ * @property {string} alias_text - Alias text
+ * @property {number} skill_id - Parent skill ID
+ * @property {string} source - Source of the alias
+ * @property {number|null} confidence_score - Confidence score
+ * @property {string} message - Success message
+ */
+
+/**
+ * Update a category name and/or description.
  * 
  * @param {number} categoryId - Category ID to update
  * @param {string} categoryName - New category name
+ * @param {string|null} [description] - New description (pass null to keep unchanged, empty string to clear)
+ * @param {boolean} [updateDescription=false] - Whether to update description field
  * @returns {Promise<CategoryUpdateResponse>} Update response
  * @throws {Error} 404 if not found, 409 if duplicate name, 422 if validation error
  */
-export async function updateCategoryName(categoryId, categoryName) {
+export async function updateCategoryName(categoryId, categoryName, description = null, updateDescription = false) {
+  const body = { category_name: categoryName };
+  if (updateDescription) {
+    body.description = description;
+  }
   return httpClient.patch(
     `/master-data/skill-taxonomy/categories/${categoryId}`,
-    { category_name: categoryName }
+    body
   );
 }
 
 /**
- * Update a subcategory name.
+ * Update a subcategory name and/or description.
  * 
  * @param {number} subcategoryId - Subcategory ID to update
  * @param {string} subcategoryName - New subcategory name
+ * @param {string|null} [description] - New description (pass null to keep unchanged, empty string to clear)
+ * @param {boolean} [updateDescription=false] - Whether to update description field
  * @returns {Promise<SubcategoryUpdateResponse>} Update response
  * @throws {Error} 404 if not found, 409 if duplicate name within category, 422 if validation error
  */
-export async function updateSubcategoryName(subcategoryId, subcategoryName) {
+export async function updateSubcategoryName(subcategoryId, subcategoryName, description = null, updateDescription = false) {
+  const body = { subcategory_name: subcategoryName };
+  if (updateDescription) {
+    body.description = description;
+  }
   return httpClient.patch(
     `/master-data/skill-taxonomy/subcategories/${subcategoryId}`,
-    { subcategory_name: subcategoryName }
+    body
   );
 }
 
@@ -190,10 +212,14 @@ export async function createAlias(skillId, aliasText, source = 'manual', confide
  * @returns {Promise<CategoryCreateResponse>} Create response with new category
  * @throws {Error} 409 if duplicate name, 422 if validation error
  */
-export async function createCategory(categoryName) {
+export async function createCategory(categoryName, description = null) {
+  const payload = { category_name: categoryName };
+  if (description && description.trim()) {
+    payload.description = description.trim();
+  }
   return httpClient.post(
     '/master-data/skill-taxonomy/categories',
-    { category_name: categoryName }
+    payload
   );
 }
 
@@ -212,13 +238,18 @@ export async function createCategory(categoryName) {
  * 
  * @param {number} categoryId - Parent category ID
  * @param {string} subcategoryName - Subcategory name
+ * @param {string|null} [description] - Optional description
  * @returns {Promise<SubcategoryCreateResponse>} Create response with new subcategory
  * @throws {Error} 404 if category not found, 409 if duplicate name, 422 if validation error
  */
-export async function createSubcategory(categoryId, subcategoryName) {
+export async function createSubcategory(categoryId, subcategoryName, description = null) {
+  const body = { subcategory_name: subcategoryName };
+  if (description) {
+    body.description = description;
+  }
   return httpClient.post(
     `/master-data/skill-taxonomy/categories/${categoryId}/subcategories`,
-    { subcategory_name: subcategoryName }
+    body
   );
 }
 

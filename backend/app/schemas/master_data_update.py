@@ -18,6 +18,11 @@ class CategoryUpdateRequest(BaseModel):
         min_length=1,
         max_length=255
     )
+    description: Optional[str] = Field(
+        default=None,
+        description="New description for the category (use empty string to clear)",
+        max_length=500
+    )
     
     @field_validator('category_name')
     @classmethod
@@ -27,12 +32,21 @@ class CategoryUpdateRequest(BaseModel):
             if not v:
                 raise ValueError('category_name cannot be empty')
         return v
+    
+    @field_validator('description')
+    @classmethod
+    def validate_description(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.strip()
+            return v if v else None
+        return v
 
 
 class CategoryUpdateResponse(BaseModel):
     """Response schema for updated category."""
     id: int = Field(description="Category ID")
     name: str = Field(description="Category name")
+    description: Optional[str] = Field(default=None, description="Category description")
     created_at: Optional[datetime] = Field(default=None, description="Creation timestamp")
     created_by: Optional[str] = Field(default=None, description="Creator username")
     
@@ -48,6 +62,11 @@ class SubcategoryUpdateRequest(BaseModel):
         min_length=1,
         max_length=255
     )
+    description: Optional[str] = Field(
+        default=None,
+        description="New description for the subcategory (use empty string to clear)",
+        max_length=500
+    )
     
     @field_validator('subcategory_name')
     @classmethod
@@ -57,6 +76,14 @@ class SubcategoryUpdateRequest(BaseModel):
             if not v:
                 raise ValueError('subcategory_name cannot be empty')
         return v
+    
+    @field_validator('description')
+    @classmethod
+    def validate_description(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.strip()
+            return v if v else None
+        return v
 
 
 class SubcategoryUpdateResponse(BaseModel):
@@ -64,6 +91,7 @@ class SubcategoryUpdateResponse(BaseModel):
     id: int = Field(description="Subcategory ID")
     name: str = Field(description="Subcategory name")
     category_id: int = Field(description="Parent category ID")
+    description: Optional[str] = Field(default=None, description="Subcategory description")
     created_at: Optional[datetime] = Field(default=None, description="Creation timestamp")
     created_by: Optional[str] = Field(default=None, description="Creator username")
     
@@ -202,6 +230,11 @@ class CategoryCreateRequest(BaseModel):
         min_length=1,
         max_length=255
     )
+    description: Optional[str] = Field(
+        default=None,
+        description="Category description (optional)",
+        max_length=500
+    )
     
     @field_validator('category_name')
     @classmethod
@@ -210,12 +243,21 @@ class CategoryCreateRequest(BaseModel):
         if not v:
             raise ValueError('category_name cannot be empty')
         return v
+    
+    @field_validator('description')
+    @classmethod
+    def validate_description(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.strip()
+            return v if v else None
+        return None
 
 
 class CategoryCreateResponse(BaseModel):
     """Response schema for created category."""
     id: int = Field(description="Category ID")
     name: str = Field(description="Category name")
+    description: Optional[str] = Field(default=None, description="Category description")
     created_at: Optional[datetime] = Field(default=None, description="Creation timestamp")
     created_by: Optional[str] = Field(default=None, description="Creator username")
     message: str = Field(default="Category created successfully", description="Success message")
@@ -235,6 +277,11 @@ class SubcategoryCreateRequest(BaseModel):
         min_length=1,
         max_length=255
     )
+    description: Optional[str] = Field(
+        default=None,
+        description="Optional description for the subcategory",
+        max_length=500
+    )
     
     @field_validator('subcategory_name')
     @classmethod
@@ -243,6 +290,14 @@ class SubcategoryCreateRequest(BaseModel):
         if not v:
             raise ValueError('subcategory_name cannot be empty')
         return v
+    
+    @field_validator('description')
+    @classmethod
+    def validate_description(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            v = v.strip()
+            return v if v else None
+        return v
 
 
 class SubcategoryCreateResponse(BaseModel):
@@ -250,6 +305,7 @@ class SubcategoryCreateResponse(BaseModel):
     id: int = Field(description="Subcategory ID")
     name: str = Field(description="Subcategory name")
     category_id: int = Field(description="Parent category ID")
+    description: Optional[str] = Field(default=None, description="Subcategory description")
     created_at: Optional[datetime] = Field(default=None, description="Creation timestamp")
     created_by: Optional[str] = Field(default=None, description="Creator username")
     message: str = Field(default="Subcategory created successfully", description="Success message")

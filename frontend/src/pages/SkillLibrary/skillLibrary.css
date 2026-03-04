@@ -1,0 +1,1252 @@
+/**
+ * Skill Library page styles
+ * Exact pixel-level replication of provided HTML wireframe
+ * Scoped under .skill-library to avoid global style leakage
+ */
+
+/* CSS Variables for Skill Library - Matching Wireframe */
+.skill-library {
+  --sl-pageBg: #f8f7f5;
+  --sl-bg: #f8f7f5;
+  --sl-card: #ffffff;
+  --sl-cardBorder: #e7e9f0;
+  --sl-title: #0f172a;
+  --sl-sub: #64748b;
+  --sl-muted2: #94a3b8;
+  --sl-btn: #2563eb;
+  --sl-primary: #2563eb;
+  --sl-btnText: #fff;
+  --sl-btnGhost: #ffffff;
+  --sl-btnGhostText: #0f172a;
+  --sl-btnBorder: #e7e9f0;
+  --sl-brand-soft: #eef2ff;
+  --sl-radius: 14px;
+  --sl-shadow: 0 1px 0 rgba(0,0,0,.04), 0 10px 30px rgba(15,23,42,.06);
+  --sl-rowHover: #f8fafc;
+  --sl-danger: #ef4444;
+}
+
+/* Topbar */
+.skill-library .sl-topbar {
+  background: var(--sl-card);
+  border-bottom: 1px solid var(--sl-cardBorder);
+  padding: 18px 20px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.skill-library .sl-topbar .sl-title {
+  font-size: 20px;
+  font-weight: 950;
+  color: var(--sl-title);
+  line-height: 1.2;
+}
+
+.skill-library .sl-topbar .sl-subtitle {
+  margin-top: 6px;
+  font-size: 13px;
+  font-weight: 650;
+  color: var(--sl-sub);
+}
+
+.skill-library .sl-topbar-left {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.skill-library .sl-topbar-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+/* Buttons - Wireframe matching */
+.skill-library .sl-btn {
+  border: 1px solid var(--sl-primary);
+  border-radius: 12px;
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 800;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--sl-primary);
+  color: var(--sl-btnText);
+  box-shadow: 0 10px 20px rgba(37,99,235,.18);
+  transition: transform 0.1s;
+}
+
+.skill-library .sl-btn:active {
+  transform: translateY(1px);
+}
+
+.skill-library .sl-btn.ghost {
+  background: var(--sl-btnGhost);
+  color: var(--sl-btnGhostText);
+  border-color: var(--sl-btnBorder);
+  box-shadow: none;
+}
+
+.skill-library .sl-btn.subtle {
+  background: var(--sl-brand-soft);
+  border-color: #c7d2fe;
+  color: #1e40af;
+  box-shadow: none;
+}
+
+.skill-library .sl-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+/* Content area */
+.skill-library .sl-content {
+  padding: 18px 20px 22px;
+}
+
+/* Grid layout */
+.skill-library .sl-grid {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 14px;
+  align-items: start;
+}
+
+/* Card */
+.skill-library .sl-card {
+  background: var(--sl-card);
+  border: 1px solid var(--sl-cardBorder);
+  border-radius: var(--sl-radius);
+  box-shadow: var(--sl-shadow);
+  overflow: hidden;
+}
+
+.skill-library .sl-card-h {
+  padding: 14px 14px 10px;
+  border-bottom: 1px solid var(--sl-cardBorder);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.skill-library .sl-card-h .sl-h-title {
+  font-size: 14px;
+  font-weight: 950;
+  color: var(--sl-title);
+}
+
+.skill-library .sl-card-h .sl-h-sub {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--sl-sub);
+  margin-top: 4px;
+}
+
+.skill-library .sl-card-h-left {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Search - Wireframe matching */
+.skill-library .sl-search {
+  display: flex;
+  gap: 10px;
+  padding: 10px 14px;
+  align-items: center;
+}
+
+.skill-library .sl-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--sl-cardBorder);
+  outline: none;
+  font-size: 13px;
+  font-weight: 650;
+  background: #fff;
+}
+
+.skill-library .sl-input::placeholder {
+  color: var(--sl-muted2);
+  font-weight: 650;
+}
+
+.skill-library .sl-input:focus {
+  border-color: var(--sl-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}
+
+/* Tree - Wireframe matching */
+.skill-library .sl-tree {
+  padding: 6px 8px 12px;
+  max-height: 72vh;
+  overflow: auto;
+}
+
+.skill-library .sl-tree ul {
+  list-style: none;
+  padding-left: 0;
+  margin: 0;
+}
+
+.skill-library .sl-tree > ul {
+  padding-left: 0;
+}
+
+/* Category node */
+.skill-library .sl-node {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 16px;
+  height: 40px;
+  border-radius: 0;
+  cursor: pointer;
+  border: none;
+  border-left: 3px solid transparent;
+  background: transparent;
+  width: 100%;
+  user-select: none;
+  transition: background 0.1s;
+}
+
+.skill-library .sl-node:hover {
+  background: #ececec;
+}
+
+.skill-library .sl-node.selected {
+  background: #f0f0f0;
+  border-left-color: #1a1a1a;
+}
+
+.skill-library .sl-node-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.skill-library .sl-caret {
+  width: 14px;
+  text-align: center;
+  color: var(--sl-muted2);
+  font-weight: 900;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+/* Folder icon for categories */
+.skill-library .sl-folder-icon {
+  width: 14px;
+  height: 14px;
+  border-radius: 3px;
+  background: transparent;
+  border: 1.5px solid #bbb;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #888;
+  font-size: 9px;
+}
+
+/* Dot icon for subcategories */
+.skill-library .sl-dot-icon {
+  display: none;
+}
+
+.skill-library .sl-label {
+  font-weight: 500;
+  font-size: 11px;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0;
+}
+
+.skill-library .sl-count {
+  font-size: 12px;
+  font-weight: 900;
+  color: #0f172a;
+  background: rgba(15, 23, 42, 0.04);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  padding: 3px 8px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+
+/* Subtree (subcategories) */
+.skill-library .sl-subtree {
+  margin: 0;
+  padding-left: 0;
+  border-left: none;
+  background: #fafafa;
+  border-top: 1px solid #e8e8e8;
+  border-bottom: 1px solid #e8e8e8;
+}
+
+/* Subcategory node */
+.skill-library .sl-subnode {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 16px 0 42px;
+  height: 34px;
+  margin: 0;
+  border-radius: 0;
+  cursor: pointer;
+  border: none;
+  border-left: 3px solid transparent;
+  background: transparent;
+  width: 100%;
+  transition: background 0.1s;
+}
+
+.skill-library .sl-subnode:hover {
+  background: #ececec;
+}
+
+.skill-library .sl-subnode.selected {
+  background: #f0f0f0;
+  border-left-color: #1a1a1a;
+}
+
+.skill-library .sl-subnode-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Legacy support for old sl-muted-small */
+.skill-library .sl-muted-small {
+  font-size: 12px;
+  color: var(--sl-sub);
+  font-weight: 850;
+}
+
+/* Right panel */
+.skill-library .sl-panel {
+  padding: 0;
+  min-height: 520px;
+}
+
+.skill-library .sl-panel-header {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--sl-cardBorder);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.skill-library .sl-crumb {
+  font-size: 12px;
+  font-weight: 800;
+  color: var(--sl-sub);
+  margin-bottom: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.skill-library .sl-panel-title {
+  font-size: 20px;
+  font-weight: 950;
+  margin: 0;
+  color: var(--sl-title);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  line-height: 1.2;
+}
+
+.skill-library .sl-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--sl-brand-soft);
+  color: #1e40af;
+  border: 1px solid #c7d2fe;
+  font-weight: 900;
+}
+
+.skill-library .sl-iconbtn {
+  border: 1px solid var(--sl-cardBorder);
+  background: #fff;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 900;
+  color: #334155;
+}
+
+/* Smaller icon button variant for title actions */
+.skill-library .sl-iconbtn.sl-iconbtn-sm {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  font-size: 14px;
+}
+
+.skill-library .sl-iconbtn:hover {
+  background: var(--sl-rowHover);
+}
+
+.skill-library .sl-iconbtn-danger {
+  color: var(--sl-danger);
+  border-color: #fee2e2;
+  background: #fff;
+}
+
+.skill-library .sl-iconbtn-danger:hover {
+  background: #fef2f2;
+}
+
+.skill-library .sl-panel-body {
+  padding: 16px;
+}
+
+/* Key-value details box - Wireframe matching */
+.skill-library .sl-kv {
+  border: 1px solid var(--sl-cardBorder);
+  border-radius: 14px;
+  padding: 14px;
+  background: #fff;
+}
+
+.skill-library .sl-kv .sl-k {
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sl-sub);
+  font-weight: 900;
+  margin-bottom: 10px;
+}
+
+.skill-library .sl-kv-grid {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  row-gap: 10px;
+  column-gap: 10px;
+  font-size: 13px;
+  font-weight: 700;
+  align-items: start;
+}
+
+.skill-library .sl-kv-grid .sl-key {
+  color: #334155;
+  font-weight: 800;
+  padding-top: 2px;
+}
+
+.skill-library .sl-kv-grid .sl-val {
+  color: var(--sl-title);
+  font-weight: 900;
+}
+
+.skill-library .sl-kv-grid .sl-val small {
+  color: var(--sl-sub);
+  font-weight: 800;
+  margin-left: 8px;
+}
+
+/* List header - Wireframe matching */
+.skill-library .sl-list-head {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.skill-library .sl-list-title {
+  font-weight: 950;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1f2937;
+}
+
+/* Info section header - for TaxonomyCategorySubCategoriesPanel */
+.skill-library .info-section {
+  margin-top: 14px;
+  border: 1px solid var(--sl-cardBorder);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+}
+
+.skill-library .info-section-header {
+  padding: 12px 12px;
+  border-bottom: 1px solid var(--sl-cardBorder);
+  margin-bottom: 0;
+}
+
+.skill-library .info-section-title {
+  font-weight: 950;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #1f2937;
+}
+
+.skill-library .sl-list-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/* Mini search in table header */
+.skill-library .sl-mini-search {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--sl-cardBorder);
+  border-radius: 12px;
+  padding: 8px 10px;
+  min-width: 220px;
+  background: #fff;
+  color: var(--sl-sub);
+  font-weight: 800;
+  font-size: 12px;
+}
+
+.skill-library .sl-mini-search input {
+  border: none;
+  outline: none;
+  width: 100%;
+  font-weight: 750;
+  font-size: 12px;
+  background: transparent;
+  color: var(--sl-title);
+}
+
+.skill-library .sl-mini-search input::placeholder {
+  color: var(--sl-muted2);
+  font-weight: 650;
+}
+
+/* Table - Wireframe matching */
+.skill-library table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-top: 10px;
+  border: 1px solid var(--sl-cardBorder);
+  border-radius: 14px;
+  overflow: hidden;
+  background: #fff;
+}
+
+/* Tables inside info-section don't need double border */
+.skill-library .info-section table {
+  margin-top: 0;
+  border: none;
+  border-radius: 0;
+}
+
+.skill-library thead th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--sl-sub);
+  font-weight: 900;
+  padding: 10px 12px;
+  background: #fbfcff;
+  border-bottom: 1px solid var(--sl-cardBorder);
+}
+
+.skill-library tbody td {
+  padding: 12px;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 13px;
+  font-weight: 750;
+  color: #111827;
+  vertical-align: middle;
+}
+
+.skill-library tbody tr:hover {
+  background: var(--sl-rowHover);
+}
+
+.skill-library tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.skill-library .sl-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  white-space: nowrap;
+}
+
+.skill-library .sl-link {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--sl-primary);
+  font-weight: 900;
+  padding: 0;
+  margin-left: 12px;
+  text-decoration: none;
+}
+
+.skill-library .sl-danger {
+  color: var(--sl-danger);
+}
+
+.skill-library .sl-badge {
+  font-size: 12px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--sl-cardBorder);
+  background: #fff;
+  color: #475569;
+}
+
+/* Empty state */
+.skill-library .sl-empty {
+  padding: 40px 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  text-align: center;
+  color: #475569;
+}
+
+.skill-library .sl-empty h3 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.skill-library .sl-empty p {
+  margin: 0;
+  max-width: 520px;
+  font-size: 13px;
+}
+
+.skill-library .sl-steps {
+  text-align: left;
+  width: min(520px, 100%);
+  background: #fbfcff;
+  border: 1px solid var(--sl-cardBorder);
+  border-radius: 12px;
+  padding: 12px 14px;
+  margin-top: 8px;
+  color: #334155;
+  font-size: 13px;
+}
+
+.skill-library .sl-steps ol {
+  margin: 8px 0 0 18px;
+}
+
+.skill-library .sl-steps li {
+  margin: 6px 0;
+}
+
+/* Responsive - Wireframe matching */
+@media (max-width: 1120px) {
+  .skill-library .sl-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .skill-library .sl-tree {
+    max-height: 320px;
+  }
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   MODAL STYLES
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.skill-library .sl-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.skill-library .sl-modal {
+  background: var(--sl-card);
+  border-radius: var(--sl-radius);
+  border: 1px solid var(--sl-cardBorder);
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.18);
+  width: min(460px, 90vw);
+  max-height: 90vh;
+  overflow: auto;
+}
+
+.skill-library .sl-modal-header {
+  padding: 16px 18px 12px;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--sl-title);
+  border-bottom: 1px solid var(--sl-cardBorder);
+}
+
+.skill-library .sl-modal-body {
+  padding: 16px 18px;
+  font-size: 13px;
+  color: var(--sl-sub);
+  line-height: 1.5;
+}
+
+.skill-library .sl-modal-footer {
+  padding: 12px 18px 16px;
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--sl-cardBorder);
+}
+
+.skill-library .sl-btn-danger {
+  background: #ef4444;
+  color: #fff;
+  border-color: #ef4444;
+}
+
+.skill-library .sl-btn-danger:hover {
+  background: #dc2626;
+}
+
+/* Ghost danger button variant */
+.skill-library .sl-btn.ghost.danger {
+  color: var(--sl-danger);
+  border-color: #fecaca;
+}
+
+.skill-library .sl-btn.ghost.danger:hover {
+  background: #fef2f2;
+  border-color: #fca5a5;
+}
+
+.skill-library .sl-iconbtn-danger {
+  color: #ef4444;
+}
+
+.skill-library .sl-iconbtn-danger:hover {
+  background: #fef2f2;
+  border-color: #fecaca;
+}
+
+/* Category Title Edit */
+.skill-library .sl-title-text {
+  font-weight: 800;
+  color: var(--sl-title);
+}
+
+.skill-library .sl-title-actions {
+  display: inline-flex;
+  gap: 8px;
+  margin-left: 8px;
+}
+
+.skill-library .sl-title-edit-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-library .sl-title-input {
+  font-size: 18px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border: 1px solid var(--sl-cardBorder);
+  border-radius: 6px;
+  min-width: 200px;
+}
+
+.skill-library .sl-title-input:focus {
+  outline: none;
+  border-color: var(--sl-primary);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+/* Category Description Edit */
+.skill-library .sl-val-editable {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-library .sl-editable-desc {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+
+.skill-library .sl-editable-desc:hover {
+  color: var(--sl-primary);
+}
+
+.skill-library .sl-iconbtn-inline {
+  flex-shrink: 0;
+  padding: 4px 6px;
+  font-size: 12px;
+  opacity: 0.6;
+  border: none;
+  background: transparent;
+}
+
+.skill-library .sl-iconbtn-inline:hover {
+  opacity: 1;
+  background: #f1f5f9;
+}
+
+.skill-library .sl-desc-edit-container {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.skill-library .sl-desc-input {
+  font-size: 13px;
+  padding: 4px 8px;
+  border: 1px solid var(--sl-cardBorder);
+  border-radius: 6px;
+  min-width: 280px;
+  max-width: 450px;
+  font-family: inherit;
+}
+
+.skill-library .sl-desc-input:focus {
+  outline: none;
+  border-color: var(--sl-primary);
+  box-shadow: 0 0 0 2px rgba(79, 70, 229, 0.1);
+}
+
+.skill-library .sl-desc-actions {
+  display: inline-flex;
+  gap: 4px;
+}
+
+/* Form Modal inputs */
+.skill-library .sl-form-group {
+  margin-bottom: 14px;
+}
+
+.skill-library .sl-form-label {
+  display: block;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--sl-title);
+  margin-bottom: 6px;
+}
+
+.skill-library .sl-form-input,
+.skill-library .sl-form-textarea {
+  width: 100%;
+  padding: 8px 12px;
+  font-size: 13px;
+  border: 1px solid var(--sl-cardBorder);
+  border-radius: 6px;
+  background: var(--sl-bg);
+  color: var(--sl-title);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.skill-library .sl-form-input:focus,
+.skill-library .sl-form-textarea:focus {
+  outline: none;
+  border-color: var(--sl-primary);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.12);
+}
+
+.skill-library .sl-form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   SHARED MODAL STYLES (for CreateEditModal, DeleteConfirmModal, etc.)
+   These match the class names used by MasterData modal components
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.skill-library .modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  backdrop-filter: blur(2px);
+}
+
+.skill-library .modal-overlay.active {
+  display: flex;
+  animation: slFadeIn 0.2s;
+}
+
+@keyframes slFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slSlideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.skill-library .modal {
+  background: var(--sl-card);
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.18);
+  max-width: 500px;
+  width: 90%;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  animation: slSlideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: visible;
+}
+
+.skill-library .modal-header {
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--sl-cardBorder);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.skill-library .modal-title {
+  font-family: 'Inter', sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--sl-title);
+}
+
+.skill-library .modal-close {
+  width: 32px;
+  height: 32px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  font-size: 20px;
+  color: var(--sl-sub);
+}
+
+.skill-library .modal-close:hover {
+  background: var(--sl-bg);
+}
+
+.skill-library .modal-body {
+  padding: 16px 18px;
+  overflow-y: auto;
+}
+
+.skill-library .modal-footer {
+  padding: 12px 18px 16px;
+  border-top: 1px solid var(--sl-cardBorder);
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  overflow: visible;
+  flex-shrink: 0;
+}
+
+/* Form Elements for modals */
+.skill-library .form-group {
+  margin-bottom: 14px;
+}
+
+.skill-library .form-label {
+  display: block;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--sl-title);
+  margin-bottom: 6px;
+}
+
+.skill-library .form-label .required {
+  color: #ef4444;
+}
+
+.skill-library .form-input,
+.skill-library .form-textarea,
+.skill-library .form-select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--sl-cardBorder);
+  border-radius: 6px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--sl-card);
+  color: var(--sl-title);
+  transition: border 0.15s, box-shadow 0.15s;
+}
+
+.skill-library .form-input:focus,
+.skill-library .form-textarea:focus,
+.skill-library .form-select:focus {
+  outline: none;
+  border-color: var(--sl-primary);
+  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.1);
+}
+
+.skill-library .form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.skill-library .form-help {
+  font-size: 12px;
+  color: var(--sl-sub);
+  margin-top: 4px;
+}
+
+.skill-library .form-error {
+  color: #dc3545;
+  font-size: 13px;
+  margin-top: 8px;
+  padding: 8px 12px;
+  background-color: #fef2f2;
+  border-radius: 4px;
+}
+
+/* Modal buttons (using existing .btn classes from MasterData) */
+.skill-library .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 500;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  opacity: 1;
+  visibility: visible;
+}
+
+.skill-library .btn-primary {
+  background: var(--sl-primary);
+  color: #fff;
+  border-color: var(--sl-primary);
+  opacity: 1;
+  visibility: visible;
+}
+
+.skill-library .btn-primary:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.skill-library .btn-secondary {
+  background: var(--sl-card);
+  color: var(--sl-title);
+  border-color: var(--sl-cardBorder);
+}
+
+.skill-library .btn-secondary:hover {
+  background: var(--sl-bg);
+}
+
+.skill-library .btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   INLINE ADD/EDIT BUTTONS - Save/Cancel styling for tables
+   ========================================================================== */
+
+.skill-library .sl-inline-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease;
+  background: transparent;
+}
+
+.skill-library .sl-inline-btn-save {
+  background: var(--sl-primary, #2563eb);
+  color: #fff;
+  border-color: var(--sl-primary, #2563eb);
+}
+
+.skill-library .sl-inline-btn-save:hover:not(:disabled) {
+  background: #1d4ed8;
+  border-color: #1d4ed8;
+}
+
+.skill-library .sl-inline-btn-save:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.skill-library .sl-inline-btn-cancel {
+  background: var(--sl-card, #fff);
+  color: var(--sl-sub, #475569);
+  border-color: var(--sl-cardBorder, #e6eaf0);
+}
+
+.skill-library .sl-inline-btn-cancel:hover:not(:disabled) {
+  background: var(--sl-bg, #f6f8fb);
+  color: var(--sl-title, #0f172a);
+}
+
+.skill-library .sl-inline-btn-cancel:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ==========================================================================
+   TABLE ROW ACTIONS - Edit/Delete button spacing fix
+   ========================================================================== */
+
+.skill-library .row-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.skill-library .row-actions .action-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: var(--sl-primary, #2563eb);
+  border-radius: 4px;
+  transition: background-color 0.15s ease;
+}
+
+.skill-library .row-actions .action-link:hover {
+  background-color: var(--sl-bg, #f6f8fb);
+}
+
+.skill-library .row-actions .action-link.danger {
+  color: #dc2626;
+}
+
+.skill-library .row-actions .action-link.danger:hover {
+  background-color: #fef2f2;
+}
+
+/* ==========================================================================
+   SKILLS TABLE ROW ACTIONS - Buttons from SkillsTableRow component
+   ========================================================================== */
+
+.skill-library .skill-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.skill-library .skill-actions button {
+  padding: 4px 8px;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.skill-library .skill-actions .btn-edit {
+  background: transparent;
+  color: var(--sl-primary, #2563eb);
+}
+
+.skill-library .skill-actions .btn-edit:hover {
+  background: #eff6ff;
+}
+
+.skill-library .skill-actions .btn-delete {
+  background: transparent;
+  color: #dc2626;
+}
+
+.skill-library .skill-actions .btn-delete:hover {
+  background: #fef2f2;
+}
+
+.skill-library .skill-actions .btn-save {
+  background: #10b981;
+  color: white;
+}
+
+.skill-library .skill-actions .btn-save:hover {
+  background: #059669;
+}
+
+.skill-library .skill-actions .btn-cancel {
+  background: transparent;
+  color: var(--sl-sub, #475569);
+  border: 1px solid var(--sl-cardBorder, #e6eaf0);
+}
+
+.skill-library .skill-actions .btn-cancel:hover {
+  background: var(--sl-bg, #f6f8fb);
+}
+
+/* ==========================================================================
+   SKILLS TABLE INPUT - Inline edit text inputs
+   ========================================================================== */
+
+.skill-library .skills-table input[type="text"] {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--sl-cardBorder, #e6eaf0);
+  border-radius: 4px;
+  font-size: 14px;
+  font-family: inherit;
+  background: var(--sl-card, #fff);
+  color: var(--sl-title, #0f172a);
+}
+
+.skill-library .skills-table input[type="text"]:focus {
+  outline: none;
+  border-color: var(--sl-primary, #2563eb);
+  box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.1);
+}

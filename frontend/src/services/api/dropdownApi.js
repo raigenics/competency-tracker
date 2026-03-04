@@ -149,5 +149,26 @@ export const dropdownApi = {
       console.error(`Failed to fetch teams for project ${projectId}:`, error);
       throw error;
     }
+  },
+
+  // Get sub-segments scope info (with fullname support and aggregate counts)
+  // Returns: { sub_segments: [{id, name, fullname}], total_employees, total_projects }
+  async getSubSegmentsScope() {
+    apiLog('SUBSEGMENTS_SCOPE', 'call-start');
+    const startTime = performance.now();
+    try {
+      const response = await fetch(`${API_BASE_URL}/dropdown/sub-segments-scope`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      const data = await response.json();
+      const duration = (performance.now() - startTime).toFixed(1);
+      apiLog('SUBSEGMENTS_SCOPE', 'call-end', { duration: duration + 'ms', count: data?.sub_segments?.length || 0 });
+      return data; // Returns { sub_segments, total_employees, total_projects }
+    } catch (error) {
+      apiLog('SUBSEGMENTS_SCOPE', 'call-error', { error: error.message });
+      console.error('Failed to fetch sub-segments scope:', error);
+      throw error;
+    }
   }
 };

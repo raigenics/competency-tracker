@@ -2,18 +2,20 @@
 API routes for role/designation CRUD operations.
 
 Thin controller - delegates to roles_service.
-Supports Create, Read, Update, and Soft Delete operations.
+Supports Create, Read, Update, Soft Delete, and Import operations.
 """
 import logging
 from typing import List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File
 from sqlalchemy.orm import Session
+from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, Field
 
 from app.db.session import get_db
 from app.schemas.dropdown import RoleDropdown
 from app.schemas.role import RoleCreate, RoleResponse
 from app.services import roles_service
+from app.services.roles_import_service import import_roles_from_excel
 
 logger = logging.getLogger(__name__)
 
@@ -28,6 +30,21 @@ class BulkDeleteRequest(BaseModel):
 class BulkDeleteResponse(BaseModel):
     """Response for bulk delete operation."""
     deleted_count: int = Field(description="Number of roles deleted")
+
+
+class ImportFailure(BaseModel):
+    """Details of a failed import row."""
+    row_number: int = Field(description="Excel row number (1-indexed)")
+    role_name: str = Field(description="Role name from the row")
+    reason: str = Field(description="Reason for failure")
+
+
+class ImportRolesResponse(BaseModel):
+    """Response for roles import operation."""
+    total_rows: int = Field(description="Total data rows in Excel file")
+    success_count: int = Field(description="Number of roles successfully imported")
+    failure_count: int = Field(description="Number of rows that failed")
+    failures: List[ImportFailure] = Field(description="Details of failed rows")
 
 
 @router.get("/", response_model=List[RoleDropdown])
@@ -79,16 +96,82 @@ async def get_role(role_id: int, db: Session = Depends(get_db)):
     return role
 
 
+@router.post("/import", response_model=ImportRolesResponse)
+async def import_roles(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db)
+):
+    """
+    Import roles from an Excel file.
+    
+    Expected Excel columns: Role Name, Alias, Role Description
+    
+    Performs duplicate detection checking:
+    - role_name vs existing role_names
+    - role_name vs existing alias tokens
+    - alias tokens vs existing role_names
+    - alias tokens vs existing alias tokens
+    
+    Args:
+        file: Excel file (.xlsx) with roles data
+        
+    Returns:
+        Import result with success/failure counts and failure details
+    """
+    logger.info(f"Importing roles from file: {file.filename}")
+    
+    # Validate file type
+    if not file.filename or not file.filename.lower().endswith(('.xlsx', '.xls')):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Please upload an Excel file (.xlsx or .xls)"
+        )
+    
+    try:
+        # Read file content
+        file_content = await file.read()
+        
+        # TODO: Get actual user from auth when available
+        created_by = "system"
+        
+        # Import roles
+        result = import_roles_from_excel(db, file_content, created_by)
+        
+        logger.info(
+            f"Import complete: {result.success_count}/{result.total_rows} succeeded, "
+            f"{result.failure_count} failed"
+        )
+        
+        return ImportRolesResponse(
+            total_rows=result.total_rows,
+            success_count=result.success_count,
+            failure_count=result.failure_count,
+            failures=[
+                ImportFailure(**f) for f in result.failures
+            ]
+        )
+        
+    except Exception as e:
+        logger.error(f"Error importing roles: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error importing roles: {str(e)}"
+        )
+
+
 @router.post("/", response_model=RoleResponse, status_code=status.HTTP_201_CREATED)
 async def create_role(role_data: RoleCreate, db: Session = Depends(get_db)):
     """
     Create a new role.
     
     Args:
-        role_data: Role name and optional description
+        role_data: Role name, optional alias, and optional description
         
     Returns:
-        Created role with role_id, role_name, role_description
+        Created role with role_id, role_name, role_alias, role_description
+        
+    Raises:
+        409: If role name already exists or conflicts with existing alias
     """
     logger.info(f"Creating new role: {role_data.role_name}")
     
@@ -99,6 +182,7 @@ async def create_role(role_data: RoleCreate, db: Session = Depends(get_db)):
         role = roles_service.create_role(
             db=db,
             role_name=role_data.role_name,
+            role_alias=role_data.role_alias,
             role_description=role_data.role_description,
             created_by=created_by
         )
@@ -106,6 +190,25 @@ async def create_role(role_data: RoleCreate, db: Session = Depends(get_db)):
         logger.info(f"Created role with ID: {role['role_id']}")
         return role
         
+    except ValueError as e:
+        error_msg = str(e)
+        if "already exists" in error_msg.lower() or "conflicts with" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=error_msg
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
+    except IntegrityError as e:
+        # DB constraint violation (race condition or missed pre-check)
+        db.rollback()
+        logger.warning(f"IntegrityError creating role '{role_data.role_name}': {e}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Role '{role_data.role_name}' already exists"
+        )
     except Exception as e:
         logger.error(f"Error creating role: {str(e)}", exc_info=True)
         raise HTTPException(
@@ -121,13 +224,14 @@ async def update_role(role_id: int, role_data: RoleCreate, db: Session = Depends
     
     Args:
         role_id: ID of the role to update
-        role_data: New role name and optional description
+        role_data: New role name, optional alias, and optional description
         
     Returns:
-        Updated role with role_id, role_name, role_description
+        Updated role with role_id, role_name, role_alias, role_description
         
     Raises:
         404: If role not found or already deleted
+        409: If role name already exists or conflicts with existing alias
     """
     logger.info(f"Updating role with ID: {role_id}")
     
@@ -136,6 +240,7 @@ async def update_role(role_id: int, role_data: RoleCreate, db: Session = Depends
             db=db,
             role_id=role_id,
             role_name=role_data.role_name,
+            role_alias=role_data.role_alias,
             role_description=role_data.role_description
         )
         
@@ -148,8 +253,27 @@ async def update_role(role_id: int, role_data: RoleCreate, db: Session = Depends
         logger.info(f"Updated role with ID: {role_id}")
         return role
         
+    except ValueError as e:
+        error_msg = str(e)
+        if "already exists" in error_msg.lower() or "conflicts with" in error_msg.lower():
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=error_msg
+            )
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=error_msg
+        )
     except HTTPException:
         raise
+    except IntegrityError as e:
+        # DB constraint violation (race condition or missed pre-check)
+        db.rollback()
+        logger.warning(f"IntegrityError updating role {role_id}: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Role '{role_data.role_name}' already exists"
+        )
     except Exception as e:
         logger.error(f"Error updating role: {str(e)}", exc_info=True)
         raise HTTPException(

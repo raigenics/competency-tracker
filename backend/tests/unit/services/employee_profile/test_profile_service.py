@@ -357,3 +357,128 @@ class TestFormatDate:
         for input_date, expected in dates:
             result = profile_service._format_date(input_date)
             assert result == expected
+
+
+class TestGetCurrentAllocation:
+    """Test the _get_current_allocation() function."""
+    
+    def test_returns_allocation_for_current_project(self):
+        """Should return allocation percentage for current project."""
+        # Arrange
+        employee = Mock()
+        employee.project_id = 100
+        
+        allocation = Mock()
+        allocation.project_id = 100
+        allocation.end_date = None  # Active allocation
+        allocation.allocation_pct = 75
+        
+        employee.project_allocations = [allocation]
+        
+        # Act
+        result = profile_service._get_current_allocation(employee)
+        
+        # Assert
+        assert result == 75
+    
+    def test_returns_none_when_no_allocations(self):
+        """Should return None when employee has no project allocations."""
+        # Arrange
+        employee = Mock()
+        employee.project_id = 100
+        employee.project_allocations = []
+        
+        # Act
+        result = profile_service._get_current_allocation(employee)
+        
+        # Assert
+        assert result is None
+    
+    def test_returns_none_when_no_current_project(self):
+        """Should return None when employee has no current project_id."""
+        # Arrange
+        employee = Mock()
+        employee.project_id = None
+        
+        # Must have allocations to pass first check and reach project_id check
+        allocation = Mock()
+        allocation.project_id = 100
+        allocation.end_date = None
+        allocation.allocation_pct = 50
+        employee.project_allocations = [allocation]
+        
+        # Act
+        result = profile_service._get_current_allocation(employee)
+        
+        # Assert
+        assert result is None
+    
+    def test_returns_none_when_allocation_has_end_date(self):
+        """Should return None when allocation is not active (has end_date)."""
+        # Arrange
+        employee = Mock()
+        employee.project_id = 100
+        
+        allocation = Mock()
+        allocation.project_id = 100
+        allocation.end_date = date(2024, 12, 31)  # Ended allocation
+        allocation.allocation_pct = 50
+        
+        employee.project_allocations = [allocation]
+        
+        # Act
+        result = profile_service._get_current_allocation(employee)
+        
+        # Assert
+        assert result is None
+    
+    def test_returns_none_when_allocation_is_for_different_project(self):
+        """Should return None when allocations are for different projects."""
+        # Arrange
+        employee = Mock()
+        employee.project_id = 100
+        
+        allocation = Mock()
+        allocation.project_id = 200  # Different project
+        allocation.end_date = None
+        allocation.allocation_pct = 100
+        
+        employee.project_allocations = [allocation]
+        
+        # Act
+        result = profile_service._get_current_allocation(employee)
+        
+        # Assert
+        assert result is None
+    
+    def test_finds_correct_allocation_among_multiple(self):
+        """Should find the active allocation for current project among multiple."""
+        # Arrange
+        employee = Mock()
+        employee.project_id = 100
+        
+        # Past allocation (ended)
+        old_allocation = Mock()
+        old_allocation.project_id = 100
+        old_allocation.end_date = date(2023, 12, 31)
+        old_allocation.allocation_pct = 50
+        
+        # Current allocation (active)
+        current_allocation = Mock()
+        current_allocation.project_id = 100
+        current_allocation.end_date = None
+        current_allocation.allocation_pct = 80
+        
+        # Different project allocation
+        other_allocation = Mock()
+        other_allocation.project_id = 200
+        other_allocation.end_date = None
+        other_allocation.allocation_pct = 100
+        
+        employee.project_allocations = [old_allocation, current_allocation, other_allocation]
+        
+        # Act
+        result = profile_service._get_current_allocation(employee)
+        
+        # Assert
+        assert result == 80

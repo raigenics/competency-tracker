@@ -1,0 +1,34 @@
+trigger:
+- staging
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  azureServiceConnection: 'Siemens-msa-001457-EngageHive'
+  appName: 'app-competencyiq-stg-api'
+
+steps:
+- task: UsePythonVersion@0
+  inputs:
+    versionSpec: '3.11'
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install -r backend/requirements.txt -t backend/.python_packages/lib/site-packages
+  displayName: "Bundle Python dependencies into .python_packages"
+
+- task: ArchiveFiles@2
+  inputs:
+    rootFolderOrFile: backend
+    includeRootFolder: false
+    archiveType: zip
+    archiveFile: $(Build.ArtifactStagingDirectory)/app.zip
+    replaceExistingArchive: true
+
+- task: AzureWebApp@1
+  inputs:
+    azureSubscription: $(azureServiceConnection)
+    appName: $(appName)
+    package: $(Build.ArtifactStagingDirectory)/app.zip
+    deploymentMethod: zipDeploy

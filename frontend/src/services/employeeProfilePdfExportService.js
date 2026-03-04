@@ -269,7 +269,7 @@ class EmployeeProfilePdfExportService {
           5: { cellWidth: 'auto' } // Certifications
         },
         margin: { left: margin, right: margin },
-        didDrawPage: (data) => {
+        didDrawPage: (_data) => {
           // Add page numbers
           const pageCount = doc.internal.getNumberOfPages();
           const currentPage = doc.internal.getCurrentPageInfo().pageNumber;

@@ -113,15 +113,6 @@ const ComboBox = ({
     setSearchTerm('');
   };
 
-  const getDisplayValue = () => {
-    if (multi) {
-      return selectedValues.length > 0 
-        ? `${selectedValues.length} selected`
-        : '';
-    }
-    return value || '';
-  };
-
   return (
     <div ref={containerRef} className={`relative ${className}`}>
       {/* Input Field */}

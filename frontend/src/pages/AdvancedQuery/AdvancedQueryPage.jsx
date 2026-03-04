@@ -1,13 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Search, Filter } from 'lucide-react';
 import QueryBuilderPanel from './components/QueryBuilderPanel';
 import QueryResultsTable from './components/QueryResultsTable';
 import TalentExportMenu from '../../components/TalentExportMenu';
 import LoadingState from '../../components/LoadingState';
-import EmptyState from '../../components/EmptyState';
-import PageHeader from '../../components/PageHeader.jsx';
+import PageHeader from '../../components/PageHeader';
 import capabilityFinderApi from '../../services/api/capabilityFinderApi';
 import talentExportService from '../../services/talentExportService';
+import './CapabilityFinder.css';
 
 const AdvancedQueryPage = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -16,7 +15,9 @@ const AdvancedQueryPage = () => {
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState(null);
-  const [hasSearched, setHasSearched] = useState(false);  const [currentQuery, setCurrentQuery] = useState({
+  const [hasSearched, setHasSearched] = useState(false);
+  const [matchMode, setMatchMode] = useState('all'); // 'all' or 'any'
+  const [currentQuery, setCurrentQuery] = useState({
     skills: [],
     subSegment: 'all',
     team: '',
@@ -25,7 +26,7 @@ const AdvancedQueryPage = () => {
     experience: { min: 0, max: 20 }
   });
 
-  const [showQueryBuilder, setShowQueryBuilder] = useState(true);
+  const [_showQueryBuilder, _setShowQueryBuilder] = useState(true);
 
   // Clear selection when new search results load
   useEffect(() => {
@@ -46,6 +47,7 @@ const AdvancedQueryPage = () => {
       // Build API payload
       const payload = {
         skills: currentQuery.skills,
+        match_mode: matchMode.toUpperCase(), // 'ALL' or 'ANY'
         sub_segment_id: currentQuery.subSegment === 'all' ? null : parseInt(currentQuery.subSegment),
         team_id: currentQuery.team ? parseInt(currentQuery.team) : null,
         role: currentQuery.role || null,
@@ -62,6 +64,7 @@ const AdvancedQueryPage = () => {
         role: emp.role,
         team: emp.team,
         subSegment: emp.sub_segment,
+        project: emp.project || '',
         skills: emp.top_skills.map(skill => ({
           name: skill.name,
           proficiency: skill.proficiency
@@ -75,12 +78,6 @@ const AdvancedQueryPage = () => {
       setQueryResults([]);
     } finally {
       setIsLoading(false);
-    }
-  };  const handleSaveQuery = () => {
-    const queryName = prompt("Enter a name for this query:");
-    if (queryName) {
-      // Query saving logic can be implemented here if needed
-      console.log("Query saved:", queryName, currentQuery);
     }
   };
 
@@ -131,102 +128,77 @@ const AdvancedQueryPage = () => {
     }
   };
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      <PageHeader 
-        title="Capability Finder"
-        subtitle="Start by selecting one or more skills. You can optionally refine by sub-segment, team, role, proficiency, or experience."
-      />
-      
-      <div className="p-8">
-        <div className="max-w-screen-2xl mx-auto">
-          <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          {/* Query Builder Panel */}
-          <div className="lg:col-span-4">
-            <div className="bg-white rounded-lg border border-slate-200 p-6">
-              <div className="flex items-center justify-between mb-4">
-                <h2 className="text-lg font-semibold text-slate-900 flex items-center gap-2">
-                  <Filter className="h-5 w-5" />
-                  Find Talent By
-                </h2>
-                <button
-                  onClick={() => setShowQueryBuilder(!showQueryBuilder)}
-                  className="lg:hidden text-slate-500 hover:text-slate-700"
-                >
-                  {showQueryBuilder ? 'Hide' : 'Show'}
-                </button>
-              </div>
-              
-              {showQueryBuilder && (
-                <QueryBuilderPanel
-                  query={currentQuery}
-                  onQueryChange={setCurrentQuery}
-                  onSearch={handleSearch}
-                  onClearFilters={handleClearFilters}
-                  isLoading={isLoading}
-                  hasSearched={hasSearched}
-                />
-              )}
-            </div>
-          </div>          {/* Results Panel */}
-          <div className="lg:col-span-8">
-            <div className="bg-white rounded-lg border border-slate-200">
-              <div className="border-b border-slate-200 p-6">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-semibold text-slate-900">
-                    Matching Talent ({queryResults.length})
-                  </h2>
-                  {queryResults.length > 0 && (
-                    <TalentExportMenu
-                      totalCount={queryResults.length}
-                      selectedCount={selectedIds.size}
-                      onExportAll={handleExportAll}
-                      onExportSelected={handleExportSelected}
-                      isExporting={isExporting}
-                      exportError={exportError}
-                    />
-                  )}
-                </div>
-              </div>              <div className="p-6">
-                {isLoading ? (
-                  <LoadingState message="Searching employees..." />
-                ) : error ? (
-                  <EmptyState
-                    icon={Search}
-                    title="Search failed"
-                    description={error}
-                  />
-                ) : queryResults.length === 0 ? (
-                  hasSearched ? (
-                    <EmptyState
-                      icon={Search}
-                      title="❌ No matching talent found"
-                      description="Try adjusting skills, proficiency, or experience filters."
-                    />
-                  ) : currentQuery.skills.length > 0 ? (
-                    <EmptyState
-                      icon={Search}
-                      title="🔍 Ready to search"
-                      description='Click "Find Matching Talent" to see matching employees.'
-                    />
-                  ) : (
-                    <EmptyState
-                      icon={Search}
-                      title="🔍 No results yet"
-                      description='Select skills and click "Find Matching Talent" to discover employees.'
-                    />
-                  )
-                ) : (
-                  <QueryResultsTable
-                    results={queryResults}
-                    selectedIds={selectedIds}
-                    onSelectionChange={handleSelectionChange}
-                  />
-                )}
-              </div>
-            </div>
-          </div>        </div>
+    <div className="capability-finder">
+      {/* Wrapper added to constrain PageHeader border width to match Dashboard (26px horizontal padding) */}
+      <div style={{ padding: '0 26px' }}>
+        <PageHeader
+          title="Capability Finder"
+          subtitle="Select skills and optional filters to find matching employees."
+        />
       </div>
-    </div>
+
+      {/* Main Grid - 380px left, flex right */}
+      <div className="cf-grid">
+        {/* LEFT: Filters Card */}
+        <section className="cf-card" aria-label="Filters">
+          <h3>Find Talent By</h3>
+          
+          <QueryBuilderPanel
+            query={currentQuery}
+            onQueryChange={setCurrentQuery}
+            onSearch={handleSearch}
+            onClearFilters={handleClearFilters}
+            isLoading={isLoading}
+            hasSearched={hasSearched}
+            matchMode={matchMode}
+            onMatchModeChange={setMatchMode}
+          />
+        </section>
+
+        {/* RIGHT: Results Card */}
+        <section className="cf-card" aria-label="Results">
+          <div className="cf-topbar">
+            <div className="cf-count">Matching Talent ({queryResults.length})</div>
+            <TalentExportMenu
+              totalCount={queryResults.length}
+              selectedCount={selectedIds.size}
+              onExportAll={handleExportAll}
+              onExportSelected={handleExportSelected}
+              isExporting={isExporting}
+              exportError={exportError}
+              disabled={queryResults.length === 0}
+            />
+          </div>
+
+          {isLoading ? (
+            <LoadingState message="Searching employees..." />
+          ) : error ? (
+            <div className="cf-empty">
+              <div className="cf-empty-title">Search failed</div>
+              <div className="cf-empty-sub">{error}</div>
+            </div>
+          ) : queryResults.length === 0 ? (
+            hasSearched ? (
+              <div className="cf-empty">
+                <div className="cf-empty-title">No matching employees found</div>
+                <div className="cf-empty-sub">Try lowering proficiency or switching Match Mode to "Any skill".</div>
+              </div>
+            ) : (
+              <div className="cf-empty">
+                <div className="cf-empty-title">No search performed</div>
+                <div className="cf-empty-sub">Select skills and click Search to view matching employees.</div>
+              </div>
+            )
+          ) : (
+            <QueryResultsTable
+              results={queryResults}
+              selectedIds={selectedIds}
+              onSelectionChange={handleSelectionChange}
+              selectedSkillsCount={currentQuery.skills?.length || 0}
+            />
+          )}
+        </section>
+      </div>
     </div>
   );
 };

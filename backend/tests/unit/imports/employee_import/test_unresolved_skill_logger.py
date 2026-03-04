@@ -16,9 +16,9 @@ import pytest
 from unittest.mock import Mock, MagicMock, patch, mock_open
 from datetime import datetime
 from pathlib import Path
-from backend.app.services.imports.employee_import.unresolved_skill_logger import UnresolvedSkillLogger
-from backend.app.models.raw_skill_input import RawSkillInput
-from backend.app.models import Employee, SubSegment
+from app.services.imports.employee_import.unresolved_skill_logger import UnresolvedSkillLogger
+from app.models.raw_skill_input import RawSkillInput
+from app.models import Employee, SubSegment
 
 
 class TestUnresolvedSkillLoggerInit:
@@ -49,8 +49,12 @@ class TestRecordUnresolvedSkill:
     
     @pytest.fixture
     def mock_db(self):
-        """Create mock database session."""
-        return Mock()
+        """Create mock database session with nested transaction support."""
+        db = Mock()
+        # Mock begin_nested() context manager for savepoint support
+        db.begin_nested.return_value.__enter__ = Mock(return_value=None)
+        db.begin_nested.return_value.__exit__ = Mock(return_value=False)
+        return db
     
     @pytest.fixture
     def logger_instance(self, mock_db):
@@ -61,6 +65,16 @@ class TestRecordUnresolvedSkill:
     def timestamp(self):
         """Create fixed timestamp for testing."""
         return datetime(2025, 1, 15, 10, 30, 0)
+    
+    @pytest.fixture(autouse=True)
+    def reset_class_state(self):
+        """Reset class-level state before each test."""
+        UnresolvedSkillLogger._use_new_schema = True
+        UnresolvedSkillLogger._schema_warning_logged = False
+        yield
+        # Clean up after test
+        UnresolvedSkillLogger._use_new_schema = True
+        UnresolvedSkillLogger._schema_warning_logged = False
     
     def test_creates_raw_skill_input_record(self, logger_instance, mock_db, timestamp):
         """Should create RawSkillInput record with correct fields."""
@@ -129,7 +143,8 @@ class TestRecordUnresolvedSkill:
                 timestamp=timestamp
             )
         
-        mock_log_file.assert_called_once_with("FileSkill", 456, 7, timestamp)
+        # _log_to_file now includes resolution_method and confidence (None for unresolved)
+        mock_log_file.assert_called_once_with("FileSkill", 456, 7, timestamp, None, None)
     
     def test_logs_info_message(self, logger_instance, mock_db, timestamp, caplog):
         """Should log info message when skill is recorded."""
@@ -388,13 +403,25 @@ class TestUnresolvedSkillLoggerIntegration:
     
     @pytest.fixture
     def mock_db(self):
-        """Create mock database session."""
-        return Mock()
+        """Create mock database session with nested transaction support."""
+        db = Mock()
+        db.begin_nested.return_value.__enter__ = Mock(return_value=None)
+        db.begin_nested.return_value.__exit__ = Mock(return_value=False)
+        return db
     
     @pytest.fixture
     def timestamp(self):
         """Create fixed timestamp for testing."""
         return datetime(2025, 1, 15, 10, 30, 0)
+    
+    @pytest.fixture(autouse=True)
+    def reset_class_state(self):
+        """Reset class-level state before each test."""
+        UnresolvedSkillLogger._use_new_schema = True
+        UnresolvedSkillLogger._schema_warning_logged = False
+        yield
+        UnresolvedSkillLogger._use_new_schema = True
+        UnresolvedSkillLogger._schema_warning_logged = False
     
     def test_records_multiple_unresolved_skills(self, mock_db, timestamp):
         """Should handle multiple unresolved skills in sequence."""
@@ -445,3 +472,216 @@ class TestUnresolvedSkillLoggerIntegration:
         added_record = mock_db.add.call_args[0][0]
         assert added_record.normalized_text == "machine_learning"
         assert added_record.raw_text == "Machine Learning"
+
+
+class TestSchemaBackwardsCompatibility:
+    """Test backwards compatibility for missing job_id/status columns."""
+    
+    @pytest.fixture
+    def mock_db(self):
+        """Create mock database session."""
+        db = Mock()
+        db.begin_nested = MagicMock(return_value=MagicMock(__enter__=MagicMock(), __exit__=MagicMock()))
+        return db
+    
+    @pytest.fixture
+    def timestamp(self):
+        """Create fixed timestamp for testing."""
+        return datetime(2025, 1, 15, 10, 30, 0)
+    
+    @pytest.fixture(autouse=True)
+    def reset_class_state(self):
+        """Reset class-level state before each test."""
+        UnresolvedSkillLogger._use_new_schema = True
+        UnresolvedSkillLogger._schema_warning_logged = False
+        yield
+        # Clean up after test
+        UnresolvedSkillLogger._use_new_schema = True
+        UnresolvedSkillLogger._schema_warning_logged = False
+    
+    def test_falls_back_to_file_only_on_missing_column(self, mock_db, timestamp, caplog):
+        """Should fall back to file-only logging when job_id column is missing."""
+        import logging
+        from sqlalchemy.exc import ProgrammingError
+        
+        logger = UnresolvedSkillLogger(mock_db)
+        
+        # Simulate UndefinedColumn error
+        mock_db.begin_nested.return_value.__enter__ = MagicMock()
+        mock_db.begin_nested.return_value.__exit__ = MagicMock(return_value=False)
+        mock_db.flush.side_effect = ProgrammingError(
+            "INSERT INTO raw_skill_inputs",
+            {},
+            Exception('column "job_id" of relation "raw_skill_inputs" does not exist')
+        )
+        
+        mock_employee = Mock(spec=Employee, full_name="John Doe", zid="Z1001")
+        mock_sub_segment = Mock(spec=SubSegment, sub_segment_name="Dev")
+        
+        def query_side_effect(model):
+            q = Mock()
+            q.filter.return_value.first.return_value = mock_employee if model == Employee else mock_sub_segment
+            return q
+        
+        mock_db.query.side_effect = query_side_effect
+        
+        m_open = mock_open()
+        with patch('builtins.open', m_open):
+            with caplog.at_level(logging.WARNING):
+                # Should not raise - fall back to file logging
+                logger.record_unresolved_skill("TestSkill", 123, 5, timestamp)
+        
+        # Verify warning was logged
+        assert "raw_skill_inputs table missing job_id/status columns" in caplog.text
+        assert "alembic upgrade head" in caplog.text
+        
+        # Verify class flag is set
+        assert UnresolvedSkillLogger._use_new_schema is False
+    
+    def test_skips_db_after_schema_detection(self, mock_db, timestamp):
+        """Should skip DB entirely after schema is detected as outdated."""
+        logger = UnresolvedSkillLogger(mock_db)
+        
+        # Pre-set the flag as if schema was already detected as outdated
+        UnresolvedSkillLogger._use_new_schema = False
+        
+        mock_employee = Mock(spec=Employee, full_name="John Doe", zid="Z1001")
+        mock_sub_segment = Mock(spec=SubSegment, sub_segment_name="Dev")
+        
+        def query_side_effect(model):
+            q = Mock()
+            q.filter.return_value.first.return_value = mock_employee if model == Employee else mock_sub_segment
+            return q
+        
+        mock_db.query.side_effect = query_side_effect
+        
+        m_open = mock_open()
+        with patch('builtins.open', m_open):
+            logger.record_unresolved_skill("TestSkill", 123, 5, timestamp)
+        
+        # Verify db.add was NOT called
+        mock_db.add.assert_not_called()
+        mock_db.begin_nested.assert_not_called()
+        
+        # But file logging should still happen
+        m_open.assert_called()
+    
+    def test_logs_warning_only_once(self, mock_db, timestamp, caplog):
+        """Should log schema warning only once across multiple calls."""
+        import logging
+        from sqlalchemy.exc import ProgrammingError
+        
+        logger1 = UnresolvedSkillLogger(mock_db)
+        logger2 = UnresolvedSkillLogger(mock_db)
+        
+        # Both start with _use_new_schema = True
+        UnresolvedSkillLogger._use_new_schema = True
+        UnresolvedSkillLogger._schema_warning_logged = False
+        
+        # First logger detects schema issue
+        mock_db.flush.side_effect = ProgrammingError(
+            "INSERT",
+            {},
+            Exception('column "status" does not exist')
+        )
+        
+        mock_employee = Mock(spec=Employee, full_name="John Doe", zid="Z1001")
+        mock_sub_segment = Mock(spec=SubSegment, sub_segment_name="Dev")
+        
+        def query_side_effect(model):
+            q = Mock()
+            q.filter.return_value.first.return_value = mock_employee if model == Employee else mock_sub_segment
+            return q
+        
+        mock_db.query.side_effect = query_side_effect
+        
+        m_open = mock_open()
+        with patch('builtins.open', m_open):
+            with caplog.at_level(logging.WARNING):
+                logger1.record_unresolved_skill("Skill1", 1, 1, timestamp)
+                # Reset caplog to only capture new warnings
+                caplog.clear()
+                logger2.record_unresolved_skill("Skill2", 2, 1, timestamp)
+        
+        # Second call should NOT log the warning again
+        assert "raw_skill_inputs table missing" not in caplog.text
+    
+    def test_preserves_file_logging_on_schema_error(self, mock_db, timestamp):
+        """Should always log to file even when DB insertion fails."""
+        from sqlalchemy.exc import ProgrammingError
+        
+        logger = UnresolvedSkillLogger(mock_db)
+        
+        mock_db.flush.side_effect = ProgrammingError(
+            "INSERT",
+            {},
+            Exception('column "job_id" undefined')
+        )
+        
+        mock_employee = Mock(spec=Employee, full_name="John Doe", zid="Z1001")
+        mock_sub_segment = Mock(spec=SubSegment, sub_segment_name="Dev")
+        
+        def query_side_effect(model):
+            q = Mock()
+            q.filter.return_value.first.return_value = mock_employee if model == Employee else mock_sub_segment
+            return q
+        
+        mock_db.query.side_effect = query_side_effect
+        
+        m_open = mock_open()
+        with patch('builtins.open', m_open):
+            logger.record_unresolved_skill("TestSkill", 123, 5, timestamp)
+        
+        # File logging should have happened
+        m_open.assert_called()
+        handle = m_open()
+        assert handle.write.called
+    
+    def test_does_not_break_import_on_schema_error(self, mock_db, timestamp):
+        """Should not raise exception even on schema error - import continues."""
+        from sqlalchemy.exc import ProgrammingError
+        
+        logger = UnresolvedSkillLogger(mock_db)
+        
+        mock_db.flush.side_effect = ProgrammingError(
+            "INSERT",
+            {},
+            Exception('column "job_id" does not exist')
+        )
+        
+        mock_employee = Mock(spec=Employee, full_name="John Doe", zid="Z1001")
+        mock_sub_segment = Mock(spec=SubSegment, sub_segment_name="Dev")
+        
+        def query_side_effect(model):
+            q = Mock()
+            q.filter.return_value.first.return_value = mock_employee if model == Employee else mock_sub_segment
+            return q
+        
+        mock_db.query.side_effect = query_side_effect
+        
+        m_open = mock_open()
+        with patch('builtins.open', m_open):
+            # Should NOT raise
+            logger.record_unresolved_skill("Skill1", 1, 1, timestamp)
+            logger.record_unresolved_skill("Skill2", 2, 1, timestamp)
+    
+    def test_uses_nested_transaction_for_isolation(self, mock_db, timestamp):
+        """Should use begin_nested (savepoint) to isolate insert failures."""
+        logger = UnresolvedSkillLogger(mock_db)
+        
+        mock_employee = Mock(spec=Employee, full_name="John Doe", zid="Z1001")
+        mock_sub_segment = Mock(spec=SubSegment, sub_segment_name="Dev")
+        
+        def query_side_effect(model):
+            q = Mock()
+            q.filter.return_value.first.return_value = mock_employee if model == Employee else mock_sub_segment
+            return q
+        
+        mock_db.query.side_effect = query_side_effect
+        
+        m_open = mock_open()
+        with patch('builtins.open', m_open):
+            logger.record_unresolved_skill("TestSkill", 123, 5, timestamp)
+        
+        # Verify begin_nested was called for savepoint
+        mock_db.begin_nested.assert_called_once()

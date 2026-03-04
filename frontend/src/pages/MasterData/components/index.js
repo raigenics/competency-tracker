@@ -18,3 +18,5 @@ export { default as SkillsTableRow } from './SkillsTableRow';
 export { default as BulkActionBar } from './BulkActionBar';
 export { default as OrgSubSegmentProjectsPanel } from './OrgSubSegmentProjectsPanel';
 export { default as OrgProjectTeamsPanel } from './OrgProjectTeamsPanel';
+export { default as OrgSegmentSubSegmentsPanel } from './OrgSegmentSubSegmentsPanel';
+export { default as TaxonomyCategorySubCategoriesPanel } from './TaxonomyCategorySubCategoriesPanel';

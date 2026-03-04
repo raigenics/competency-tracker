@@ -1,27 +1,71 @@
 import React, { useState, useEffect } from 'react';
 import { Info, Users, Award, ArrowRight, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
 import { skillApi } from '../../../services/api/skillApi';
-import { employeeApi } from '../../../services/api/employeeApi';
-import TalentResultsTable from '../../../components/TalentResultsTable';
 import TalentExportMenu from '../../../components/TalentExportMenu';
 import talentExportService from '../../../services/talentExportService';
+import EmployeeProfileDrawer from '../../../components/EmployeeProfileDrawer';
+import SkillDetailHeader from './SkillDetailHeader';
+import SkillCapabilitySnapshot from './SkillCapabilitySnapshot';
+import SkillProficiencyBreakdown from './SkillProficiencyBreakdown';
+import SkillContextCard from './SkillContextCard';
+import ViewEmployeesHeader from './ViewEmployeesHeader';
+import '../CapabilityOverview.css';
 
-const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSummary }) => {
+const SkillDetailsPanel = ({ 
+  skill, 
+  showViewAll = false, 
+  onViewAll, 
+  onBackToSummary,
+  categoryCoverage = null,
+  categoryCoverageLoading = false,
+  categoryCoverageError = null,
+  kpiData = null,
+  kpiLoading = false,
+  kpiError = null,
+  employeeCount = null,
+  categoryDistribution = []
+}) => {
   const [summaryData, setSummaryData] = useState(null);
+  const [snapshotData, setSnapshotData] = useState(null);
+  const [proficiencyData, setProficiencyData] = useState(null);
+  const [leadingSubSegmentData, setLeadingSubSegmentData] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isSnapshotLoading, setIsSnapshotLoading] = useState(false);
+  const [isProficiencyLoading, setIsProficiencyLoading] = useState(false);
+  const [isLeadingSubSegmentLoading, setIsLeadingSubSegmentLoading] = useState(false);
   const [error, setError] = useState(null);
   const [employeeResults, setEmployeeResults] = useState([]);
   const [selectedIds, setSelectedIds] = useState(new Set());
-  const [isExporting, setIsExporting] = useState(false);
-  const [exportError, setExportError] = useState(null);
-  const navigate = useNavigate();  // Fetch skill summary when skill changes
+  const [_isExporting, setIsExporting] = useState(false);
+  const [_exportError, setExportError] = useState(null);
+  
+  // Drawer state (matches TalentResultsTable pattern)
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [selectedEmployeeIndex, setSelectedEmployeeIndex] = useState(0);
+  
+  // Search state for View Employees header
+  const [searchValue, setSearchValue] = useState('');
+  
+  // Handle View Profile click - open drawer
+  const handleViewProfile = (index) => {
+    setSelectedEmployeeIndex(index);
+    setIsDrawerOpen(true);
+  };
+  
+  // Handle drawer navigation (prev/next)
+  const handleDrawerNavigate = (newIndex) => {
+    setSelectedEmployeeIndex(newIndex);
+  };
+  // Fetch skill summary when skill changes
   useEffect(() => {
     // Normalize skill ID - handle both 'id' (from mock data) and 'skill_id' (from API)
     const skillId = skill?.skill_id || skill?.id;
     
     if (!skill || !skillId) {
       setSummaryData(null);
+      setSnapshotData(null);
+      setProficiencyData(null);
+      setLeadingSubSegmentData(null);
       return;
     }
 
@@ -40,17 +84,61 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
       }
     };
 
+    const fetchSnapshot = async () => {
+      setIsSnapshotLoading(true);
+      try {
+        const data = await skillApi.getCapabilitySnapshot(skillId);
+        setSnapshotData(data);
+      } catch (err) {
+        console.error('Error fetching capability snapshot:', err);
+        setSnapshotData(null);
+      } finally {
+        setIsSnapshotLoading(false);
+      }
+    };
+
+    const fetchProficiency = async () => {
+      setIsProficiencyLoading(true);
+      try {
+        const data = await skillApi.getProficiencyBreakdown(skillId);
+        setProficiencyData(data);
+      } catch (err) {
+        console.error('Error fetching proficiency breakdown:', err);
+        setProficiencyData(null);
+      } finally {
+        setIsProficiencyLoading(false);
+      }
+    };
+
+    const fetchLeadingSubSegment = async () => {
+      setIsLeadingSubSegmentLoading(true);
+      try {
+        const data = await skillApi.getLeadingSubSegment(skillId);
+        setLeadingSubSegmentData(data);
+      } catch (err) {
+        console.error('Error fetching leading sub-segment:', err);
+        setLeadingSubSegmentData(null);
+      } finally {
+        setIsLeadingSubSegmentLoading(false);
+      }
+    };
+
     fetchSummary();
+    fetchSnapshot();
+    fetchProficiency();
+    fetchLeadingSubSegment();
   }, [skill]);
 
   // Fetch employee details when "View All" is shown
   useEffect(() => {
-    if (showViewAll && summaryData?.employee_ids?.length > 0) {
+    const skillId = skill?.skill_id || skill?.id;
+    
+    if (showViewAll && skillId) {
       const fetchEmployees = async () => {
         setIsLoading(true);
         try {
-          const results = await employeeApi.getEmployeesByIds(summaryData.employee_ids);
-          setEmployeeResults(results);
+          const response = await skillApi.getEmployeesList(skillId);
+          setEmployeeResults(response.employees || []);
         } catch (err) {
           console.error('Error fetching employees:', err);
           setError(err.message || 'Failed to load employees');
@@ -61,14 +149,14 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
       };
       fetchEmployees();
     }
-  }, [showViewAll, summaryData]);
+  }, [showViewAll, skill]);
 
   // Clear selection when results change
   useEffect(() => {
     setSelectedIds(new Set());
   }, [employeeResults]);
 
-  const handleSelectionChange = (newSelection) => {
+  const _handleSelectionChange = (newSelection) => {
     setSelectedIds(newSelection);
   };
 
@@ -95,7 +183,7 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
     }
   };
 
-  const handleExportSelected = async () => {
+  const _handleExportSelected = async () => {
     setIsExporting(true);
     setExportError(null);
     
@@ -128,156 +216,390 @@ const SkillDetailsPanel = ({ skill, showViewAll = false, onViewAll, onBackToSumm
     if (onBackToSummary) {
       onBackToSummary();
     }
-  };  if (!skill) {
+  };
+
+  // Derived max skill count for bar width calculation
+  const maxSkillCount = categoryDistribution[0]?.skill_count || 1;
+
+  if (!skill) {
     return (
-      <div className="bg-white rounded-lg border border-gray-200 p-6">
-        <div className="text-center py-8">
-          <Info className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-          <h3 className="text-lg font-medium text-gray-600 mb-2">Select a skill</h3>
-          <p className="text-sm text-gray-500 mb-3">
-            Select a skill from the capability structure to view employee count, certification coverage, and open the employee list filtered to that skill.
-          </p>
-          <p className="text-xs text-gray-400 italic">
-            Tip: Try searching "react", "java", or "azure".
-          </p>
+      <div className="co-card capability-overview co-details-panel">
+        {/* SECTION A: Detail Header */}
+        <div className="co-detail-header">
+          <div>
+            <h2 className="co-detail-title">Organisation Capability Summary</h2>
+            <p className="co-detail-sub">
+              Snapshot of skill distribution across all sub-segments
+              <span className="co-scope-badge">ADT · AU</span>
+            </p>
+          </div>
+          {/* Note: Toggle buttons (Summary/Gaps/Trends) intentionally omitted per requirements */}
+        </div>
+
+        {/* SECTION B: Horizontal Divider */}
+        <div className="co-detail-divider"></div>
+
+        {/* SECTIONS C-F: Scrollable Insight Area */}
+        <div className="co-insight-area">
+          <div className="co-insight-grid">
+            {/* SECTION C: Two highlight cards */}
+            {/* Card 1: Most populated */}
+            <div className="co-insight-card">
+              <div className="co-ic-label">Most populated</div>
+              <div className="co-ic-value med">
+                {categoryCoverageLoading ? (
+                  'Loading...'
+                ) : categoryCoverageError ? (
+                  '—'
+                ) : categoryCoverage?.most_populated_category ? (
+                  categoryCoverage.most_populated_category.category_name
+                ) : (
+                  'No employees in scope'
+                )}
+              </div>
+              <div className="co-ic-sub good">
+                {categoryCoverage?.most_populated_category?.skill_count 
+                  ? `${categoryCoverage.most_populated_category.skill_count} skills · highest employee concentration`
+                  : ''}
+              </div>
+            </div>
+
+            {/* Card 2: Least populated */}
+            <div className="co-insight-card">
+              <div className="co-ic-label">Least populated</div>
+              <div className="co-ic-value med">
+                {categoryCoverageLoading ? (
+                  'Loading...'
+                ) : categoryCoverageError ? (
+                  '—'
+                ) : categoryCoverage?.least_populated_category ? (
+                  categoryCoverage.least_populated_category.category_name
+                ) : (
+                  'No employees in scope'
+                )}
+              </div>
+              <div className="co-ic-sub warn">
+                {categoryCoverage?.least_populated_category?.skill_count 
+                  ? `${categoryCoverage.least_populated_category.skill_count} skills · smaller bench vs peers`
+                  : ''}
+              </div>
+            </div>
+
+            {/* SECTION D: Skill distribution by category (full width) */}
+            <div className="co-insight-card full">
+              <div className="co-ic-label">Skill distribution by category</div>
+              <div className="co-bar-chart">
+                {categoryDistribution.length === 0 ? (
+                  <div className="co-bar-row">
+                    <span className="co-bar-row-label">No data available</span>
+                  </div>
+                ) : (
+                  categoryDistribution.map((cat, idx) => (
+                    <div className="co-bar-row" key={cat.category_id}>
+                      <span className="co-bar-row-label">{cat.category_name}</span>
+                      <div className="co-bar-track">
+                        <div 
+                          className={`co-bar-fill ${idx < 3 ? 'hi' : ''}`}
+                          style={{ width: `${(cat.skill_count / maxSkillCount) * 100}%` }}
+                        />
+                      </div>
+                      <span className={`co-bar-count ${idx < 3 ? 'hi' : ''}`}>{cat.skill_count}</span>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+
+            {/* SECTION E: Two KPI cards - Avg proficiency + Certification coverage */}
+            <div className="co-insight-card">
+              <div className="co-ic-label">Avg proficiency</div>
+              <div className="co-ic-value">
+                {kpiLoading ? (
+                  '...'
+                ) : kpiError ? (
+                  '—'
+                ) : kpiData?.avg_proficiency != null ? (
+                  <>
+                    {kpiData.avg_proficiency.toFixed(2)}
+                    <span className="co-ic-suffix"> / 5</span>
+                  </>
+                ) : (
+                  '—'
+                )}
+              </div>
+              <div className="co-ic-sub">
+                Across {employeeCount ?? '—'} mapped employees
+              </div>
+            </div>
+
+            <div className="co-insight-card">
+              <div className="co-ic-label">Certification coverage</div>
+              <div className="co-ic-value">
+                {kpiLoading ? (
+                  '...'
+                ) : kpiError ? (
+                  '—'
+                ) : kpiData?.total_certifications ?? '—'}
+              </div>
+              <div className="co-ic-sub">Active certs in scope</div>
+            </div>
+          </div>
+
+          {/* SECTION F: What to explore */}
+          <div className="co-explore-card">
+            <div className="co-ic-label">What to explore</div>
+            <div className="co-explore-content">
+              → Click any <strong>category in the tree</strong> to see employee depth and proficiency distribution<br />
+              → Use <strong>search</strong> to jump directly to a technology or skill<br />
+              → Switch to <strong>Gaps view</strong> to identify under-resourced areas
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
-  // Show "View All" results view
+  // Show "View All" results view (View C: Employee List)
   if (showViewAll) {
+    // Normalize skill ID - handle both 'id' (from mock data) and 'skill_id' (from API)
+    const _skillId = skill?.skill_id || skill?.id;
+    const skillName = skill?.name || 'Skill';
+    
+    // Get category/subcategory for breadcrumb
+    const categoryLabel = (typeof skill.category === 'object' ? skill.category?.category_name : skill.category) || '';
+    const subcategoryLabel = skill.subcategory || '';
+    
+    // Filter employees based on search (local filtering)
+    const filteredEmployees = searchValue.trim() 
+      ? employeeResults.filter(emp => {
+          const searchLower = searchValue.toLowerCase();
+          return (
+            emp.employee_name?.toLowerCase().includes(searchLower) ||
+            emp.team_name?.toLowerCase().includes(searchLower) ||
+            emp.sub_segment?.toLowerCase().includes(searchLower) ||
+            emp.project_name?.toLowerCase().includes(searchLower)
+          );
+        })
+      : employeeResults;
+    
+    // Compute KPI values from employeeResults (unfiltered) — guaranteed skill-scoped
+    const totalEmployees = employeeResults.length;
+    const certifiedCount = employeeResults.filter(e => e.certified).length;
+    const avgProficiency = totalEmployees > 0 
+      ? (employeeResults.reduce((sum, e) => sum + (e.proficiency_level || 0), 0) / totalEmployees).toFixed(1)
+      : '—';
+    const uniqueTeams = new Set(employeeResults.map(e => e.team_name).filter(Boolean)).size;
+    const certCoverage = totalEmployees > 0 ? Math.round((certifiedCount / totalEmployees) * 100) : 0;
+    
+    // Helper context strings
+    const avgProfContext = avgProficiency !== '—' && parseFloat(avgProficiency) < 3.0 ? 'warn' : 'ok';
+    const _certContext = certifiedCount === 0 ? 'alert' : 'ok';
+    const teamsContext = uniqueTeams === totalEmployees ? 'All unique' : `${uniqueTeams} teams`;
+    const certCoverageContext = certCoverage === 0 ? 'alert' : certCoverage < 50 ? 'warn' : 'ok';
+    
+    // Helper to get proficiency level CSS class
+    const getProficiencyDotClass = (level) => {
+      const levelMap = {
+        1: 'dp-level-dot--novice',
+        2: 'dp-level-dot--beginner',
+        3: 'dp-level-dot--competent',
+        4: 'dp-level-dot--proficient',
+        5: 'dp-level-dot--expert'
+      };
+      return levelMap[level] || 'dp-level-dot--novice';
+    };
+    
     return (
-      <div className="bg-white rounded-lg border border-gray-200">
-        {/* Header with Back button */}
-        <div className="border-b border-gray-200 p-6">
-          <div className="flex items-center justify-between mb-4">
-            <button
-              onClick={handleBackClick}
-              className="flex items-center gap-2 text-blue-600 hover:text-blue-800 font-medium"
-            >
-              <ArrowLeft className="h-4 w-4" />
-              Back to Summary
-            </button>
-            <TalentExportMenu
-              totalCount={employeeResults.length}
-              selectedCount={selectedIds.size}
-              onExportAll={handleExportAll}
-              onExportSelected={handleExportSelected}
-              isExporting={isExporting}
-              exportError={exportError}
-            />
-          </div>
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900">Employees with {skill.name}</h2>
-            <p className="text-sm text-gray-600 mt-1">
-              {employeeResults.length} {employeeResults.length === 1 ? 'employee' : 'employees'} found
-            </p>
-          </div>        </div>
-
-        {/* Results Table */}
-        <div className="p-6">
-          {isLoading ? (
-            <div className="text-center py-12">
-              <div className="animate-spin h-8 w-8 border-4 border-blue-600 border-t-transparent rounded-full mx-auto mb-4"></div>
-              <p className="text-gray-600">Loading employees...</p>
+      <div className="co-card capability-overview co-details-panel">
+        {/* Top Bar: Back + Breadcrumb + Export */}
+        <div className="dp-top-bar">
+          <button className="dp-back-btn" onClick={handleBackClick}>
+            <ArrowLeft size={14} /> Back
+          </button>
+          
+          {(categoryLabel || subcategoryLabel) && (
+            <div className="dp-breadcrumb">
+              {categoryLabel && <span>{categoryLabel}</span>}
+              {categoryLabel && subcategoryLabel && <span className="sep">›</span>}
+              {subcategoryLabel && <span>{subcategoryLabel}</span>}
+              {(categoryLabel || subcategoryLabel) && <span className="sep">›</span>}
+              <span className="current">{skillName}</span>
             </div>
-          ) : error ? (
-            <div className="text-center py-12">
-              <p className="text-red-600 mb-2">Failed to load employees</p>
-              <p className="text-sm text-gray-500">{error}</p>
-            </div>
-          ) : employeeResults.length === 0 ? (
-            <div className="text-center py-12">
-              <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-              <p className="text-gray-600">No employees found with this skill</p>
-            </div>          ) : (
-            <TalentResultsTable
-              results={employeeResults}
-              selectedIds={selectedIds}
-              onSelectionChange={handleSelectionChange}
-            />
           )}
+          
+          <button className="dp-export-btn" onClick={handleExportAll}>
+            ↓ Export list
+          </button>
         </div>
-      </div>
-    );
-  }
-  // Show summary view (default)
-  return (
-    <div className="bg-white rounded-lg border border-gray-200">
-      {/* Header */}
-      <div className="border-b border-gray-200 p-6">
-        <div className="flex items-start justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-gray-900 mb-1">{skill.name}</h2>
-            {/* Breadcrumb path */}
-            <p className="text-sm text-gray-500">
-              {(typeof skill.category === 'object' ? skill.category?.category_name : skill.category) || 'General'}
-              {skill.subcategory && (
-                <>
-                  {' → '}
-                  {skill.subcategory}
-                </>
-              )}
-              {' → '}
-              <span className="text-gray-700 font-medium">{skill.name}</span>
-            </p>
-          </div>
-          {skill.isCore && (
-            <span className="inline-flex items-center gap-1 px-2 py-1 bg-yellow-100 text-yellow-800 rounded-full text-xs font-medium">
-              <Award className="h-3 w-3" />
-              Core Skill
+
+        {/* Skill Header */}
+        <div className="dp-skill-header">
+          <div className="dp-skill-title-row">
+            <span className="dp-skill-label">Employees with</span>
+            <span className="dp-skill-badge">{skillName}</span>
+            <span className="dp-result-count">
+              <strong>{totalEmployees}</strong> {totalEmployees === 1 ? 'employee' : 'employees'}
             </span>
-          )}        </div>
-      </div>      <div className="p-6 space-y-6">
-        {/* Statistics - Always Show Data (0 if loading/error) */}
-        {isLoading ? (
-          <div>
-            <div className="grid grid-cols-2 gap-4">
-              {[1, 2].map((i) => (
-                <div key={i} className="text-center p-4 bg-gray-50 rounded-lg animate-pulse">
-                  <div className="h-5 w-5 mx-auto mb-2 bg-gray-300 rounded"></div>
-                  <div className="h-6 w-12 mx-auto mb-1 bg-gray-300 rounded"></div>
-                  <div className="h-3 w-20 mx-auto bg-gray-300 rounded"></div>
-                </div>
-              ))}
-            </div>
           </div>
-        ) : (
-          <div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <Users className="h-5 w-5 mx-auto mb-2 text-blue-600" />
-                <div className="text-2xl font-semibold text-gray-900">
-                  {summaryData?.employee_count ?? 0}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">Employees</div>
-              </div>              <div className="text-center p-4 bg-gray-50 rounded-lg">
-                <Award className="h-5 w-5 mx-auto mb-2 text-purple-600" />
-                <div className="text-2xl font-semibold text-gray-900">
-                  {summaryData?.certified_employee_count ?? summaryData?.certified_count ?? 0}
-                </div>
-                <div className="text-xs text-gray-600 mt-1">Certified</div>
+          
+          {/* KPI Strip */}
+          <div className="dp-kpi-strip">
+            <div className="dp-kpi-cell">
+              <div className="dp-kpi-label">Avg Proficiency</div>
+              <div className="dp-kpi-value">{avgProficiency}</div>
+              <div className={`dp-kpi-context ${avgProfContext}`}>
+                {avgProficiency !== '—' && parseFloat(avgProficiency) < 3.0 ? 'Below 3.0 target' : 'On target'}
+              </div>
+            </div>
+            
+            <div className="dp-kpi-cell">
+              <div className="dp-kpi-label">Teams covered</div>
+              <div className="dp-kpi-value">{uniqueTeams}</div>
+              <div className="dp-kpi-context ok">{teamsContext}</div>
+            </div>
+            <div className="dp-kpi-cell">
+              <div className="dp-kpi-label">Cert coverage</div>
+              <div className="dp-kpi-value">{certCoverage}%</div>
+              <div className={`dp-kpi-context ${certCoverageContext}`}>
+                {certifiedCount} of {totalEmployees} employees
               </div>
             </div>
           </div>
-        )}        {/* CTA Button - Always Visible */}
-        <div>
-          <button
-            onClick={handleViewAllClick}
-            disabled={isLoading || (summaryData?.employee_count ?? 0) === 0}
-            className={`w-full flex items-center justify-center gap-2 px-4 py-3 rounded-lg transition-colors font-medium ${
-              isLoading || (summaryData?.employee_count ?? 0) === 0
-                ? 'bg-blue-400 cursor-not-allowed text-white'
-                : 'bg-blue-600 hover:bg-blue-700 text-white'
-            }`}
-          >
-            View employees with {skill.name}
-            {!isLoading && summaryData?.employee_count > 0 && (
-              <span>({summaryData.employee_count})</span>
-            )}
-            <ArrowRight className="h-4 w-4" />
-          </button>
+        </div>
+
+        {/* Search Row */}
+        <div className="dp-search-row">
+          <input
+            className="dp-search-input"
+            type="text"
+            placeholder="Search employee, role, team, sub-segment…"
+            value={searchValue}
+            onChange={(e) => setSearchValue(e.target.value)}
+          />
+        </div>
+
+        {/* Table Area */}
+        {isLoading ? (
+          <div className="dp-loading">
+            <div className="dp-spinner"></div>
+            <p className="dp-loading-text">Loading employees...</p>
+          </div>
+        ) : error ? (
+          <div className="dp-error">
+            <p className="dp-error-title">Failed to load employees</p>
+            <p className="dp-error-text">{error}</p>
+          </div>
+        ) : filteredEmployees.length === 0 ? (
+          <div className="dp-empty">
+            <Users className="dp-empty-icon" />
+            <p className="dp-empty-text">No employees found with this skill</p>
+          </div>
+        ) : (
+          <div className="dp-table-area">
+            <table className="dp-table">
+              <thead>
+                <tr>
+                  <th>Employee</th>
+                  <th>Level</th>
+                  <th>Sub-Segment</th>
+                  <th>Project</th>
+                  <th>Team</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredEmployees.map((emp, index) => (
+                  <tr key={emp.employee_id} onClick={() => handleViewProfile(index)}>
+                    <td>
+                      <div className="dp-emp-name">{emp.employee_name}</div>
+                      <div className="dp-emp-meta">
+                        Updated {emp.skill_last_updated_days !== null ? `${emp.skill_last_updated_days} days ago` : '—'}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="dp-level-cell">
+                        <span className={`dp-level-dot ${getProficiencyDotClass(emp.proficiency_level)}`}></span>
+                        {emp.proficiency_label}
+                      </div>
+                    </td>
+                    <td>{emp.sub_segment || '—'}</td>
+                    <td>{emp.project_name || '—'}</td>
+                    <td>{emp.team_name || '—'}</td>
+                    <td>
+                      <button
+                        className="dp-view-btn"
+                        onClick={(e) => { e.stopPropagation(); handleViewProfile(index); }}
+                      >
+                        View Profile
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+        
+        {/* Employee Profile Drawer */}
+        <EmployeeProfileDrawer
+          isOpen={isDrawerOpen}
+          onClose={() => setIsDrawerOpen(false)}
+          employeeId={filteredEmployees[selectedEmployeeIndex]?.employee_id}
+          employees={filteredEmployees.map(emp => ({ id: emp.employee_id, name: emp.employee_name }))}
+          currentIndex={selectedEmployeeIndex}
+          onNavigate={handleDrawerNavigate}
+        />
+      </div>
+    );
+  }
+  // Show summary view (default - View B)
+  const categoryName = (typeof skill.category === 'object' ? skill.category?.category_name : skill.category) || 'General';
+  const skillEmployeeCount = snapshotData?.employee_count ?? summaryData?.employee_count ?? 0;
+  
+  return (
+    <div className="co-card capability-overview co-details-panel">
+      {/* Skill Detail Header */}
+      <SkillDetailHeader
+        categoryName={categoryName}
+        subCategoryName={skill.subcategory}
+        skillName={skill.name}
+        employeeCount={skillEmployeeCount}
+        onViewEmployees={handleViewAllClick}
+        isDisabled={isLoading || isSnapshotLoading}
+      />
+
+      {/* Body Grid: Left (Snapshot + Proficiency) | Right (Context) */}
+      <div className="co-body-grid">
+        {/* Left Column */}
+        <div className="co-body-left">
+          {/* Capability Snapshot - 3 KPI Cards */}
+          <SkillCapabilitySnapshot
+            employeeCount={snapshotData?.employee_count ?? 0}
+            certifiedCount={snapshotData?.certified_count ?? 0}
+            teamCount={snapshotData?.team_count ?? 0}
+            isLoading={isSnapshotLoading}
+          />
+
+          {/* Proficiency Breakdown */}
+          <SkillProficiencyBreakdown
+            counts={proficiencyData?.counts ?? null}
+            avg={proficiencyData?.avg ?? null}
+            median={proficiencyData?.median ?? null}
+            total={proficiencyData?.total ?? 0}
+            isLoading={isProficiencyLoading}
+          />
+
+         
+        </div>
+
+        {/* Right Column */}
+        <div className="co-body-right">
+          <SkillContextCard
+            categoryName={categoryName}
+            subCategoryName={skill.subcategory}
+            leadingSubSegmentName={leadingSubSegmentData?.leading_sub_segment_name ?? '—'}
+            isLoading={isSnapshotLoading || isLeadingSubSegmentLoading}
+          />
         </div>
       </div>
     </div>

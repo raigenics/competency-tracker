@@ -1,158 +1,206 @@
-import { BarChart3, Search, Layers, User, Users, Upload, Database, Shield, ChevronDown, ChevronRight, Building2, UserSquare2 } from 'lucide-react';
-import { useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { FEATURE_FLAGS } from '../config/featureFlags';
+/**
+ * Sidebar Navigation Component
+ * ============================
+ * Exact replication of HTML wireframe structure.
+ * Uses semantic tags: <aside>, <nav>, <details>, <summary>, <a>
+ * 
+ * RBAC Visibility:
+ * - INSIGHTS: viewer, manager, admin, superadmin
+ * - PEOPLE: manager, admin, superadmin
+ * - GOVERNANCE: admin, superadmin (collapsible)
+ */
+
+import { NavLink, useLocation } from 'react-router-dom';
+import { RBAC_CONFIG, RBAC_ROLES } from '../config/featureFlags';
+import '../styles/sidebar.css';
+
+/**
+ * Map internal RBAC_ROLES to sidebar role strings
+ * @returns {string} - 'viewer' | 'manager' | 'admin' | 'superadmin'
+ */
+function getSidebarRole() {
+  const role = RBAC_CONFIG.currentRole;
+  switch (role) {
+    case RBAC_ROLES.SUPER_ADMIN:
+      return 'superadmin';
+    case RBAC_ROLES.SEGMENT_HEAD:
+    case RBAC_ROLES.SUBSEGMENT_HEAD:
+      return 'admin';
+    case RBAC_ROLES.PROJECT_MANAGER:
+    case RBAC_ROLES.TEAM_LEAD:
+      return 'manager';
+    case RBAC_ROLES.TEAM_MEMBER:
+    default:
+      return 'viewer';
+  }
+}
+
+/**
+ * Check if current role is allowed for a section
+ * @param {string} allowedRoles - Comma-separated role list from data-roles
+ * @returns {boolean}
+ */
+function isRoleAllowed(allowedRoles) {
+  const currentRole = getSidebarRole();
+  const allowed = allowedRoles.split(',').map(r => r.trim());
+  return allowed.includes(currentRole);
+}
 
 const Sidebar = () => {
-  const navigate = useNavigate();
   const location = useLocation();
-  const [masterDataExpanded, setMasterDataExpanded] = useState(
-    location.pathname.startsWith('/admin/master-data')
-  );
 
-  const navigationSections = [
-    {
-      title: 'ANALYTICS',
-      items: [
-        { id: 'dashboard', path: '/', icon: BarChart3, label: 'Dashboard' },
-        { id: 'query', path: '/query', icon: Search, label: 'Capability Finder' },
-        { id: 'taxonomy', path: '/taxonomy', icon: Layers, label: 'Capability Overview' },
-        { id: 'profile', path: '/profile', icon: User, label: 'Employee Profile' }
-      ]
-    },
-    {
-      title: 'DATA MANAGEMENT',
-      items: [
-        { id: 'employees', path: '/employees', icon: Users, label: 'Employees' },
-        { id: 'bulk-import', path: '/bulk-import', icon: Upload, label: 'Bulk Import' }
-      ]
-    },
-    {
-      title: 'ADMINISTRATION',
-      items: [
-        { 
-          id: 'master-data', 
-          icon: Database, 
-          label: 'Master Data',
-          hasSubmenu: true,
-          submenu: [
-            { id: 'skill-taxonomy', path: '/admin/master-data/skill-taxonomy', icon: Layers, label: 'Skill Taxonomy' },
-            { id: 'org-hierarchy', path: '/admin/master-data/org-hierarchy', icon: Building2, label: 'Org Hierarchy' },
-            { id: 'roles', path: '/admin/master-data/roles', icon: UserSquare2, label: 'Roles' }
-          ]
-        },
-        // RBAC Admin Panel - controlled by FEATURE_FLAGS.SHOW_RBAC_ADMIN
-        ...(FEATURE_FLAGS.SHOW_RBAC_ADMIN 
-          ? [{ id: 'rbac-admin', path: '/rbac-admin', icon: Shield, label: 'RBAC Admin Panel' }] 
-          : []
-        )
-      ]
-    }
-  ];
-
+  /**
+   * Check if a path is currently active
+   * Supports nested routes (e.g., /governance/skill-library/xyz)
+   */
   const isActive = (path) => {
-    if (path === '/') {
-      return location.pathname === '/';
+    if (path === '/dashboard') {
+      // Dashboard is also active for root path
+      return location.pathname === '/dashboard' || location.pathname === '/';
     }
     return location.pathname.startsWith(path);
   };
 
-  const isMasterDataActive = () => {
-    return location.pathname.startsWith('/admin/master-data');
+  /**
+   * Get className for nav-item based on active state
+   */
+  const getNavItemClass = (path) => {
+    return `nav-item${isActive(path) ? ' is-active' : ''}`;
   };
 
-  const toggleMasterData = () => {
-    setMasterDataExpanded(!masterDataExpanded);
+  /**
+   * Get aria-current attribute for accessibility
+   */
+  const getAriaCurrent = (path) => {
+    return isActive(path) ? 'page' : undefined;
   };
+
+  // Check section visibility based on current role
+  const showInsights = isRoleAllowed('viewer,manager,admin,superadmin');
+  const showPeople = isRoleAllowed('manager,admin,superadmin');
+  const showGovernance = isRoleAllowed('admin,superadmin');
 
   return (
-    <div className="w-60 bg-[#1e293b] text-white min-h-screen flex-shrink-0">
-      {/* Logo Section */}
-      <div className="px-5 py-5 border-b border-white/10 mb-5">
-        <h3 className="text-lg font-semibold mb-1">CompetencyIQ</h3>
-        <p className="text-[11px] opacity-60">Skill Intelligence Platform</p>
+    <aside className="sidebar" aria-label="Primary navigation">
+      {/* Brand */}
+      <div className="brand">
+        <div className="brand__title">CompetencyIQ</div>
+        <div className="brand__subtitle">Skill Intelligence Platform</div>
       </div>
 
-      {/* Navigation */}
-      <nav className="pb-5">
-        {navigationSections.map((section, sectionIndex) => (
-          <div key={section.title} className="mb-6">
-            {/* Section Header */}
-            <div className="px-5 py-2">
-              <h3 className="text-[11px] font-semibold opacity-50 uppercase tracking-wide">
-                {section.title}
-              </h3>
-            </div>
-            
-            {/* Section Items */}
-            <div>
-              {section.items.map(item => (
-                item.hasSubmenu ? (
-                  // Master Data with submenu
-                  <div key={item.id}>
-                    <button
-                      onClick={toggleMasterData}
-                      className={`w-full flex items-center gap-2.5 px-5 py-2.5 text-sm transition-all ${
-                        isMasterDataActive() 
-                          ? 'bg-[#667eea]/20 border-l-3 border-[#667eea] pl-[17px]' 
-                          : 'hover:bg-white/5'
-                      }`}
-                    >
-                      <div className="w-[18px] h-[18px] bg-white/20 rounded flex items-center justify-center flex-shrink-0">
-                        <item.icon className="w-3.5 h-3.5" />
-                      </div>
-                      <span className="font-normal flex-1 text-left">{item.label}</span>
-                      {masterDataExpanded ? (
-                        <ChevronDown className="w-4 h-4 opacity-60" />
-                      ) : (
-                        <ChevronRight className="w-4 h-4 opacity-60" />
-                      )}
-                    </button>
-                    {/* Submenu */}
-                    {masterDataExpanded && (
-                      <div className="ml-4 border-l border-white/10">
-                        {item.submenu.map(subItem => (
-                          <button
-                            key={subItem.id}
-                            onClick={() => navigate(subItem.path)}
-                            className={`w-full flex items-center gap-2.5 px-5 py-2 text-sm transition-all ${
-                              isActive(subItem.path) 
-                                ? 'bg-[#667eea]/20 text-white' 
-                                : 'text-white/70 hover:bg-white/5 hover:text-white'
-                            }`}
-                          >
-                            <div className="w-[16px] h-[16px] bg-white/15 rounded flex items-center justify-center flex-shrink-0">
-                              <subItem.icon className="w-3 h-3" />
-                            </div>
-                            <span className="font-normal text-[13px]">{subItem.label}</span>
-                          </button>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  // Regular navigation item
-                  <button
-                    key={item.id}
-                    onClick={() => navigate(item.path)}
-                    className={`w-full flex items-center gap-2.5 px-5 py-2.5 text-sm transition-all ${
-                      isActive(item.path) 
-                        ? 'bg-[#667eea]/20 border-l-3 border-[#667eea] pl-[17px]' 
-                        : 'hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="w-[18px] h-[18px] bg-white/20 rounded flex items-center justify-center flex-shrink-0">
-                      <item.icon className="w-3.5 h-3.5" />
-                    </div>
-                    <span className="font-normal">{item.label}</span>
-                  </button>
-                )
-              ))}
+      <nav className="nav">
+        {/* INSIGHTS (visible to all authenticated users) */}
+        {showInsights && (
+          <div className="section" data-roles="viewer,manager,admin,superadmin">
+            <div className="section__label">Insights</div>
+            <div className="nav-list">
+              <NavLink 
+                className={getNavItemClass('/dashboard')} 
+                to="/dashboard"
+                aria-current={getAriaCurrent('/dashboard')}
+              >
+                <span className="nav-item__icon">📊</span>
+                <span className="nav-item__text">Dashboard</span>
+              </NavLink>
+              <NavLink 
+                className={getNavItemClass('/skill-coverage')} 
+                to="/skill-coverage"
+                aria-current={getAriaCurrent('/skill-coverage')}
+              >
+                <span className="nav-item__icon">🗺️</span>
+                <span className="nav-item__text">Skill Coverage</span>
+              </NavLink>
+              <NavLink 
+                className={getNavItemClass('/talent-finder')} 
+                to="/talent-finder"
+                aria-current={getAriaCurrent('/talent-finder')}
+              >
+                <span className="nav-item__icon">🔎</span>
+                <span className="nav-item__text">Talent Finder</span>
+              </NavLink>
             </div>
           </div>
-        ))}
+        )}
+
+        {/* PEOPLE (manager+) */}
+        {showPeople && (
+          <div className="section" data-roles="manager,admin,superadmin">
+            <div className="section__label">People</div>
+            <div className="nav-list">
+              <NavLink 
+                className={getNavItemClass('/profile')} 
+                to="/profile"
+                aria-current={getAriaCurrent('/profile')}
+              >
+                <span className="nav-item__icon">👥</span>
+                <span className="nav-item__text">Employee Directory</span>
+              </NavLink>
+            </div>
+          </div>
+        )}
+
+        {/* Divider */}
+        {showGovernance && (
+          <div className="divider" role="separator" aria-hidden="true"></div>
+        )}
+
+        {/* GOVERNANCE (admin only) */}
+        {showGovernance && (
+          <details 
+            className="section__collapsible" 
+            open 
+            data-roles="admin,superadmin"
+          >
+            <summary>
+              <span>Governance</span>
+              <span className="chev">⌄</span>
+            </summary>
+            <div className="nav-list">
+              <NavLink 
+                className={getNavItemClass('/employees')} 
+                to="/employees"
+                aria-current={getAriaCurrent('/employees')}
+              >
+                <span className="nav-item__icon">✏️</span>
+                <span className="nav-item__text">Employee Management</span>
+              </NavLink>
+              <NavLink 
+                className={getNavItemClass('/system/import')} 
+                to="/system/import"
+                aria-current={getAriaCurrent('/system/import')}
+              >
+                <span className="nav-item__icon">⬆️</span>
+                <span className="nav-item__text">Import Data</span>
+              </NavLink>
+              <NavLink 
+                className={getNavItemClass('/governance/skill-library')} 
+                to="/governance/skill-library"
+                aria-current={getAriaCurrent('/governance/skill-library')}
+              >
+                <span className="nav-item__icon">📚</span>
+                <span className="nav-item__text">Skill Library</span>
+              </NavLink>
+              <NavLink 
+                className={getNavItemClass('/governance/org-structure')} 
+                to="/governance/org-structure"
+                aria-current={getAriaCurrent('/governance/org-structure')}
+              >
+                <span className="nav-item__icon">🏢</span>
+                <span className="nav-item__text">Organization Structure</span>
+              </NavLink>
+              <NavLink 
+                className={getNavItemClass('/governance/role-catalog')} 
+                to="/governance/role-catalog"
+                aria-current={getAriaCurrent('/governance/role-catalog')}
+              >
+                <span className="nav-item__icon">🧩</span>
+                <span className="nav-item__text">Role Catalog</span>
+              </NavLink>
+            </div>
+          </details>
+        )}
       </nav>
-    </div>
+    </aside>
   );
 };
 

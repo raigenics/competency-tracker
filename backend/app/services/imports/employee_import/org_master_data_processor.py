@@ -16,9 +16,20 @@ logger = logging.getLogger(__name__)
 class OrgMasterDataProcessor:
     """Processes organizational master data from Employee sheet."""
     
-    def __init__(self, db: Session, stats: Dict):
+    def __init__(self, db: Session, stats: Dict, create_missing: bool = False):
+        """
+        Initialize the OrgMasterDataProcessor.
+        
+        Args:
+            db: Database session
+            stats: Import statistics dictionary
+            create_missing: If True, create missing master data entries.
+                           If False (default), only validate existence - rows with 
+                           missing master data will be skipped during employee import.
+        """
         self.db = db
         self.stats = stats
+        self.create_missing = create_missing
     
     def process_all(self, master_data: Dict[str, Set]):
         """
@@ -27,12 +38,22 @@ class OrgMasterDataProcessor:
         NOTE: Does NOT process skill categories/subcategories/skills.
         Those are resolved from existing DB master data during skill import.
         
-        CRITICAL: Must commit org master data BEFORE employee import starts.
+        When create_missing=False (default), this method only logs what master data
+        is referenced in the Excel file but does NOT create new entries.
+        Missing master data will cause per-row validation failures during employee import.
         """
-        logger.info("Processing org master data (Segment/SubSegment/Project/Team/Role)...")
+        logger.info(f"Processing org master data (create_missing={self.create_missing})...")
         
         # Log summary
         self._log_master_data_summary(master_data)
+        
+        if not self.create_missing:
+            # Skip creation - validation will happen per-row in EmployeePersister
+            logger.info("Skipping master data creation (create_missing=False)")
+            logger.info("Master data validation will occur per-row during employee import")
+            return
+        
+        # --- CREATION MODE (create_missing=True) ---
         
         # Step 0: Process segments (top of hierarchy)
         self._process_segments(master_data.get('segments', set()))
@@ -57,6 +78,7 @@ class OrgMasterDataProcessor:
         self.db.commit()
         logger.info("Committed org master data (Segment/SubSegment/Project/Team/Role)")
         logger.info("Org master data processing completed (skills will be resolved from DB)")
+
     
     def _log_master_data_summary(self, master_data: Dict[str, Set]):
         """Log summary of master data to process."""

@@ -81,7 +81,7 @@ const ComparisonPage = () => {
   }
 
   return (
-    <div className="p-8 bg-slate-50 min-h-screen">
+    <div className="p-8 bg-slate-50">
       <div className="max-w-screen-2xl mx-auto">
         <div className="mb-6">
           <h1 className="text-3xl font-bold text-slate-900 mb-2">Employee Comparison</h1>

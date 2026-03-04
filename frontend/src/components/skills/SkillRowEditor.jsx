@@ -91,16 +91,21 @@ export function SkillRowEditor({
   const [showDropdown, setShowDropdown] = useState(false);
   const [inputValue, setInputValue] = useState(skill.skillName || '');
   const [highlightedIndex, setHighlightedIndex] = useState(-1);
+  // Track previous skill for render-time sync
+  const [prevSkillId, setPrevSkillId] = useState(skill.skill_id);
+  const [prevSkillName, setPrevSkillName] = useState(skill.skillName);
   
   const containerRef = useRef(null);
   const inputRef = useRef(null);
 
-  // Sync input value with skill.skillName when it changes externally
-  useEffect(() => {
-    if (skill.skillName !== inputValue && skill.skill_id) {
+  // Sync input value with skill.skillName when it changes externally (React recommended pattern)
+  if (skill.skill_id !== prevSkillId || skill.skillName !== prevSkillName) {
+    setPrevSkillId(skill.skill_id);
+    setPrevSkillName(skill.skillName);
+    if (skill.skill_id && skill.skillName !== inputValue) {
       setInputValue(skill.skillName);
     }
-  }, [skill.skillName, skill.skill_id]);
+  }
 
   // Close dropdown when clicking outside
   useEffect(() => {

@@ -12,7 +12,7 @@ Test Strategy:
 - Matches database constraints: lower(trim(name))
 """
 import pytest
-from backend.app.services.imports.employee_import.name_normalizer import NameNormalizer
+from app.services.imports.employee_import.name_normalizer import NameNormalizer
 
 
 class TestNormalizeName:

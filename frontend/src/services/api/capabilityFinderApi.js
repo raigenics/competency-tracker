@@ -53,7 +53,8 @@ export const capabilityFinderApi = {
   /**
    * Search for employees matching specified criteria.
    * @param {Object} payload - Search parameters
-   * @param {string[]} payload.skills - Required skill names (AND logic)
+   * @param {string[]} payload.skills - Required skill names
+   * @param {string|null} payload.match_mode - "ALL" (must have all skills) or "ANY" (at least one skill)
    * @param {number|null} payload.sub_segment_id - Sub-segment ID filter
    * @param {number|null} payload.team_id - Team ID filter
    * @param {string} payload.role - Role name filter

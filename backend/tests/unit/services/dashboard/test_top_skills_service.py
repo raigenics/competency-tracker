@@ -148,26 +148,35 @@ class TestApplyScopeFilters:
         mock_query.filter.assert_called_once()
     
     def test_applies_project_filter(self):
-        """Should apply project_id filter when provided."""
+        """Should apply project_id filter via join when provided."""
         # Arrange
         mock_query = MagicMock()
+        mock_join_result = MagicMock()
+        mock_query.join.return_value = mock_join_result
         
         # Act
         result = top_skills_service._apply_scope_filters(mock_query, None, 3, None)
         
-        # Assert
-        mock_query.filter.assert_called_once()
+        # Assert - project filter uses join().filter()
+        mock_query.join.assert_called_once()
+        mock_join_result.filter.assert_called_once()
     
     def test_applies_sub_segment_filter(self):
-        """Should apply sub_segment_id filter when provided."""
+        """Should apply sub_segment_id filter via joins when provided."""
         # Arrange
         mock_query = MagicMock()
+        mock_join1 = MagicMock()
+        mock_join2 = MagicMock()
+        mock_query.join.return_value = mock_join1
+        mock_join1.join.return_value = mock_join2
         
         # Act
         result = top_skills_service._apply_scope_filters(mock_query, 1, None, None)
         
-        # Assert
-        mock_query.filter.assert_called_once()
+        # Assert - sub_segment filter uses join().join().filter()
+        mock_query.join.assert_called_once()
+        mock_join1.join.assert_called_once()
+        mock_join2.filter.assert_called_once()
     
     def test_applies_no_filter_when_all_none(self):
         """Should not apply any filter when all parameters are None."""
@@ -204,10 +213,11 @@ class TestExecuteAndFormat:
         mock_query.group_by.return_value = mock_query
         mock_query.order_by.return_value = mock_query
         mock_query.limit.return_value = mock_query
-        mock_query.all.return_value = [
-            ("Python", 50, 20, 15),
-            ("SQL", 45, 18, 12)
-        ]
+        
+        # Create mock row objects with named attributes
+        row1 = MagicMock(skill_name="Python", total=50, expert=20, proficient=15)
+        row2 = MagicMock(skill_name="SQL", total=45, expert=18, proficient=12)
+        mock_query.all.return_value = [row1, row2]
         
         # Act
         result = top_skills_service._execute_and_format(mock_query, 10)
@@ -256,7 +266,10 @@ class TestExecuteAndFormat:
         mock_query.group_by.return_value = mock_query
         mock_query.order_by.return_value = mock_query
         mock_query.limit.return_value = mock_query
-        mock_query.all.return_value = [("Python", 100, 40, 30)]
+        
+        # Create mock row object with named attributes
+        row = MagicMock(skill_name="Python", total=100, expert=40, proficient=30)
+        mock_query.all.return_value = [row]
         
         # Act
         result = top_skills_service._execute_and_format(mock_query, 10)

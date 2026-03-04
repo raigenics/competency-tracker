@@ -7,7 +7,7 @@ import React from 'react';
 const DependencyModal = ({
   isOpen,
   onClose,
-  itemName = 'this item',
+  itemName: _itemName = 'this item',
   dependencies = []
 }) => {
   const handleOverlayClick = (e) => {

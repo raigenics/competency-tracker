@@ -119,7 +119,7 @@ export const employeeApi = {// Get employee suggestions for autocomplete
   },
 
   // Get skill history for employee
-  async getSkillHistory(employeeId, params = {}) {
+  async getSkillHistory(employeeId, _params = {}) {
     try {
       // TODO: return await httpClient.get(`/competencies/employee/${employeeId}/skill-history`, params);
       console.log('Mock: Fetching skill history for employee:', employeeId);
@@ -129,7 +129,7 @@ export const employeeApi = {// Get employee suggestions for autocomplete
         {
           history_id: 1,
           employee_id: employeeId,
-          employee_name: mockEmployees.find(e => e.id === employeeId)?.name,
+          employee_name: 'Employee ' + employeeId,
           skill_name: 'ReactJS',
           action: 'UPDATE',
           old_proficiency_name: 'Proficient',

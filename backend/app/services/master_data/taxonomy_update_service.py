@@ -33,10 +33,59 @@ from app.schemas.master_data_update import (
     SubcategoryCreateResponse,
     SkillCreateResponse,
 )
-from .exceptions import NotFoundError, ConflictError
+from .exceptions import NotFoundError, ConflictError, EmbeddingError
 from .validators import validate_required_name
 
 logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# EMBEDDING HELPER
+# =============================================================================
+
+def _update_skill_embedding(db: Session, skill: Skill) -> None:
+    """
+    Generate and upsert embedding for a skill.
+    
+    Called after skill creation or modification (name/aliases changed).
+    Uses the skill_embedding_service to generate embedding from skill_name + aliases
+    and upserts into skill_embeddings table.
+    
+    Args:
+        db: Database session
+        skill: Skill object with relationships (aliases) loaded
+        
+    Raises:
+        EmbeddingError: If embedding generation or persistence fails
+    """
+    try:
+        from app.services.skill_resolution.embedding_provider import create_embedding_provider
+        from app.services.skill_resolution.skill_embedding_service import SkillEmbeddingService
+        
+        provider = create_embedding_provider()
+        embedding_service = SkillEmbeddingService(
+            db=db,
+            embedding_provider=provider
+        )
+        
+        # Ensure aliases relationship is loaded for embedding text generation
+        # The skill should already have aliases loaded after flush
+        success = embedding_service.ensure_embedding_for_skill(skill)
+        
+        if not success:
+            raise EmbeddingError(
+                f"Failed to generate embedding for skill '{skill.skill_name}' (id={skill.skill_id})"
+            )
+        
+        logger.info(f"Embedding updated for skill_id={skill.skill_id}, skill_name='{skill.skill_name}'")
+        
+    except ImportError as e:
+        # Embedding service not available - raise error for admin workflows
+        raise EmbeddingError(f"Embedding service unavailable: {e}")
+    except EmbeddingError:
+        raise
+    except Exception as e:
+        raise EmbeddingError(f"Embedding generation failed: {type(e).__name__}: {e}")
 
 
 # =============================================================================
@@ -46,6 +95,7 @@ logger = logging.getLogger(__name__)
 def create_category(
     db: Session,
     category_name: str,
+    description: Optional[str] = None,
     actor: Optional[str] = None
 ) -> CategoryCreateResponse:
     """
@@ -54,6 +104,7 @@ def create_category(
     Args:
         db: Database session
         category_name: Name for the new category (will be validated)
+        description: Optional description for the category
         actor: Username of the user performing the action (for audit)
         
     Returns:
@@ -68,6 +119,9 @@ def create_category(
     # Validate input
     validated_name = validate_required_name("category_name", category_name)
     
+    # Trim description if provided
+    validated_description = description.strip() if description else None
+    
     # Check for duplicate name (case-insensitive), excluding soft-deleted
     existing = db.query(SkillCategory).filter(
         func.lower(SkillCategory.category_name) == validated_name.lower(),
@@ -80,6 +134,7 @@ def create_category(
     # Create new category
     new_category = SkillCategory(
         category_name=validated_name,
+        description=validated_description,
         created_by=actor or "system"
     )
     
@@ -92,6 +147,7 @@ def create_category(
     return CategoryCreateResponse(
         id=new_category.category_id,
         name=new_category.category_name,
+        description=new_category.description,
         created_at=new_category.created_at,
         created_by=new_category.created_by,
         message="Category created successfully"
@@ -106,6 +162,7 @@ def create_subcategory(
     db: Session,
     category_id: int,
     subcategory_name: str,
+    description: Optional[str] = None,
     actor: Optional[str] = None
 ) -> SubcategoryCreateResponse:
     """
@@ -115,6 +172,7 @@ def create_subcategory(
         db: Database session
         category_id: ID of the parent category
         subcategory_name: Name for the new subcategory (will be validated)
+        description: Optional description for the subcategory
         actor: Username of the user performing the action (for audit)
         
     Returns:
@@ -129,6 +187,11 @@ def create_subcategory(
     
     # Validate input
     validated_name = validate_required_name("subcategory_name", subcategory_name)
+    
+    # Trim description if provided
+    validated_description = description.strip() if description else None
+    if validated_description == "":
+        validated_description = None
     
     # Check parent category exists and is not soft-deleted
     parent_category = db.query(SkillCategory).filter(
@@ -158,6 +221,7 @@ def create_subcategory(
     new_subcategory = SkillSubcategory(
         subcategory_name=validated_name,
         category_id=category_id,
+        description=validated_description,
         created_by=actor or "system"
     )
     
@@ -171,6 +235,7 @@ def create_subcategory(
         id=new_subcategory.subcategory_id,
         name=new_subcategory.subcategory_name,
         category_id=new_subcategory.category_id,
+        description=new_subcategory.description,
         created_at=new_subcategory.created_at,
         created_by=new_subcategory.created_by,
         message="Subcategory created successfully"
@@ -284,6 +349,9 @@ def create_skill(
     db.commit()
     db.refresh(new_skill)
     
+    # Generate and persist embedding for the new skill
+    _update_skill_embedding(db, new_skill)
+    
     logger.info(f"Skill created with id {new_skill.skill_id}: '{validated_name}'" + 
                 (f" with {len(created_aliases)} alias(es)" if created_aliases else ""))
     
@@ -306,15 +374,19 @@ def update_category_name(
     db: Session,
     category_id: int,
     new_name: str,
+    description: Optional[str] = None,
+    update_description: bool = False,
     actor: Optional[str] = None
 ) -> CategoryUpdateResponse:
     """
-    Update the name of a skill category.
+    Update the name and/or description of a skill category.
     
     Args:
         db: Database session
         category_id: ID of the category to update
         new_name: New category name (will be validated)
+        description: New description (None to keep unchanged, empty string to clear)
+        update_description: Whether to update the description field
         actor: Username of the user performing the action (for audit)
         
     Returns:
@@ -338,31 +410,42 @@ def update_category_name(
     if not category:
         raise NotFoundError("Category", category_id)
     
-    # Check if name unchanged (case-insensitive)
-    if category.category_name.lower() == validated_name.lower():
-        # No change needed, return current state
-        return _category_to_response(category)
+    # Track if any changes are made
+    needs_commit = False
     
-    # Check uniqueness (case-insensitive)
-    existing = db.query(SkillCategory).filter(
-        func.lower(SkillCategory.category_name) == validated_name.lower(),
-        SkillCategory.category_id != category_id
-    ).first()
+    # Check if name changed (case-insensitive)
+    name_changed = category.category_name.lower() != validated_name.lower()
     
-    if existing:
-        raise ConflictError("Category", "category_name", validated_name)
+    if name_changed:
+        # Check uniqueness (case-insensitive)
+        existing = db.query(SkillCategory).filter(
+            func.lower(SkillCategory.category_name) == validated_name.lower(),
+            SkillCategory.category_id != category_id
+        ).first()
+        
+        if existing:
+            raise ConflictError("Category", "category_name", validated_name)
+        
+        # Update name
+        category.category_name = validated_name
+        needs_commit = True
     
-    # Update
-    category.category_name = validated_name
+    # Update description if requested
+    if update_description:
+        category.description = description
+        logger.info(f"Category {category_id} description also updated")
+        needs_commit = True
     
-    # TODO: Audit logging - write to audit_log table when implemented
-    # audit_log.write(entity_type="category", entity_id=category_id, 
-    #                 action="update", actor=actor, changes={"category_name": validated_name})
+    # Only commit if changes were made
+    if needs_commit:
+        # TODO: Audit logging - write to audit_log table when implemented
+        # audit_log.write(entity_type="category", entity_id=category_id, 
+        #                 action="update", actor=actor, changes={"category_name": validated_name})
+        
+        db.commit()
+        db.refresh(category)
+        logger.info(f"Category {category_id} updated successfully")
     
-    db.commit()
-    db.refresh(category)
-    
-    logger.info(f"Category {category_id} name updated successfully")
     return _category_to_response(category)
 
 
@@ -371,6 +454,7 @@ def _category_to_response(category: SkillCategory) -> CategoryUpdateResponse:
     return CategoryUpdateResponse(
         id=category.category_id,
         name=category.category_name,
+        description=category.description,
         created_at=category.created_at,
         created_by=category.created_by
     )
@@ -384,15 +468,19 @@ def update_subcategory_name(
     db: Session,
     subcategory_id: int,
     new_name: str,
+    description: Optional[str] = None,
+    update_description: bool = False,
     actor: Optional[str] = None
 ) -> SubcategoryUpdateResponse:
     """
-    Update the name of a skill subcategory.
+    Update the name and/or description of a skill subcategory.
     
     Args:
         db: Database session
         subcategory_id: ID of the subcategory to update
         new_name: New subcategory name (will be validated)
+        description: New description (if update_description is True)
+        update_description: Whether to update the description field
         actor: Username of the user performing the action (for audit)
         
     Returns:
@@ -416,35 +504,39 @@ def update_subcategory_name(
     if not subcategory:
         raise NotFoundError("Subcategory", subcategory_id)
     
-    # Check if name unchanged (case-insensitive)
-    if subcategory.subcategory_name.lower() == validated_name.lower():
-        # No change needed, return current state
-        return _subcategory_to_response(subcategory)
+    # Track changes
+    name_changed = subcategory.subcategory_name.lower() != validated_name.lower()
+    desc_changed = update_description and subcategory.description != description
     
-    # Check uniqueness within same category (case-insensitive)
-    existing = db.query(SkillSubcategory).filter(
-        func.lower(SkillSubcategory.subcategory_name) == validated_name.lower(),
-        SkillSubcategory.category_id == subcategory.category_id,
-        SkillSubcategory.subcategory_id != subcategory_id
-    ).first()
+    # Only check uniqueness if name is changing
+    if name_changed:
+        existing = db.query(SkillSubcategory).filter(
+            func.lower(SkillSubcategory.subcategory_name) == validated_name.lower(),
+            SkillSubcategory.category_id == subcategory.category_id,
+            SkillSubcategory.subcategory_id != subcategory_id
+        ).first()
+        
+        if existing:
+            raise ConflictError(
+                "Subcategory", 
+                "subcategory_name", 
+                validated_name,
+                scope=f"category {subcategory.category_id}"
+            )
+        
+        subcategory.subcategory_name = validated_name
     
-    if existing:
-        raise ConflictError(
-            "Subcategory", 
-            "subcategory_name", 
-            validated_name,
-            scope=f"category {subcategory.category_id}"
-        )
-    
-    # Update
-    subcategory.subcategory_name = validated_name
+    # Update description if requested
+    if update_description:
+        subcategory.description = description
     
     # TODO: Audit logging
     
-    db.commit()
-    db.refresh(subcategory)
+    if name_changed or desc_changed:
+        db.commit()
+        db.refresh(subcategory)
     
-    logger.info(f"Subcategory {subcategory_id} name updated successfully")
+    logger.info(f"Subcategory {subcategory_id} updated successfully")
     return _subcategory_to_response(subcategory)
 
 
@@ -454,6 +546,7 @@ def _subcategory_to_response(subcategory: SkillSubcategory) -> SubcategoryUpdate
         id=subcategory.subcategory_id,
         name=subcategory.subcategory_name,
         category_id=subcategory.category_id,
+        description=getattr(subcategory, 'description', None),
         created_at=subcategory.created_at,
         created_by=subcategory.created_by
     )
@@ -525,6 +618,9 @@ def update_skill_name(
     db.commit()
     db.refresh(skill)
     
+    # Regenerate embedding since skill name changed
+    _update_skill_embedding(db, skill)
+    
     logger.info(f"Skill {skill_id} name updated successfully")
     return _skill_to_response(skill)
 
@@ -581,6 +677,7 @@ def update_alias(
     
     # Track if any changes were made
     changes_made = False
+    alias_text_changed = False
     
     # Update alias_text if provided
     if alias_text is not None:
@@ -605,6 +702,7 @@ def update_alias(
             
             alias.alias_text = validated_text
             changes_made = True
+            alias_text_changed = True
     
     # Update source if provided
     if source is not None:
@@ -620,6 +718,13 @@ def update_alias(
         # TODO: Audit logging
         db.commit()
         db.refresh(alias)
+        
+        # Regenerate embedding if alias text changed
+        if alias_text_changed:
+            skill = db.query(Skill).filter(Skill.skill_id == alias.skill_id).first()
+            if skill:
+                _update_skill_embedding(db, skill)
+        
         logger.info(f"Alias {alias_id} updated successfully")
     
     return _alias_to_response(alias)
@@ -704,6 +809,9 @@ def create_alias(
     db.commit()
     db.refresh(new_alias)
     
+    # Regenerate embedding since aliases changed
+    _update_skill_embedding(db, skill)
+    
     logger.info(f"Alias {new_alias.alias_id} created successfully")
     
     return AliasCreateResponse(
@@ -750,8 +858,15 @@ def delete_alias(
     alias_text = alias.alias_text
     skill_id = alias.skill_id
     
+    # Fetch skill before deleting alias (for embedding update)
+    skill = db.query(Skill).filter(Skill.skill_id == skill_id).first()
+    
     db.delete(alias)
     db.commit()
+    
+    # Regenerate embedding since aliases changed
+    if skill:
+        _update_skill_embedding(db, skill)
     
     logger.info(f"Alias {alias_id} ('{alias_text}') deleted successfully")
     

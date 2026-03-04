@@ -203,3 +203,119 @@ class SkillSearchResponse(BaseModel):
     
     class Config:
         from_attributes = True
+
+
+class CapabilityKPIsResponse(BaseModel):
+    """KPI response for Capability Overview page."""
+    total_skills: int = Field(description="Skills with at least one mapped employee")
+    avg_proficiency: Optional[float] = Field(description="Average proficiency level across mapped employees")
+    total_certifications: int = Field(description="Count of certifications within the current scope")
+    
+    class Config:
+        from_attributes = True
+
+
+class CategoryCoverageItem(BaseModel):
+    """Single category coverage item with employee count."""
+    category_id: int = Field(description="Category ID")
+    category_name: str = Field(description="Category name")
+    employee_count: int = Field(description="Distinct employees with skills in this category")
+    
+    class Config:
+        from_attributes = True
+
+
+class CategoryCoverageResponse(BaseModel):
+    """Response for category coverage endpoint."""
+    most_populated_category: Optional[CategoryCoverageItem] = Field(
+        default=None,
+        description="Category with highest employee concentration"
+    )
+    least_populated_category: Optional[CategoryCoverageItem] = Field(
+        default=None,
+        description="Category with lowest non-zero employee concentration"
+    )
+    
+    class Config:
+        from_attributes = True
+
+
+class SkillCapabilitySnapshotResponse(BaseModel):
+    """Response for skill capability snapshot (3 KPI cards)."""
+    employee_count: int = Field(description="Employees mapped to this skill")
+    certified_count: int = Field(description="Employees with a certification tagged to this skill")
+    team_count: int = Field(description="Distinct teams with employees having this skill")
+    
+    class Config:
+        from_attributes = True
+
+
+class ProficiencyCountsDict(BaseModel):
+    """Proficiency counts by level name."""
+    Novice: int = Field(default=0, description="Count of employees at Novice level")
+    Adv_Beginner: int = Field(default=0, alias="Adv. Beginner", description="Count at Advanced Beginner level")
+    Competent: int = Field(default=0, description="Count of employees at Competent level")
+    Proficient: int = Field(default=0, description="Count of employees at Proficient level")
+    Expert: int = Field(default=0, description="Count of employees at Expert level")
+    
+    class Config:
+        from_attributes = True
+        populate_by_name = True
+
+
+class SkillProficiencyBreakdownResponse(BaseModel):
+    """Response for skill proficiency breakdown (stacked bar + legend)."""
+    counts: dict = Field(description="Counts by proficiency level name")
+    avg: Optional[float] = Field(description="Average proficiency value (1-5) rounded to 1 decimal")
+    median: Optional[int] = Field(description="Median proficiency value (1-5)")
+    total: int = Field(description="Total employees with proficiency data")
+    
+    class Config:
+        from_attributes = True
+
+
+class SkillLeadingSubSegmentResponse(BaseModel):
+    """Response for skill leading sub-segment (highest distinct employee count)."""
+    leading_sub_segment_name: Optional[str] = Field(description="Name of the sub-segment with highest employee count for this skill")
+    leading_sub_segment_employee_count: int = Field(description="Count of distinct employees in the leading sub-segment")
+    
+    class Config:
+        from_attributes = True
+
+
+class SkillEmployeesSummaryResponse(BaseModel):
+    """Response for skill employees summary (View Employees header KPIs)."""
+    employee_count: int = Field(description="Count of distinct employees with this skill")
+    avg_proficiency: float = Field(description="Average proficiency value (1-5) rounded to 1 decimal")
+    certified_count: int = Field(description="Count of employees with certification for this skill")
+    team_count: int = Field(description="Count of distinct teams with employees having this skill")
+    
+    class Config:
+        from_attributes = True
+
+
+class SkillEmployeeListItem(BaseModel):
+    """Single employee row for the View Employees table."""
+    employee_id: int = Field(description="Employee ID")
+    employee_name: str = Field(description="Employee full name")
+    sub_segment: Optional[str] = Field(default=None, description="Sub-segment name via team->project->sub_segment chain")
+    project_name: Optional[str] = Field(default=None, description="Project name via team->project chain")
+    team_name: Optional[str] = Field(default=None, description="Team name the employee belongs to")
+    proficiency_level: int = Field(description="Proficiency level ID (1-5)")
+    proficiency_label: str = Field(description="Proficiency level label (Novice/Adv. Beginner/Competent/Proficient/Expert)")
+    certified: bool = Field(description="True if employee has a certification for this skill")
+    skill_last_updated_days: Optional[int] = Field(default=None, description="Days since last_updated on employee_skills record")
+    
+    class Config:
+        from_attributes = True
+
+
+class SkillEmployeesListResponse(BaseModel):
+    """Response for skill employees list endpoint."""
+    skill_id: int = Field(description="The skill ID queried")
+    skill_name: str = Field(description="The skill name")
+    employees: List[SkillEmployeeListItem] = Field(description="List of employees with this skill")
+    total_count: int = Field(description="Total number of employees returned")
+    
+    class Config:
+        from_attributes = True

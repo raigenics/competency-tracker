@@ -19,7 +19,7 @@ import DeleteSelectedModal from './DeleteSelectedModal';
 
 const OrgSubSegmentProjectsPanel = ({
   projects = [],
-  subSegmentName = '',
+  subSegmentName: _subSegmentName = '',
   onCreateProject,
   onEditProject,
   onDeleteProject,
@@ -43,6 +43,7 @@ const OrgSubSegmentProjectsPanel = ({
   const [isAddingNew, setIsAddingNew] = useState(false);
   const [addName, setAddName] = useState('');
   const [isAddingSaving, setIsAddingSaving] = useState(false);
+  const [addError, setAddError] = useState(null);
   
   // Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -64,6 +65,7 @@ const OrgSubSegmentProjectsPanel = ({
       });
       setSelectedIds(newSelection);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [projects]);
   
   // Focus input when entering edit mode
@@ -209,6 +211,7 @@ const OrgSubSegmentProjectsPanel = ({
   const handleAddCancel = useCallback(() => {
     setIsAddingNew(false);
     setAddName('');
+    setAddError(null);
   }, []);
   
   const handleAddSave = useCallback(async () => {
@@ -221,6 +224,7 @@ const OrgSubSegmentProjectsPanel = ({
     }
     
     setIsAddingSaving(true);
+    setAddError(null);
     try {
       if (onCreateProject) {
         await onCreateProject(trimmedName);
@@ -228,8 +232,16 @@ const OrgSubSegmentProjectsPanel = ({
       // Success - exit add mode
       setIsAddingNew(false);
       setAddName('');
+      setAddError(null);
     } catch (error) {
-      // Keep add mode open on error so user can retry
+      // Handle 409 duplicate error with user-friendly message
+      if (error.status === 409) {
+        const errorMessage = error.message || `'${trimmedName}' project already exists.`;
+        setAddError(errorMessage);
+      } else {
+        // For other errors, show generic message
+        setAddError(error.message || 'Failed to create project');
+      }
       console.error('Failed to create project:', error);
     } finally {
       setIsAddingSaving(false);
@@ -302,24 +314,14 @@ const OrgSubSegmentProjectsPanel = ({
           <div className="info-section-title" style={{ margin: 0 }}>PROJECTS IN THIS SUB-SEGMENT</div>
           <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
             {!disabled && onCreateProject && (
-              <button className="btn btn-primary btn-sm" onClick={handleStartAdd}>
+              <button className="oh-btn subtle" onClick={handleStartAdd}>
                 + Add Project
               </button>
             )}
           </div>
         </div>
-        <div className="skills-empty-state">
-          <div className="empty-icon">📋</div>
-          <p>No projects in this sub-segment yet</p>
-          {!disabled && onCreateProject && (
-            <button 
-              className="btn btn-primary btn-sm" 
-              onClick={handleStartAdd}
-              style={{ marginTop: '16px' }}
-            >
-              + Add First Project
-            </button>
-          )}
+        <div className="skills-empty-state" style={{ padding: '32px 16px', textAlign: 'center' }}>
+          <p style={{ color: 'var(--oh-sub, #64748b)', margin: 0 }}>No projects in this sub-segment yet.</p>
         </div>
       </div>
     );
@@ -372,7 +374,7 @@ const OrgSubSegmentProjectsPanel = ({
           )}
           {!disabled && onCreateProject && (
             <button 
-              className="btn btn-primary btn-sm" 
+              className="oh-btn subtle" 
               onClick={handleStartAdd}
               disabled={isAddingSaving}
             >
@@ -417,23 +419,39 @@ const OrgSubSegmentProjectsPanel = ({
                   {/* Empty checkbox cell for alignment */}
                 </td>
                 <td>
-                  <input
-                    ref={addInputRef}
-                    type="text"
-                    className="inline-edit-input"
-                    value={addName}
-                    onChange={(e) => setAddName(e.target.value)}
-                    onKeyDown={handleAddKeyDown}
-                    disabled={isAddingSaving}
-                    placeholder="Enter project name"
-                    style={{
-                      width: '100%',
-                      padding: '4px 8px',
-                      border: '1px solid var(--border-color)',
-                      borderRadius: '4px',
-                      fontSize: 'inherit',
-                    }}
-                  />
+                  <div>
+                    <input
+                      ref={addInputRef}
+                      type="text"
+                      className={`inline-edit-input${addError ? ' input-error' : ''}`}
+                      value={addName}
+                      onChange={(e) => {
+                        setAddName(e.target.value);
+                        if (addError) setAddError(null);
+                      }}
+                      onKeyDown={handleAddKeyDown}
+                      disabled={isAddingSaving}
+                      placeholder="Enter project name"
+                      style={{
+                        width: '100%',
+                        padding: '4px 8px',
+                        border: addError ? '1px solid #dc2626' : '1px solid var(--border-color)',
+                        borderRadius: '4px',
+                        fontSize: 'inherit',
+                        backgroundColor: addError ? '#fef2f2' : undefined,
+                      }}
+                    />
+                    {addError && (
+                      <div style={{
+                        color: '#dc2626',
+                        fontSize: '12px',
+                        marginTop: '4px',
+                        lineHeight: '1.4'
+                      }}>
+                        {addError}
+                      </div>
+                    )}
+                  </div>
                 </td>
                 <td style={{ textAlign: 'right', paddingRight: '16px' }}>
                   <div className="row-actions">

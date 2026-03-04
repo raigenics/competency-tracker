@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ChevronDown, ChevronRight, Folder, FolderOpen, Tag, Loader2 } from 'lucide-react';
+import React, { useState, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { Loader2, Folder } from 'lucide-react';
 
-const TaxonomyTree = ({ 
+const TaxonomyTree = forwardRef(({ 
   skillTree, 
   onSkillSelect, 
   selectedSkill, 
   searchTerm = '',
   onLoadSubcategories,
   onLoadSkills
-}) => {
+}, ref) => {
   const [expandedCategories, setExpandedCategories] = useState(new Set());
   const [expandedSubcategories, setExpandedSubcategories] = useState(new Set());
   const [loadingCategories, setLoadingCategories] = useState(new Set());
@@ -33,7 +33,7 @@ const TaxonomyTree = ({
       return findScrollContainer(parent);
     };
     
-    const treeContainer = document.querySelector('.space-y-2');
+    const treeContainer = document.querySelector('.co-tree');
     if (treeContainer) {
       scrollContainerRef.current = findScrollContainer(treeContainer);
     }
@@ -71,6 +71,25 @@ const TaxonomyTree = ({
     });
   }, [skillTree]);
 
+  // Expose expandAll and collapseAll methods to parent via ref
+  useImperativeHandle(ref, () => ({
+    expandAll: () => {
+      const allCategoryIds = new Set(skillTree.map(cat => cat.id));
+      const allSubcategoryIds = new Set();
+      skillTree.forEach(cat => {
+        if (cat.subcategories) {
+          cat.subcategories.forEach(sub => allSubcategoryIds.add(sub.id));
+        }
+      });
+      setExpandedCategories(allCategoryIds);
+      setExpandedSubcategories(allSubcategoryIds);
+    },
+    collapseAll: () => {
+      setExpandedCategories(new Set());
+      setExpandedSubcategories(new Set());
+    }
+  }), [skillTree]);
+
   // Helper function to highlight matching text
   const highlightText = (text, search) => {
     if (!search.trim()) return text;
@@ -78,7 +97,7 @@ const TaxonomyTree = ({
     const parts = text.split(new RegExp(`(${search})`, 'gi'));
     return parts.map((part, index) => 
       part.toLowerCase() === search.toLowerCase() ? (
-        <mark key={index} className="bg-yellow-200 font-medium">{part}</mark>
+        <mark key={index} className="co-tree-highlight">{part}</mark>
       ) : (
         part
       )
@@ -158,33 +177,32 @@ const TaxonomyTree = ({
     const skillCount = category.skill_count || category.subcategories.reduce((total, sub) => total + (sub.skill_count || sub.skills.length), 0);
 
     return (
-      <div className="mb-2">
+      <div className="co-tree-node">
         <button
           onClick={() => toggleCategory(category.id, category)}
           tabIndex={0}
-          className="flex items-center gap-2 w-full text-left p-2 rounded-lg hover:bg-gray-100 group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="co-tree-row"
           disabled={isLoading}
         >
-          {isLoading ? (
-            <Loader2 className="h-4 w-4 text-gray-600 animate-spin" />
-          ) : isExpanded ? (
-            <ChevronDown className="h-4 w-4 text-gray-600" />
-          ) : (
-            <ChevronRight className="h-4 w-4 text-gray-600" />
-          )}
-          {isExpanded ? (
-            <FolderOpen className="h-5 w-5 text-blue-600" />
-          ) : (
-            <Folder className="h-5 w-5 text-blue-600" />
-          )}
-          <span className="font-medium text-gray-900 group-hover:text-blue-600">
-            {highlightText(category.name, searchTerm)}
-          </span>
-          <span className="text-sm text-gray-500 ml-auto">
-            {skillCount} skills
-          </span>
-        </button>        {isExpanded && category.subcategories && category.subcategories.length > 0 && (
-          <div className="ml-6 mt-2 space-y-1">
+          <div className="co-tree-left">
+            {isLoading ? (
+              <span className="co-tree-chev">
+                <Loader2 className="animate-spin" style={{ width: 11, height: 11 }} />
+              </span>
+            ) : (
+              <span className="co-tree-chev">{isExpanded ? '▼' : '▶'}</span>
+            )}
+            <span className="co-tree-type">Category</span>
+            <span className="co-tree-name">
+              {highlightText(category.name, searchTerm)}
+            </span>
+          </div>
+          <div className="co-tree-meta">
+            <span className="co-tree-badge">{skillCount} skills</span>
+          </div>
+        </button>
+        {isExpanded && category.subcategories && category.subcategories.length > 0 && (
+          <div className="co-tree-children">
             {category.subcategories.map((subcategory) => (
               <SubcategoryItem 
                 key={subcategory.id} 
@@ -202,29 +220,32 @@ const TaxonomyTree = ({
     const isLoading = loadingSubcategories.has(subcategory.id);
 
     return (
-      <div>
+      <div className="co-tree-node">
         <button
           onClick={() => toggleSubcategory(categoryId, subcategory.id, subcategory)}
           tabIndex={0}
-          className="flex items-center gap-2 w-full text-left p-2 rounded-lg hover:bg-gray-50 group focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+          className="co-tree-row"
           disabled={isLoading}
         >
-          {isLoading ? (
-            <Loader2 className="h-3 w-3 text-gray-600 animate-spin" />
-          ) : isExpanded ? (
-            <ChevronDown className="h-3 w-3 text-gray-600" />
-          ) : (
-            <ChevronRight className="h-3 w-3 text-gray-600" />
-          )}
-          <Tag className="h-4 w-4 text-green-600" />
-          <span className="text-sm font-medium text-gray-700 group-hover:text-green-600">
-            {highlightText(subcategory.name, searchTerm)}
-          </span>
-          <span className="text-xs text-gray-500 ml-auto">
-            {subcategory.skill_count || subcategory.skills.length}
-          </span>
-        </button>        {isExpanded && subcategory.skills && subcategory.skills.length > 0 && (
-          <div className="ml-6 mt-1 space-y-1">
+          <div className="co-tree-left">
+            {isLoading ? (
+              <span className="co-tree-chev">
+                <Loader2 className="animate-spin" style={{ width: 11, height: 11 }} />
+              </span>
+            ) : (
+              <span className="co-tree-chev">{isExpanded ? '▼' : '▶'}</span>
+            )}
+            <span className="co-tree-type">Sub</span>
+            <span className="co-tree-name">
+              {highlightText(subcategory.name, searchTerm)}
+            </span>
+          </div>
+          <div className="co-tree-meta">
+            <span className="co-tree-badge">{subcategory.skill_count || subcategory.skills.length} skills</span>
+          </div>
+        </button>
+        {isExpanded && subcategory.skills && subcategory.skills.length > 0 && (
+          <div className="co-tree-children">
             {subcategory.skills.map((skill) => (
               <SkillItem 
                 key={skill.id} 
@@ -247,34 +268,32 @@ const TaxonomyTree = ({
       <button
         onClick={onClick}
         tabIndex={0}
-        className={`flex items-center gap-2 w-full text-left p-2 rounded-lg transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 relative
-          ${isSelected
-            ? 'bg-blue-50 text-gray-900'
-            : 'hover:bg-gray-50 text-gray-900 hover:text-gray-900'}
-        `}
+        className={`co-tree-row skill ${isSelected ? 'selected' : ''}`}
         aria-current={isSelected ? 'true' : undefined}
       >
-        {/* Left accent for selected */}
-        {isSelected && (
-          <span className="absolute left-0 top-1 bottom-1 w-1 rounded bg-blue-500" aria-hidden="true"></span>
-        )}
-        <span className="text-sm ml-2">{highlightText(skill.name, searchTerm)}</span>
-        {skill.isCore && (
-          <span className="text-xs px-1.5 py-0.5 bg-yellow-100 text-yellow-800 rounded">
-            Core
+        <div className="co-tree-left">
+          <span className="co-tree-chev hidden">▶</span>
+          <span className="co-tree-type skill">Skill</span>
+          <span className="co-tree-name">
+            {highlightText(skill.name, searchTerm)}
           </span>
-        )}
+        </div>
+        <div className="co-tree-meta">
+          {skill.isCore && (
+            <span className="co-tree-badge">Core</span>
+          )}
+        </div>
       </button>
     );
   };
 
   return (
-    <div className="space-y-2">
+    <div className="co-tree">
       {skillTree.length === 0 ? (
-        <div className="text-center py-8 text-gray-500">
-          <Folder className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-          <p className="text-lg font-medium text-gray-600">No skills found</p>
-          <p className="text-sm text-gray-500">Try adjusting your search criteria</p>
+        <div className="co-tree-empty">
+          <Folder className="co-tree-empty-icon" />
+          <p className="co-tree-empty-title">No skills found</p>
+          <p className="co-tree-empty-subtitle">Try adjusting your search criteria</p>
         </div>
       ) : (
         skillTree.map((category) => (
@@ -283,6 +302,8 @@ const TaxonomyTree = ({
       )}
     </div>
   );
-};
+});
+
+TaxonomyTree.displayName = 'TaxonomyTree';
 
 export default TaxonomyTree;

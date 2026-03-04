@@ -4,7 +4,7 @@
  * Displays a role assignment as colored badges showing role name and scope.
  */
 const RoleBadge = ({ assignment }) => {
-  const { role_name, scope_type, scope_name } = assignment;
+  const { role_name, scope_name } = assignment;
 
   // Color scheme for role badges (matching HTML spec)
   const getRoleColor = (role) => {

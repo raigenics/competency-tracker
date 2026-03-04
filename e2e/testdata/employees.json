@@ -1,0 +1,32 @@
+[
+  {
+    "id": 9001,
+    "firstName": "Test",
+    "lastName": "User One",
+    "email": "test.user1@example.com",
+    "teamId": 9001,
+    "roleId": 9001,
+    "hireDate": "2023-01-15",
+    "isManager": false
+  },
+  {
+    "id": 9002,
+    "firstName": "Test",
+    "lastName": "User Two",
+    "email": "test.user2@example.com",
+    "teamId": 9001,
+    "roleId": 9001,
+    "hireDate": "2023-02-20",
+    "isManager": false
+  },
+  {
+    "id": 9003,
+    "firstName": "Test",
+    "lastName": "Manager",
+    "email": "test.manager@example.com",
+    "teamId": 9001,
+    "roleId": 9001,
+    "hireDate": "2022-06-01",
+    "isManager": true
+  }
+]

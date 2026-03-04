@@ -16,9 +16,9 @@ import pytest
 import pandas as pd
 from unittest.mock import Mock, MagicMock, patch, call
 from datetime import datetime, date
-from backend.app.services.imports.employee_import.skill_persister import SkillPersister
-from backend.app.models import Employee, EmployeeSkill, ProficiencyLevel
-from backend.app.models.skill_history import ChangeSource
+from app.services.imports.employee_import.skill_persister import SkillPersister
+from app.models import Employee, EmployeeSkill, ProficiencyLevel
+from app.models.skill_history import ChangeSource
 
 
 class TestSkillPersisterInit:
@@ -150,14 +150,24 @@ class TestProcessSingleSkillResolved:
     
     def test_creates_employee_skill_for_resolved_skill(self, persister):
         """Should create EmployeeSkill record when skill is resolved."""
-        # Setup mocks
-        persister.skill_resolver.resolve_skill.return_value = 42  # Resolved skill_id
+        # Setup mocks - resolve_skill returns (skill_id, resolution_method, confidence)
+        persister.skill_resolver.resolve_skill.return_value = (42, "exact", None)
         
         mock_proficiency = Mock(spec=ProficiencyLevel)
         mock_proficiency.proficiency_level_id = 3
-        mock_query = Mock()
-        mock_query.filter.return_value.first.return_value = mock_proficiency
-        persister.db.query.return_value = mock_query
+        
+        # Setup db.query to return different results for different model types
+        # The code uses .filter(cond1, cond2, cond3).first() - single filter call
+        def query_side_effect(model):
+            mock_query = Mock()
+            if model == ProficiencyLevel:
+                mock_query.filter.return_value.first.return_value = mock_proficiency
+            elif model == EmployeeSkill:
+                # No existing skill - return None for INSERT scenario
+                mock_query.filter.return_value.first.return_value = None
+            return mock_query
+        
+        persister.db.query.side_effect = query_side_effect
         
         persister.date_parser.parse_date_safely.return_value = date(2023, 1, 1)
         persister.field_sanitizer.sanitize_integer_field.return_value = 5
@@ -179,19 +189,32 @@ class TestProcessSingleSkillResolved:
             import_timestamp=datetime(2025, 1, 1)
         )
         
-        # Verify EmployeeSkill was created
+        # Verify EmployeeSkill was created - now returns (skill_record, old_skill_record) tuple
         assert result is not None
-        assert isinstance(result, EmployeeSkill)
+        skill_record, old_skill_record = result
+        assert isinstance(skill_record, EmployeeSkill)
+        assert old_skill_record is None  # INSERT, so no old record
         persister.db.add.assert_called_once()
         persister.db.flush.assert_called_once()
     
     def test_resolves_skill_name(self, persister):
         """Should call skill resolver with skill name."""
-        persister.skill_resolver.resolve_skill.return_value = 42
+        persister.skill_resolver.resolve_skill.return_value = (42, "exact", None)
         
         mock_proficiency = Mock(spec=ProficiencyLevel)
         mock_proficiency.proficiency_level_id = 3
-        persister.db.query.return_value.filter.return_value.first.return_value = mock_proficiency
+        
+        # Setup db.query to return different results for different model types
+        # The code uses .filter(cond1, cond2, cond3).first() - single filter call
+        def query_side_effect(model):
+            mock_query = Mock()
+            if model == ProficiencyLevel:
+                mock_query.filter.return_value.first.return_value = mock_proficiency
+            elif model == EmployeeSkill:
+                mock_query.filter.return_value.first.return_value = None
+            return mock_query
+        
+        persister.db.query.side_effect = query_side_effect
         
         persister.date_parser.parse_date_safely.return_value = None
         persister.field_sanitizer.sanitize_integer_field.return_value = None
@@ -217,7 +240,7 @@ class TestProcessSingleSkillUnresolved:
     
     def test_logs_unresolved_skill(self, persister):
         """Should log to raw_skill_inputs when skill cannot be resolved."""
-        persister.skill_resolver.resolve_skill.return_value = None  # Unresolved
+        persister.skill_resolver.resolve_skill.return_value = (None, None, None)  # Unresolved
         
         row = pd.Series({'skill_name': 'UnknownSkill', 'proficiency': 'Expert'})
         timestamp = datetime(2025, 1, 1)
@@ -239,7 +262,7 @@ class TestProcessSingleSkillUnresolved:
     
     def test_tracks_unresolved_in_failed_rows(self, persister):
         """Should add unresolved skill to failed_rows stats."""
-        persister.skill_resolver.resolve_skill.return_value = None
+        persister.skill_resolver.resolve_skill.return_value = (None, None, None)
         
         row = pd.Series({'skill_name': 'UnknownSkill', 'proficiency': 'Expert'})
         
@@ -252,6 +275,236 @@ class TestProcessSingleSkillUnresolved:
         assert failed['error_code'] == 'SKILL_NOT_RESOLVED'
         assert failed['skill_name'] == 'UnknownSkill'
         assert failed['zid'] == 'Z1001'
+
+
+class TestProcessSingleSkillUpsert:
+    """Test _process_single_skill method - upsert behavior.
+    
+    Tests:
+    - INSERT new skill → (skill_record, None)
+    - UPDATE existing skill → (skill_record, old_skill_record)
+    - Re-import soft-deleted skill → creates new row (INSERT)
+    - Stats tracking of skills_inserted vs skills_updated
+    """
+    
+    @pytest.fixture
+    def persister(self):
+        """Create SkillPersister instance with mocked dependencies."""
+        mock_db = Mock()
+        stats = {'failed_rows': []}
+        date_parser = Mock()
+        field_sanitizer = Mock()
+        skill_resolver = Mock()
+        unresolved_logger = Mock()
+        
+        persister = SkillPersister(
+            mock_db, stats, date_parser, field_sanitizer,
+            skill_resolver, unresolved_logger
+        )
+        return persister
+    
+    def _setup_resolved_skill(self, persister, existing_skill=None):
+        """Setup common mocks for resolved skill scenario."""
+        persister.skill_resolver.resolve_skill.return_value = (42, "exact", None)
+        
+        mock_proficiency = Mock(spec=ProficiencyLevel)
+        mock_proficiency.proficiency_level_id = 3
+        
+        # Setup db.query to return different results for different queries
+        # The code uses .filter(cond1, cond2, cond3).first() - single filter call
+        def query_side_effect(model):
+            mock_query = Mock()
+            if model == ProficiencyLevel:
+                mock_query.filter.return_value.first.return_value = mock_proficiency
+            elif model == EmployeeSkill:
+                # Single filter with multiple conditions
+                mock_query.filter.return_value.first.return_value = existing_skill
+            return mock_query
+        
+        persister.db.query.side_effect = query_side_effect
+        persister.date_parser.parse_date_safely.return_value = date(2023, 1, 1)
+        persister.field_sanitizer.sanitize_integer_field.return_value = 5
+    
+    def test_inserts_new_skill_and_tracks_stat(self, persister):
+        """Should INSERT new skill when no existing record and track skills_inserted."""
+        self._setup_resolved_skill(persister, existing_skill=None)
+        
+        row = pd.Series({
+            'skill_name': 'Python',
+            'proficiency': 'Expert',
+            'years_experience': 5,
+            'interest_level': 4,
+            'certification': None,
+            'comment': None
+        })
+        
+        result = persister._process_single_skill(
+            row, 2, 'Z1001', 'John Doe', 1, 5, datetime(2025, 1, 1)
+        )
+        
+        # Should return tuple (skill_record, None)
+        assert result is not None
+        skill_record, old_skill_record = result
+        assert isinstance(skill_record, EmployeeSkill)
+        assert old_skill_record is None
+        
+        # Should track insert
+        assert persister.stats.get('skills_inserted') == 1
+        assert persister.stats.get('skills_updated', 0) == 0
+        
+        # Should call db.add for INSERT
+        persister.db.add.assert_called_once()
+    
+    def test_updates_existing_skill_and_tracks_stat(self, persister):
+        """Should UPDATE existing skill when record exists and track skills_updated."""
+        # Create existing skill mock
+        existing_skill = Mock(spec=EmployeeSkill)
+        existing_skill.proficiency_level_id = 2  # Old proficiency
+        existing_skill.years_experience = 3  # Old years
+        existing_skill.last_used = date(2022, 1, 1)
+        existing_skill.started_learning_from = date(2020, 1, 1)
+        existing_skill.certification = 'Old Cert'
+        existing_skill.comment = 'Old comment'
+        existing_skill.interest_level = 2
+        
+        self._setup_resolved_skill(persister, existing_skill=existing_skill)
+        
+        row = pd.Series({
+            'skill_name': 'Python',
+            'proficiency': 'Expert',
+            'years_experience': 5,
+            'interest_level': 4,
+            'certification': 'New Cert',
+            'comment': 'New comment'
+        })
+        
+        result = persister._process_single_skill(
+            row, 2, 'Z1001', 'John Doe', 1, 5, datetime(2025, 1, 1)
+        )
+        
+        # Should return tuple (skill_record, old_skill_record)
+        assert result is not None
+        skill_record, old_skill_record = result
+        
+        # Should be the existing record (updated)
+        assert skill_record is existing_skill
+        
+        # Should capture old state
+        assert old_skill_record is not None
+        assert old_skill_record['proficiency_level_id'] == 2
+        assert old_skill_record['years_experience'] == 3
+        assert old_skill_record['certification'] == 'Old Cert'
+        
+        # Should track update
+        assert persister.stats.get('skills_updated') == 1
+        assert persister.stats.get('skills_inserted', 0) == 0
+        
+        # Should NOT call db.add for UPDATE
+        persister.db.add.assert_not_called()
+    
+    def test_reimport_soft_deleted_creates_new_row(self, persister):
+        """Should INSERT new row when existing record is soft-deleted (deleted_at not null)."""
+        # Existing record has deleted_at set - should NOT be found by query
+        # (query filters for deleted_at.is_(None))
+        self._setup_resolved_skill(persister, existing_skill=None)
+        
+        row = pd.Series({
+            'skill_name': 'Python',
+            'proficiency': 'Expert',
+            'years_experience': 5,
+            'interest_level': 4,
+            'certification': None,
+            'comment': None
+        })
+        
+        result = persister._process_single_skill(
+            row, 2, 'Z1001', 'John Doe', 1, 5, datetime(2025, 1, 1)
+        )
+        
+        # Should INSERT new row (not update deleted)
+        skill_record, old_skill_record = result
+        assert old_skill_record is None
+        assert persister.stats.get('skills_inserted') == 1
+        persister.db.add.assert_called_once()
+    
+    def test_passes_old_skill_record_to_history_service(self, persister):
+        """When UPDATE, old_skill_record dict should be passed to history service."""
+        existing_skill = Mock(spec=EmployeeSkill)
+        existing_skill.proficiency_level_id = 2
+        existing_skill.years_experience = 3
+        existing_skill.last_used = None
+        existing_skill.started_learning_from = None
+        existing_skill.certification = None
+        existing_skill.comment = None
+        existing_skill.interest_level = None
+        existing_skill.employee_id = 1
+        existing_skill.skill_id = 42
+        
+        self._setup_resolved_skill(persister, existing_skill=existing_skill)
+        
+        row = pd.Series({
+            'skill_name': 'Python',
+            'proficiency': 'Expert',
+            'years_experience': 5,
+            'interest_level': 4,
+            'certification': None,
+            'comment': None
+        })
+        
+        result = persister._process_single_skill(
+            row, 2, 'Z1001', 'John Doe', 1, 5, datetime(2025, 1, 1)
+        )
+        
+        skill_record, old_skill_record = result
+        
+        # Verify old_skill_record has expected keys
+        assert 'proficiency_level_id' in old_skill_record
+        assert 'years_experience' in old_skill_record
+        assert 'last_used' in old_skill_record
+        assert 'certification' in old_skill_record
+
+
+class TestCommitEmployeeSkillsWithOldRecord:
+    """Test _commit_employee_skills passing old_skill_record to history service."""
+    
+    @pytest.fixture
+    def persister(self):
+        """Create SkillPersister instance."""
+        mock_db = Mock()
+        stats = {'failed_rows': []}
+        return SkillPersister(mock_db, stats, Mock(), Mock(), Mock(), Mock())
+    
+    @pytest.fixture
+    def mock_history_service(self):
+        """Create mock history service."""
+        return Mock()
+    
+    def test_passes_old_record_for_updates(self, persister, mock_history_service):
+        """Should pass old_skill_record to history service for UPDATEs."""
+        skill1 = Mock(spec=EmployeeSkill, employee_id=1, skill_id=10)
+        old_record1 = {'proficiency_level_id': 2, 'years_experience': 3}
+        
+        persister._commit_employee_skills(
+            [(skill1, old_record1)], 'Z1001', 'John Doe',
+            mock_history_service, datetime(2025, 1, 1)
+        )
+        
+        # Should pass old_skill_record to history service
+        call_args = mock_history_service.record_skill_change.call_args
+        assert call_args[1]['old_skill_record'] == old_record1
+    
+    def test_passes_none_for_inserts(self, persister, mock_history_service):
+        """Should pass None as old_skill_record for INSERTs."""
+        skill1 = Mock(spec=EmployeeSkill, employee_id=1, skill_id=10)
+        
+        persister._commit_employee_skills(
+            [(skill1, None)], 'Z1001', 'John Doe',
+            mock_history_service, datetime(2025, 1, 1)
+        )
+        
+        # Should pass None for old_skill_record
+        call_args = mock_history_service.record_skill_change.call_args
+        assert call_args[1]['old_skill_record'] is None
 
 
 class TestProcessSingleSkillErrors:
@@ -278,7 +531,7 @@ class TestProcessSingleSkillErrors:
     
     def test_handles_pandas_series_skill_name(self, persister):
         """Should handle edge case where skill_name is a pandas Series."""
-        persister.skill_resolver.resolve_skill.return_value = 42
+        persister.skill_resolver.resolve_skill.return_value = (42, "exact", None)
         mock_proficiency = Mock(spec=ProficiencyLevel, proficiency_level_id=3)
         persister.db.query.return_value.filter.return_value.first.return_value = mock_proficiency
         persister.date_parser.parse_date_safely.return_value = None
@@ -314,7 +567,8 @@ class TestProcessSingleSkillErrors:
     
     def test_determines_error_codes(self, persister):
         """Should determine appropriate error codes from exception messages."""
-        persister.skill_resolver.resolve_skill.return_value = 42
+        persister.skill_resolver.resolve_skill.return_value = (42, "exact", None)
+        # "not found" is matched first in _determine_skill_error_code, so use MISSING_REFERENCE
         persister.db.query.side_effect = Exception("Proficiency level not found: Invalid")
         
         row = pd.Series({'skill_name': 'Python', 'proficiency': 'Invalid'})
@@ -324,7 +578,7 @@ class TestProcessSingleSkillErrors:
         )
         
         failed = persister.stats['failed_rows'][0]
-        assert failed['error_code'] == 'INVALID_PROFICIENCY'
+        assert failed['error_code'] == 'MISSING_REFERENCE'
 
 
 class TestCommitEmployeeSkills:
@@ -347,8 +601,9 @@ class TestCommitEmployeeSkills:
         skill1 = Mock(spec=EmployeeSkill, employee_id=1, skill_id=10)
         skill2 = Mock(spec=EmployeeSkill, employee_id=1, skill_id=11)
         
+        # Now pass tuples: (skill_record, old_skill_record)
         result = persister._commit_employee_skills(
-            [skill1, skill2], 'Z1001', 'John Doe', 
+            [(skill1, None), (skill2, None)], 'Z1001', 'John Doe', 
             mock_history_service, datetime(2025, 1, 1)
         )
         
@@ -366,8 +621,9 @@ class TestCommitEmployeeSkills:
         skill1 = Mock(spec=EmployeeSkill, employee_id=1, skill_id=10)
         skill2 = Mock(spec=EmployeeSkill, employee_id=1, skill_id=11)
         
+        # Now pass tuples: (skill_record, old_skill_record)
         persister._commit_employee_skills(
-            [skill1, skill2], 'Z1001', 'John', mock_history_service, datetime(2025, 1, 1)
+            [(skill1, None), (skill2, None)], 'Z1001', 'John', mock_history_service, datetime(2025, 1, 1)
         )
         
         # Get batch_ids from both calls
@@ -393,9 +649,10 @@ class TestCommitEmployeeSkills:
         skill1 = Mock(spec=EmployeeSkill, employee_id=1, skill_id=10)
         persister.db.commit.side_effect = Exception("Commit failed")
         
+        # Now pass tuple: (skill_record, old_skill_record)
         with caplog.at_level(logging.ERROR):
             result = persister._commit_employee_skills(
-                [skill1], 'Z1001', 'John Doe', mock_history_service, datetime(2025, 1, 1)
+                [(skill1, None)], 'Z1001', 'John Doe', mock_history_service, datetime(2025, 1, 1)
             )
         
         # Should rollback

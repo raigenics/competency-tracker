@@ -14,7 +14,7 @@ Test Strategy:
 """
 import pytest
 import pandas as pd
-from backend.app.services.imports.employee_import.skill_expander import SkillExpander
+from app.services.imports.employee_import.skill_expander import SkillExpander
 
 
 class TestExpandSkills:

@@ -32,6 +32,7 @@ from app.models.project import Project
 from app.models.sub_segment import SubSegment
 from app.models.segment import Segment
 from app.schemas.employee import EmployeeResponse, EmployeeListResponse, OrganizationInfo
+from app.schemas.role import RoleResponse
 from app.schemas.common import PaginationParams
 from app.services.utils.org_query_helpers import apply_org_filters
 from app.security.rbac_policy import RbacContext
@@ -303,7 +304,7 @@ def _build_employee_responses(
             employee_id=employee.employee_id,
             zid=employee.zid,
             full_name=employee.full_name,
-            role=employee.role,
+            role=_build_role_info(employee.role),
             start_date_of_working=employee.start_date_of_working,
             organization=_build_organization_info(employee),
             skills_count=skills_count
@@ -336,4 +337,44 @@ def _build_organization_info(employee: Employee) -> OrganizationInfo:
         sub_segment_id=sub_segment.sub_segment_id if sub_segment else None,
         project_id=project.project_id if project else None,
         team_id=team.team_id if team else None
+    )
+
+
+def _build_role_info(role) -> Optional[RoleResponse]:
+    """
+    Build RoleResponse from role object with safe attribute extraction.
+    
+    Handles ORM objects and Mock objects by extracting attributes safely.
+    Returns None if role is None or missing required fields.
+    """
+    if role is None:
+        return None
+    
+    # Safely extract attributes - use getattr with defaults
+    # This handles both ORM models and Mock objects
+    role_id = getattr(role, 'role_id', None)
+    role_name = getattr(role, 'role_name', None)
+    
+    # Required fields must be valid
+    if role_id is None or role_name is None:
+        return None
+    
+    # Ensure role_name is a string (not a Mock)
+    if not isinstance(role_name, str):
+        return None
+    
+    # Optional fields - extract safely, default to None if not a string
+    role_alias = getattr(role, 'role_alias', None)
+    if role_alias is not None and not isinstance(role_alias, str):
+        role_alias = None
+    
+    role_description = getattr(role, 'role_description', None)
+    if role_description is not None and not isinstance(role_description, str):
+        role_description = None
+    
+    return RoleResponse(
+        role_id=role_id,
+        role_name=role_name,
+        role_alias=role_alias,
+        role_description=role_description
     )

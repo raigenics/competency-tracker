@@ -70,11 +70,10 @@ vi.mock('@/services/api/dropdownApi.js', () => ({
 
 // Mock window.alert for testing
 const mockAlert = vi.fn();
-global.alert = mockAlert;
+globalThis.alert = mockAlert;
 
 import { useOrgAssignment } from '@/hooks/useOrgAssignment.js';
 import { useEmployeeForm } from '@/hooks/useEmployeeForm.js';
-import { employeeApi } from '@/services/api/employeeApi.js';
 
 // Default mock implementations
 const createMockOrgAssignment = (overrides = {}) => ({

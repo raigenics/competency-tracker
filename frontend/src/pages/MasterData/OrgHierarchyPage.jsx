@@ -2,13 +2,14 @@
  * OrgHierarchyPage - Master Data page for managing Organization Hierarchy
  * Segments > SubSegments > Projects > Teams hierarchy
  * Loads data from backend API: GET /api/org-hierarchy
+ * 
+ * Uses custom layout matching Skill Library styling (OrgStructure.html wireframe)
  */
 import React, { useState, useMemo, useEffect, useCallback, useRef } from 'react';
+import PageHeader from '../../components/PageHeader';
+import './orgHierarchy.css';
 import { fetchOrgHierarchy, createSegment, createSubSegment, createProject, createTeam, updateSegmentName, updateSubSegmentName, updateProjectName, updateTeamName, checkCanDeleteSegment, checkCanDeleteSubSegment, deleteSegment, deleteSubSegment, checkCanDeleteProject, deleteProject, deleteTeam } from '../../services/api/orgHierarchyApi';
 import {
-  MasterDataLayout,
-  TreePanel,
-  DetailsPanel,
   CreateEditModal,
   DeleteConfirmModal,
   DependencyModal,
@@ -24,7 +25,8 @@ import {
   EmptyState,
   InlineEditableTitle,
   OrgSubSegmentProjectsPanel,
-  OrgProjectTeamsPanel
+  OrgProjectTeamsPanel,
+  OrgSegmentSubSegmentsPanel
 } from './components';
 
 // Helper to find item by ID in nested structure
@@ -40,7 +42,7 @@ const findItemById = (items, id) => {
 };
 
 // Get type icon
-const getTypeIcon = (type) => {
+const _getTypeIcon = (type) => {
   switch (type) {
     case 'segment': return '🏢';
     case 'subsegment': return '🏬';
@@ -222,17 +224,156 @@ const OrgHierarchyPage = () => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [apiDependencies, setApiDependencies] = useState(null);  // Dependencies from API 409 response
 
+  // Inline title edit state (for Segment/SubSegment names)
+  const [isEditingName, setIsEditingName] = useState(false);
+  const [editNameValue, setEditNameValue] = useState('');
+  const nameInputRef = useRef(null);
+
   // Get selected item
   const selectedItem = useMemo(() => {
     if (!selectedNodeId) return null;
     return findItemById(treeData, selectedNodeId);
   }, [selectedNodeId, treeData]);
 
-  // Handlers
-  const handleNodeSelect = (nodeId) => {
-    setSelectedNodeId(nodeId);
-  };
+  // Tree search state (for team fallback search)
+  const [treeSearchQuery, setTreeSearchQuery] = useState('');
+  
+  // Tree expansion state
+  const [expandedNodes, setExpandedNodes] = useState(new Set());
+  
+  // Debounced search query - actual value used for filtering
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState('');
+  
+  // Debounce search by 300ms
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      let newDebouncedQuery = '';
+      if (treeSearchQuery && treeSearchQuery.trim().length >= 2) {
+        newDebouncedQuery = treeSearchQuery.trim();
+      }
+      setDebouncedSearchQuery(newDebouncedQuery);
+    }, 300);
+    return () => clearTimeout(timeoutId);
+  }, [treeSearchQuery]);
 
+  /**
+   * Extract all teams from tree structure with their parent info.
+   * Teams are stored in project.teams array (not in tree children).
+   */
+  const allTeams = useMemo(() => {
+    const teams = [];
+    for (const segment of treeData) {
+      for (const subSegment of segment.children || []) {
+        for (const project of subSegment.children || []) {
+          for (const team of project.teams || []) {
+            teams.push({
+              ...team,
+              projectId: project.id,
+              projectName: project.name,
+              subSegmentId: subSegment.id,
+              subSegmentName: subSegment.name,
+              segmentId: segment.id,
+              segmentName: segment.name,
+            });
+          }
+        }
+      }
+    }
+    return teams;
+  }, [treeData]);
+
+  /**
+   * Check if tree filter has matches for current search query.
+   * Returns true if any segment/subsegment/project name matches.
+   */
+  const hasTreeMatches = useMemo(() => {
+    if (!treeSearchQuery || treeSearchQuery.trim().length < 2) return true; // No search = has matches
+    
+    const lowerQuery = treeSearchQuery.toLowerCase().trim();
+    
+    const matchesNode = (nodes) => {
+      for (const node of nodes) {
+        if (node.name.toLowerCase().includes(lowerQuery)) return true;
+        if (node.children && matchesNode(node.children)) return true;
+      }
+      return false;
+    };
+    
+    return matchesNode(treeData);
+  }, [treeSearchQuery, treeData]);
+
+  /**
+   * Whether user is in team search mode (tree has no matches but we may have team matches).
+   */
+  const isTeamSearchMode = useMemo(() => {
+    return treeSearchQuery.trim().length >= 2 && !hasTreeMatches;
+  }, [treeSearchQuery, hasTreeMatches]);
+
+  /**
+   * Get ranked team matches across all projects.
+   * Ranking (higher rank = better match):
+   *   A) Exact match team name (rank 4)
+   *   B) Whole-word match (rank 3)
+   *   C) Prefix match (rank 2)
+   *   D) Substring match (rank 1)
+   * Tie-breaker: alphabetically by team name
+   */
+  const getRankedTeamMatches = useCallback((query) => {
+    if (!query || query.trim().length < 2) return [];
+    const lowerQuery = query.toLowerCase().trim().replace(/\s+/g, ' ');
+    
+    // Regex for whole-word match (word boundary) - escape special chars
+    const escapedQuery = lowerQuery.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const wholeWordRegex = new RegExp(`\\b${escapedQuery}\\b`, 'i');
+    
+    const results = [];
+    
+    for (const team of allTeams) {
+      const lowerTeamName = team.name.toLowerCase().replace(/\s+/g, ' ');
+      let rank = 0;
+      let matchType = '';
+      
+      if (lowerTeamName === lowerQuery) {
+        rank = 4; // A - Exact match
+        matchType = 'exact';
+      } else if (wholeWordRegex.test(team.name)) {
+        rank = 3; // B - Whole-word match
+        matchType = 'word';
+      } else if (lowerTeamName.startsWith(lowerQuery)) {
+        rank = 2; // C - Prefix match
+        matchType = 'prefix';
+      } else if (lowerTeamName.includes(lowerQuery)) {
+        rank = 1; // D - Substring match
+        matchType = 'substring';
+      }
+      
+      if (rank > 0) {
+        results.push({
+          team,
+          rank,
+          matchType,
+        });
+      }
+    }
+    
+    // Sort by rank (descending), then by team name (ascending)
+    results.sort((a, b) => {
+      if (b.rank !== a.rank) return b.rank - a.rank;
+      return a.team.name.localeCompare(b.team.name);
+    });
+    
+    return results;
+  }, [allTeams]);
+
+  /**
+   * Team search results - only computed when in team search mode.
+   */
+  const teamSearchResults = useMemo(() => {
+    if (!isTeamSearchMode) return [];
+    return getRankedTeamMatches(treeSearchQuery);
+  }, [isTeamSearchMode, treeSearchQuery, getRankedTeamMatches]);
+
+  // Handlers
   const handleEdit = () => {
     setEditModalOpen(true);
   };
@@ -271,20 +412,6 @@ const OrgHierarchyPage = () => {
         setDeleteModalOpen(true);
       }
     }
-  };
-
-  const handleAddChild = () => {
-    if (selectedItem?.type === 'segment') {
-      setCreateType('subsegment');
-    } else if (selectedItem?.type === 'subsegment') {
-      setCreateType('project');
-    } else if (selectedItem?.type === 'project') {
-      setCreateType('team');
-    } else {
-      setCreateType('segment');
-    }
-    setCreateError(null);
-    setCreateModalOpen(true);
   };
 
   const handleCreate = async (formData) => {
@@ -392,10 +519,6 @@ const OrgHierarchyPage = () => {
     setImportModalOpen(false);
   };
 
-  const handleViewAudit = () => {
-    setAuditModalOpen(true);
-  };
-
   // Get dependencies for modal
   // Uses API-returned dependencies if available, otherwise falls back to local state
   const getDependencies = () => {
@@ -451,21 +574,78 @@ const OrgHierarchyPage = () => {
     setApiDependencies(null);
   };
 
-  // Determine what child type can be added
-  const getChildType = () => {
-    if (!selectedItem) return null;
-    if (selectedItem.type === 'segment') return 'Sub-Segment';
-    if (selectedItem.type === 'subsegment') return 'Project';
-    if (selectedItem.type === 'project') return 'Team';
-    return null;
-  };
+  // ═══════════════════════════════════════════════════════════════════════════
+  // INLINE TITLE EDIT HANDLERS
+  // ═══════════════════════════════════════════════════════════════════════════
+  
+  const startEditName = useCallback(() => {
+    if (!selectedItem || (selectedItem.type !== 'segment' && selectedItem.type !== 'subsegment' && selectedItem.type !== 'project')) return;
+    setEditNameValue(selectedItem.name);
+    setIsEditingName(true);
+    setTimeout(() => nameInputRef.current?.focus(), 0);
+  }, [selectedItem]);
 
-  // Handler specifically for adding sub-segment when a segment is selected
-  const handleAddSubSegment = () => {
-    setCreateType('subsegment');
-    setCreateError(null);
-    setCreateModalOpen(true);
-  };
+  const cancelEditName = useCallback(() => {
+    setIsEditingName(false);
+    setEditNameValue('');
+  }, []);
+
+  const saveEditName = useCallback(async () => {
+    const trimmed = editNameValue.trim();
+    if (!trimmed || !selectedItem) {
+      cancelEditName();
+      return;
+    }
+    if (trimmed === selectedItem.name) {
+      cancelEditName();
+      return;
+    }
+    
+    const oldName = selectedItem.name;
+    const itemId = selectedItem.id;
+    const rawId = selectedItem.rawId;
+    const type = selectedItem.type;
+    
+    // Helper to update name in tree data recursively
+    const updateNameInTree = (nodes, targetId, name) => {
+      return nodes.map(node => {
+        if (node.id === targetId) {
+          return { ...node, name };
+        }
+        if (node.children) {
+          return { ...node, children: updateNameInTree(node.children, targetId, name) };
+        }
+        return node;
+      });
+    };
+    
+    // Optimistic update
+    setTreeData(prev => updateNameInTree(prev, itemId, trimmed));
+    cancelEditName();
+    
+    try {
+      if (type === 'segment') {
+        await updateSegmentName(rawId, trimmed);
+      } else if (type === 'subsegment') {
+        await updateSubSegmentName(rawId, trimmed);
+      } else if (type === 'project') {
+        await updateProjectName(rawId, trimmed);
+      }
+    } catch (err) {
+      console.error(`Failed to update ${type} name:`, err);
+      // Rollback on failure
+      setTreeData(prev => updateNameInTree(prev, itemId, oldName));
+    }
+  }, [editNameValue, selectedItem, cancelEditName]);
+
+  const handleNameKeyDown = useCallback((e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      saveEditName();
+    } else if (e.key === 'Escape') {
+      cancelEditName();
+    }
+  }, [saveEditName, cancelEditName]);
 
   /**
    * Handle inline title save for Segment/Sub-Segment names.
@@ -535,7 +715,7 @@ const OrgHierarchyPage = () => {
 
   // Render header content with InlineEditableTitle for Segment/Sub-Segment
   // and category badge matching Skill Taxonomy UI
-  const renderHeaderContent = () => {
+  const _renderHeaderContent = () => {
     if (!selectedItem) return null;
     
     const isEditable = selectedItem.type === 'segment' || selectedItem.type === 'subsegment';
@@ -564,7 +744,7 @@ const OrgHierarchyPage = () => {
   };
 
   // Render header action buttons (Download Template, Import, Add) matching Skill Taxonomy UI
-  const renderHeaderActions = () => {
+  const _renderHeaderActions = () => {
     if (!selectedItem) return null;
     
     // Determine child type based on current selection
@@ -577,115 +757,217 @@ const OrgHierarchyPage = () => {
       }
     };
     
-    const childType = getChildTypeLabel();
+    // Reserved for future use when header actions are implemented
+    const _childType = getChildTypeLabel();
     
     
   };
 
   // Render details content based on selected item type
+  // Only handles selected item content - loading/error/empty handled by renderPanel()
   const renderDetailsContent = () => {
-    // Show loading state
-    if (isLoading) {
-      return <LoadingIndicator />;
-    }
-    
-    // Show error state
-    if (error) {
-      return <ErrorState error={error} onRetry={loadHierarchy} />;
-    }
-    
-    // Show empty state when no data or no selection
-    if (!selectedItem) {
-      // Check if hierarchy is empty
-      if (treeData.length === 0) {
+    // Team search mode - show global team search results
+    if (isTeamSearchMode) {
+      if (teamSearchResults.length === 0) {
         return (
-          <EmptyState
-            onAddRoot={() => {
-              setCreateType('segment');
-              setCreateError(null);
-              setCreateModalOpen(true);
-            }}
-            addButtonLabel="➕ Add New Segment"
-          />
+          <div className="empty-state" style={{ padding: '48px', textAlign: 'center' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🔍</div>
+            <h3 style={{ color: 'var(--text-primary)', marginBottom: '8px' }}>No results found</h3>
+            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
+              No teams match "{treeSearchQuery}". Try a different search term.
+            </p>
+          </div>
         );
       }
+
       return (
-        <EmptyState
-          onAddRoot={() => {
-            setCreateType('segment');
-            setCreateError(null);
-            setCreateModalOpen(true);
-          }}
-          addButtonLabel="➕ Add New Segment"
-        />
+        <InfoSection title={`Search Results (${teamSearchResults.length})`}>
+          <div className="search-results-table">
+            <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Team Name</th>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Project</th>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Sub-Segment</th>
+                  <th style={{ textAlign: 'left', padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>Segment</th>
+                </tr>
+              </thead>
+              <tbody>
+                {teamSearchResults.map((result) => (
+                  <tr 
+                    key={result.team.id}
+                    style={{ 
+                      cursor: 'pointer',
+                      backgroundColor: 'var(--bg-secondary)',
+                    }}
+                    onClick={() => {
+                      // Clear search and navigate to the team's parent project
+                      setTreeSearchQuery('');
+                      setSelectedNodeId(result.team.projectId);
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'var(--bg-secondary)'}
+                  >
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)' }}>
+                      <div style={{ fontWeight: 500 }}>{result.team.name}</div>
+                    </td>
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                      {result.team.projectName}
+                    </td>
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                      {result.team.subSegmentName}
+                    </td>
+                    <td style={{ padding: '12px 8px', borderBottom: '1px solid var(--border)', color: 'var(--text-secondary)' }}>
+                      {result.team.segmentName}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </InfoSection>
       );
+    }
+    
+    // No item selected - return null (renderPanel handles empty state)
+    if (!selectedItem) {
+      return null;
     }
 
     // Segment details
     if (selectedItem.type === 'segment') {
       return (
         <>
-          {/* Metadata */}
-          <InfoSection title="Details">
-            <InfoGrid>
-              <InfoItem label="Name" value={selectedItem.name} />
-              <InfoItem label="Type" value={getTypeLabel(selectedItem.type)} />
-            </InfoGrid>
-            {selectedItem.description && (
-              <InfoBox style={{ marginTop: '12px' }}>
-                <p style={{ color: 'var(--text-secondary)', fontSize: '14px', margin: 0 }}>
-                  {selectedItem.description}
-                </p>
-              </InfoBox>
-            )}
-          </InfoSection>
+          {/* Details - styled to match Skill Library pattern */}
+          <div className="oh-kv">
+            <div className="oh-k">Details</div>
+            <div className="oh-kv-grid">
+              <div className="oh-key">Segment Name</div>
+              <div className="oh-val">{selectedItem.name}</div>
+              <div className="oh-key">Description</div>
+              <div className={selectedItem.description ? 'oh-val' : 'oh-val oh-val-muted'}>
+                {selectedItem.description || 'No description provided'}
+              </div>
+            </div>
+          </div>
 
-          {/* Statistics */}
-          <InfoSection title="Statistics">
-            <StatsGrid>
-              <StatCard label="Sub-Segments" value={selectedItem.subSegmentCount || 0} />
-              <StatCard label="Projects" value={selectedItem.projectCount || 0} />
-              <StatCard label="Teams" value={selectedItem.teamCount || 0} />
-              <StatCard label="Employees" value={selectedItem.employeeCount || 0} />
-            </StatsGrid>
-          </InfoSection>
-
-          {/* Audit Info */}
-          <InfoSection title="Audit Trail">
-            <InfoGrid>
-              <InfoItem label="Created At" value={selectedItem.createdAt || '-'} />
-              <InfoItem label="Created By" value={selectedItem.createdBy || '-'} />
-            </InfoGrid>
-            <button
-              className="btn btn-ghost"
-              style={{ marginTop: '12px', fontSize: '13px' }}
-              onClick={handleViewAudit}
-            >
-              📋 View Full History
-            </button>
-          </InfoSection>
-
-          {/* Warnings */}
-          {selectedItem.employeeCount > 30 && (
-            <Alert type="warning">
-              This segment has {selectedItem.employeeCount} employees. Changes may affect many team members.
-            </Alert>
-          )}
+          {/* Sub-Segments Table */}
+          <OrgSegmentSubSegmentsPanel
+            subSegments={selectedItem.children || []}
+            segmentName={selectedItem.name}
+            onCreateSubSegment={async (subSegmentName) => {
+              // Call API to create sub-segment using selectedItem.rawId as parent segment
+              try {
+                await createSubSegment(selectedItem.rawId, subSegmentName);
+                // Refresh hierarchy to show new sub-segment
+                await loadHierarchy();
+              } catch (err) {
+                console.error('Failed to create sub-segment:', err);
+                throw err; // Re-throw so the panel keeps add mode open
+              }
+            }}
+            onEditSubSegment={async (subSegmentWithNewName) => {
+              const { id, newName } = subSegmentWithNewName;
+              // Extract raw ID (remove prefix like 'subseg-')
+              const rawId = typeof id === 'string' && id.includes('-') ? parseInt(id.split('-').pop(), 10) : id;
+              
+              try {
+                await updateSubSegmentName(rawId, newName);
+                // Update tree data
+                setTreeData(prev => {
+                  const updateSubSegmentInTree = (nodes) => {
+                    return nodes.map(node => {
+                      if (node.id === id) {
+                        return { ...node, name: newName };
+                      }
+                      if (node.children) {
+                        return { ...node, children: updateSubSegmentInTree(node.children) };
+                      }
+                      return node;
+                    });
+                  };
+                  return updateSubSegmentInTree(prev);
+                });
+              } catch (err) {
+                console.error('Failed to update sub-segment name:', err);
+                throw err; // Re-throw so the panel keeps edit mode open
+              }
+            }}
+            onDeleteSubSegment={async (subSegment) => {
+              // Extract raw ID (remove prefix like 'subseg-')
+              const rawId = typeof subSegment.id === 'string' && subSegment.id.includes('-') 
+                ? parseInt(subSegment.id.split('-').pop(), 10) 
+                : subSegment.id;
+              
+              try {
+                // First check for dependencies
+                const checkResult = await checkCanDeleteSubSegment(rawId);
+                if (!checkResult.canDelete) {
+                  // Has dependencies - show warning
+                  alert(`Cannot delete "${subSegment.name}": it has ${checkResult.conflict.dependencies.projects} project(s). Delete the projects first.`);
+                  return;
+                }
+                
+                // No dependencies - delete
+                await deleteSubSegment(rawId);
+                // Refresh hierarchy
+                await loadHierarchy();
+              } catch (err) {
+                console.error('Failed to delete sub-segment:', err);
+                alert('Failed to delete sub-segment');
+              }
+            }}
+            onBulkDeleteSubSegments={async (subSegmentsToDelete) => {
+              try {
+                // Delete each sub-segment in sequence
+                for (const subSegment of subSegmentsToDelete) {
+                  const rawId = typeof subSegment.id === 'string' && subSegment.id.includes('-') 
+                    ? parseInt(subSegment.id.split('-').pop(), 10) 
+                    : subSegment.id;
+                  
+                  // Check for dependencies first
+                  const checkResult = await checkCanDeleteSubSegment(rawId);
+                  if (!checkResult.canDelete) {
+                    // Skip this sub-segment - has dependencies
+                    alert(`Cannot delete "${subSegment.name}": it has ${checkResult.conflict.dependencies.projects} project(s). Skipping.`);
+                    continue;
+                  }
+                  
+                  await deleteSubSegment(rawId);
+                }
+                // Refresh hierarchy
+                await loadHierarchy();
+              } catch (err) {
+                console.error('Failed to bulk delete sub-segments:', err);
+                alert('Failed to delete some sub-segments');
+              }
+            }}
+          />
         </>
       );
     }
 
     // Sub-Segment details + Projects table
     if (selectedItem.type === 'subsegment') {
+      const parentSegmentName = findItemById(treeData, selectedItem.parentId)?.name || '-';
+      const projectCount = selectedItem.children?.length || 0;
+      
       return (
         <>
-          {/* Details */}
-          <InfoSection title="Details">
-            <InfoBox>
-              <InfoItem label="Description" value={selectedItem.description || '-'} style={{ marginBottom: '16px' }} />
-              <InfoItem label="Parent Segment" value={findItemById(treeData, selectedItem.parentId)?.name || '-'} />
-            </InfoBox>
-          </InfoSection>
+          {/* Details - styled to match Segment Details */}
+          <div className="oh-kv">
+            <div className="oh-k">Details</div>
+            <div className="oh-kv-grid">
+              <div className="oh-key">Parent Segment</div>
+              <div className="oh-val">{parentSegmentName}</div>
+              <div className="oh-key">Description</div>
+              <div className={selectedItem.description ? 'oh-val' : 'oh-val oh-val-muted'}>
+                {selectedItem.description || 'No description provided'}
+              </div>
+              <div className="oh-key">Projects</div>
+              <div className="oh-val">{projectCount}</div>
+            </div>
+          </div>
 
           {/* Projects Table */}
           <OrgSubSegmentProjectsPanel
@@ -785,15 +1067,25 @@ const OrgHierarchyPage = () => {
 
     // Project details + Teams table
     if (selectedItem.type === 'project') {
+      const parentSubSegmentName = findItemById(treeData, selectedItem.parentId)?.name || '-';
+      const teamCount = selectedItem.teams?.length || 0;
+      
       return (
         <>
-          {/* Details */}
-          <InfoSection title="Details">
-            <InfoBox>
-              <InfoItem label="Description" value={selectedItem.description || '-'} style={{ marginBottom: '16px' }} />
-              <InfoItem label="Parent Sub-Segment" value={findItemById(treeData, selectedItem.parentId)?.name || '-'} />
-            </InfoBox>
-          </InfoSection>
+          {/* Details - styled to match Segment Details */}
+          <div className="oh-kv">
+            <div className="oh-k">Details</div>
+            <div className="oh-kv-grid">
+              <div className="oh-key">Parent Sub-Segment</div>
+              <div className="oh-val">{parentSubSegmentName}</div>
+              <div className="oh-key">Description</div>
+              <div className={selectedItem.description ? 'oh-val' : 'oh-val oh-val-muted'}>
+                {selectedItem.description || 'No description provided'}
+              </div>
+              <div className="oh-key">Teams</div>
+              <div className="oh-val">{teamCount}</div>
+            </div>
+          </div>
 
           {/* Teams Table */}
           <OrgProjectTeamsPanel
@@ -933,6 +1225,314 @@ const OrgHierarchyPage = () => {
     return null;
   };
 
+  // Filter tree nodes recursively based on search query
+  const filterNodes = useCallback((nodes, query) => {
+    if (!query) return nodes;
+    
+    const lowerQuery = query.toLowerCase();
+    
+    const filterRecursive = (nodeList) => {
+      const result = [];
+      for (const node of nodeList) {
+        const nodeMatches = node.name.toLowerCase().includes(lowerQuery);
+        const children = node.children || [];
+        const filteredChildren = children.length > 0 ? filterRecursive(children) : [];
+        
+        if (nodeMatches || filteredChildren.length > 0) {
+          result.push({ ...node, children: filteredChildren });
+        }
+      }
+      return result;
+    };
+    
+    return filterRecursive(nodes);
+  }, []);
+
+  // Filtered tree data
+  const filteredData = useMemo(() => 
+    filterNodes(treeData, debouncedSearchQuery),
+    [treeData, debouncedSearchQuery, filterNodes]
+  );
+
+  // Should expand node - auto-expand during search
+  const shouldExpand = (nodeId) => {
+    return debouncedSearchQuery ? true : expandedNodes.has(nodeId);
+  };
+
+  // Toggle node expansion
+  const toggleExpand = (nodeId, e) => {
+    e.stopPropagation();
+    setExpandedNodes(prev => {
+      const next = new Set(prev);
+      if (next.has(nodeId)) {
+        next.delete(nodeId);
+      } else {
+        next.add(nodeId);
+      }
+      return next;
+    });
+  };
+
+  // Render tree
+  const renderTree = () => {
+    if (filteredData.length === 0) {
+      if (debouncedSearchQuery) {
+        // If in team search mode, show team results notice
+        if (isTeamSearchMode && teamSearchResults.length > 0) {
+          return (
+            <div className="oh-team-search-notice">
+              <div style={{ fontSize: '32px' }}>🔍</div>
+              <p>
+                Found <strong>{teamSearchResults.length} team{teamSearchResults.length !== 1 ? 's' : ''}</strong> matching "{treeSearchQuery}"
+              </p>
+              <p className="oh-hint">See results in right panel →</p>
+            </div>
+          );
+        }
+        return (
+          <div style={{ padding: '24px', textAlign: 'center' }}>
+            <div style={{ fontSize: '32px', marginBottom: '8px', opacity: 0.5 }}>🔍</div>
+            <p style={{ color: 'var(--oh-sub)', fontSize: '14px', margin: 0 }}>
+              No results found for "{debouncedSearchQuery}"
+            </p>
+          </div>
+        );
+      }
+      return (
+        <div style={{ padding: '24px', textAlign: 'center' }}>
+          <div style={{ fontSize: '32px', marginBottom: '8px', opacity: 0.5 }}>📁</div>
+          <p style={{ color: 'var(--oh-sub)', fontSize: '14px', margin: 0 }}>
+            No items yet. Click "+ Add Segment" to create one.
+          </p>
+        </div>
+      );
+    }
+
+    // Recursive tree node renderer supporting all levels (Segment → Sub-Segment → Project)
+    // Teams are shown in the right panel when a Project is selected
+    const renderTreeNode = (node, depth = 0) => {
+      const hasChildren = node.children && node.children.length > 0;
+      const isExpanded = shouldExpand(node.id);
+      const isSelected = selectedNodeId === node.id;
+
+      // Determine icon and label based on node type
+      const getNodeIcon = () => {
+        switch (node.type) {
+          case 'segment': return '🏢';
+          case 'subsegment': return '🏬';
+          case 'project': return '📋';
+          default: return '📄';
+        }
+      };
+
+      // Get count label (children count or team count for projects)
+      const getCountLabel = () => {
+        if (node.type === 'project') {
+          return node.teams?.length || 0;
+        }
+        return node.children?.length || 0;
+      };
+
+      return (
+        <li key={node.id} style={{ marginLeft: depth > 0 ? '0' : '0' }}>
+          <div
+            className={`oh-node${isSelected ? ' selected' : ''}`}
+            onClick={() => setSelectedNodeId(node.id)}
+            style={{ paddingLeft: depth > 0 ? `${10 + depth * 4}px` : undefined }}
+          >
+            <div className="oh-node-left">
+              <span
+                className="oh-caret"
+                onClick={(e) => hasChildren && toggleExpand(node.id, e)}
+              >
+                {hasChildren ? (isExpanded ? '▾' : '▸') : ''}
+              </span>
+              <span style={{ fontSize: '14px' }}>{getNodeIcon()}</span>
+              <span className="oh-label">{node.name}</span>
+            </div>
+            <span className="oh-count">({getCountLabel()})</span>
+          </div>
+
+          {hasChildren && isExpanded && (
+            <div className="oh-subtree">
+              <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+                {node.children.map((child) => renderTreeNode(child, depth + 1))}
+              </ul>
+            </div>
+          )}
+        </li>
+      );
+    };
+
+    return (
+      <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
+        {filteredData.map((segment) => renderTreeNode(segment, 0))}
+      </ul>
+    );
+  };
+
+  // Render empty state for right panel
+  const renderEmptyState = () => (
+    <>
+      <div className="oh-panel-header">
+        <h2 className="oh-panel-title">Details</h2>
+      </div>
+      <div className="oh-panel-body">
+        <div className="oh-empty">
+          <div className="oh-doc-icon">📄</div>
+          <h3>No item selected</h3>
+          <p>
+            Select a Segment from the left tree to manage Sub-segments, Projects, and Teams. This keeps the org hierarchy consistent for everyone.
+          </p>
+
+          <div className="oh-steps">
+            <h4>How to use</h4>
+            <ul>
+              <li>Pick a segment from the left tree</li>
+              <li>Add or edit sub-segments under that segment</li>
+              <li>Select a sub-segment to manage projects</li>
+              <li>Select a project to manage teams</li>
+            </ul>
+          </div>
+
+          <div className="oh-note">
+            Use the single global "+ Add Segment" button in the top-right when you need a new segment.
+          </div>
+        </div>
+      </div>
+    </>
+  );
+
+  // Render right panel content
+  const renderPanel = () => {
+    if (isLoading) {
+      return (
+        <>
+          <div className="oh-panel-header">
+            <h2 className="oh-panel-title">Details</h2>
+          </div>
+          <div className="oh-panel-body">
+            <div className="oh-loading">
+              <div className="oh-spinner"></div>
+              <div className="oh-loading-text">Loading Organization Hierarchy...</div>
+            </div>
+          </div>
+        </>
+      );
+    }
+    
+    if (error) {
+      return (
+        <>
+          <div className="oh-panel-header">
+            <h2 className="oh-panel-title">Details</h2>
+          </div>
+          <div className="oh-panel-body">
+            <div className="oh-error">
+              <div className="oh-error-icon">⚠️</div>
+              <div className="oh-error-title">Failed to Load Hierarchy</div>
+              <div className="oh-error-message">{error}</div>
+              <button className="oh-btn" onClick={loadHierarchy}>🔄 Retry</button>
+            </div>
+          </div>
+        </>
+      );
+    }
+
+    if (!selectedItem && !isTeamSearchMode) {
+      return renderEmptyState();
+    }
+    
+    // Team search mode - show search results title
+    if (isTeamSearchMode) {
+      return (
+        <>
+          <div className="oh-panel-header">
+            <div>
+              <h2 className="oh-panel-title">Search Results</h2>
+              <div style={{ fontSize: '12px', color: 'var(--oh-sub)', marginTop: '4px' }}>
+                Searching for "{treeSearchQuery}"
+              </div>
+            </div>
+          </div>
+          <div className="oh-panel-body">
+            {renderDetailsContent()}
+          </div>
+        </>
+      );
+    }
+
+    // Determine if this item type supports inline name editing
+    const supportsInlineEdit = selectedItem.type === 'segment' || selectedItem.type === 'subsegment' || selectedItem.type === 'project';
+
+    // Render content based on selected item
+    return (
+      <>
+        <div className="oh-panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          {/* Left side: Badge + Name (or inline edit input) */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1, minWidth: 0 }}>
+            <span className="oh-pill">{getTypeLabel(selectedItem.type)}</span>
+            {supportsInlineEdit && isEditingName ? (
+              <input
+                ref={nameInputRef}
+                type="text"
+                className="oh-title-input"
+                value={editNameValue}
+                onChange={(e) => setEditNameValue(e.target.value)}
+                onKeyDown={handleNameKeyDown}
+                style={{ flex: 1 }}
+              />
+            ) : (
+              <h2 className="oh-panel-title" style={{ margin: 0 }}>{selectedItem.name}</h2>
+            )}
+          </div>
+          {/* Right side: Save/Cancel when editing, Edit/Delete when not */}
+          {supportsInlineEdit && isEditingName && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0, marginLeft: '12px' }}>
+              <button 
+                className="oh-iconbtn oh-iconbtn-sm oh-iconbtn-save" 
+                title="Save" 
+                onMouseDown={(e) => { e.preventDefault(); saveEditName(); }}
+              >✓</button>
+              <button 
+                className="oh-iconbtn oh-iconbtn-sm" 
+                title="Cancel" 
+                onMouseDown={(e) => { e.preventDefault(); cancelEditName(); }}
+              >✕</button>
+            </div>
+          )}
+          {supportsInlineEdit && !isEditingName && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+              <button className="oh-iconbtn oh-iconbtn-sm" title={`Edit ${getTypeLabel(selectedItem.type).toLowerCase()} name`} onClick={startEditName}>✏️</button>
+              <button className="oh-iconbtn oh-iconbtn-sm oh-iconbtn-danger" title={`Delete ${getTypeLabel(selectedItem.type).toLowerCase()}`} onClick={handleDelete}>🗑️</button>
+            </div>
+          )}
+          {!supportsInlineEdit && (
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', flexShrink: 0 }}>
+              <button
+                className="oh-iconbtn oh-iconbtn-sm"
+                onClick={handleEdit}
+                title="Edit"
+              >
+                ✏️
+              </button>
+              <button
+                className="oh-iconbtn oh-iconbtn-sm oh-iconbtn-danger"
+                onClick={handleDelete}
+                title="Delete"
+              >
+                🗑️
+              </button>
+            </div>
+          )}
+        </div>
+        <div className="oh-panel-body">
+          {renderDetailsContent()}
+        </div>
+      </>
+    );
+  };
+
   // Get parent options for create modal
   const getParentOptions = () => {
     if (createType === 'subsegment') {
@@ -946,38 +1546,67 @@ const OrgHierarchyPage = () => {
   };
 
   return (
-    <MasterDataLayout pageTitle="Organization Hierarchy">
-      <>
-        <TreePanel
+    <div className="org-hierarchy">
+      {/* Header wrapper with consistent padding matching Dashboard */}
+      <div style={{ padding: '0 20px' }}>
+        <PageHeader
           title="Organization Hierarchy"
-          treeData={treeData}
-          selectedNodeId={selectedNodeId}
-          onNodeSelect={handleNodeSelect}
-          renderNodeIcon={(node) => getTypeIcon(node.type)}
-          getNodeChildren={(node) => node.children || []}
-          searchPlaceholder="Search segments, projects, teams..."
-          addRootLabel="+ Add Segment"
-          onAddRoot={() => {
-            setCreateType('segment');
-            setCreateError(null);
-            setCreateModalOpen(true);
-          }}
+          subtitle="Define segments, sub-segments, projects, and teams for consistent governance."
+          actions={
+            <button
+              className="oh-btn"
+              onClick={() => {
+                setCreateType('segment');
+                setCreateError(null);
+                setCreateModalOpen(true);
+              }}
+            >
+              + Add Segment
+            </button>
+          }
         />
-        
-        <DetailsPanel
-          title={selectedItem ? `${selectedItem.name}` : 'Details'}
-          subtitle={null}
-          headerContent={selectedItem ? renderHeaderContent() : null}
-          headerActions={selectedItem ? renderHeaderActions() : null}
-          showActions={false}
-          onEdit={handleEdit}
-          onDelete={handleDelete}
-          onAddChild={null}
-          addChildLabel={null}
-        >
-          {renderDetailsContent()}
-        </DetailsPanel>
-      </>
+      </div>
+
+      {/* Error banner */}
+      {error && (
+        <div className="oh-error-banner">
+          ⚠️ {error}
+          <button onClick={() => setError(null)}>✕</button>
+        </div>
+      )}
+
+      {/* Content */}
+      <section className="oh-content">
+        <div className="oh-grid">
+          {/* Left: Tree Panel */}
+          <section className="oh-card">
+            <div className="oh-card-h">
+              <div className="oh-card-h-left">
+                <div className="oh-h-title">Segments</div>
+                <div className="oh-h-sub">Browse and select a segment</div>
+              </div>
+            </div>
+
+            <div className="oh-search">
+              <input
+                className="oh-input"
+                placeholder="Search segments, projects, teams..."
+                value={treeSearchQuery}
+                onChange={(e) => setTreeSearchQuery(e.target.value)}
+              />
+            </div>
+
+            <div className="oh-tree">
+              {renderTree()}
+            </div>
+          </section>
+
+          {/* Right: Details Panel */}
+          <section className="oh-card oh-panel">
+            {renderPanel()}
+          </section>
+        </div>
+      </section>
 
       {/* Modals */}
       <CreateEditModal
@@ -1033,7 +1662,7 @@ const OrgHierarchyPage = () => {
         onClose={() => setAuditModalOpen(false)}
         itemName={selectedItem?.name}
       />
-    </MasterDataLayout>
+    </div>
   );
 };
 

@@ -1,0 +1,21 @@
+{
+  "segment": {
+    "id": 9001,
+    "name": "Test Segment Alpha"
+  },
+  "subSegment": {
+    "id": 9001,
+    "name": "Test SubSegment Alpha-1",
+    "segmentId": 9001
+  },
+  "project": {
+    "id": 9001,
+    "name": "Test Project Phoenix",
+    "subSegmentId": 9001
+  },
+  "team": {
+    "id": 9001,
+    "name": "Test Team Automators",
+    "projectId": 9001
+  }
+}

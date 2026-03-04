@@ -10,7 +10,7 @@ import { dropdownApi } from '@/services/api/dropdownApi.js';
 
 // Mock fetch globally
 const mockFetch = vi.fn();
-global.fetch = mockFetch;
+globalThis.fetch = mockFetch;
 
 describe('dropdownApi', () => {
   beforeEach(() => {

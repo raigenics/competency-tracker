@@ -34,7 +34,7 @@ from app.schemas.master_data_update import (
 )
 from app.services.master_data import skill_taxonomy_service
 from app.services.master_data import taxonomy_update_service
-from app.services.master_data.exceptions import NotFoundError, ConflictError, ValidationError
+from app.services.master_data.exceptions import NotFoundError, ConflictError, ValidationError, EmbeddingError
 
 logger = logging.getLogger(__name__)
 
@@ -103,6 +103,12 @@ def _handle_master_data_error(e: Exception) -> HTTPException:
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=e.message
         )
+    elif isinstance(e, EmbeddingError):
+        logger.error(f"Embedding error: {e.message}", exc_info=True)
+        return HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Embedding generation failed: {e.message}"
+        )
     else:
         logger.error(f"Unexpected error: {str(e)}", exc_info=True)
         return HTTPException(
@@ -133,6 +139,7 @@ async def create_category(
     
     Args:
     - **category_name**: Name for the category (must be unique, case-insensitive)
+    - **description**: Optional description for the category
     """
     logger.info(f"POST /master-data/skill-taxonomy/categories")
     
@@ -142,6 +149,7 @@ async def create_category(
         return taxonomy_update_service.create_category(
             db=db,
             category_name=request.category_name,
+            description=request.description,
             actor=actor
         )
     except (NotFoundError, ConflictError, ValidationError) as e:
@@ -175,6 +183,7 @@ async def create_subcategory(
     Args:
     - **category_id**: Parent category ID
     - **subcategory_name**: Name for the subcategory (must be unique within category, case-insensitive)
+    - **description**: Optional description for the subcategory
     """
     logger.info(f"POST /master-data/skill-taxonomy/categories/{category_id}/subcategories")
     
@@ -191,6 +200,7 @@ async def create_subcategory(
             db=db,
             category_id=category_id,
             subcategory_name=request.subcategory_name,
+            description=request.description,
             actor=actor
         )
     except (NotFoundError, ConflictError, ValidationError) as e:
@@ -271,28 +281,46 @@ async def update_category(
     # current_user: RbacContext = Depends(get_rbac_context)
 ):
     """
-    Update a skill category's name.
+    Update a skill category's name and/or description.
     
     Requires Project Manager or Admin role.
     
     - **category_name**: New name for the category (must be unique, case-insensitive)
+    - **description**: New description for the category (optional)
     """
     logger.info(f"PATCH /master-data/skill-taxonomy/categories/{category_id}")
     
     # TODO: Get actor from current_user when auth is implemented
     actor = "system"  # Placeholder
     
-    if not request or request.category_name is None:
+    if not request or (request.category_name is None and request.description is None):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="category_name is required"
+            detail="category_name or description is required"
         )
+    
+    # If no name provided, we need to fetch current name to pass to service
+    if request.category_name is None:
+        from app.models import SkillCategory
+        category = db.query(SkillCategory).filter(
+            SkillCategory.category_id == category_id
+        ).first()
+        if not category:
+            raise HTTPException(status_code=404, detail="Category not found")
+        new_name = category.category_name
+    else:
+        new_name = request.category_name
+    
+    # Determine if description should be updated
+    update_description = request.description is not None
     
     try:
         return taxonomy_update_service.update_category_name(
             db=db,
             category_id=category_id,
-            new_name=request.category_name,
+            new_name=new_name,
+            description=request.description if update_description else None,
+            update_description=update_description,
             actor=actor
         )
     except (NotFoundError, ConflictError, ValidationError) as e:
@@ -321,11 +349,12 @@ async def update_subcategory(
     # TODO: Add auth dependency when RBAC is fully implemented
 ):
     """
-    Update a skill subcategory's name.
+    Update a skill subcategory's name and/or description.
     
     Requires Project Manager or Admin role.
     
     - **subcategory_name**: New name for the subcategory (must be unique within its category, case-insensitive)
+    - **description**: New description for the subcategory (optional)
     """
     logger.info(f"PATCH /master-data/skill-taxonomy/subcategories/{subcategory_id}")
     
@@ -337,11 +366,16 @@ async def update_subcategory(
             detail="subcategory_name is required"
         )
     
+    # Check if description was explicitly set in the request body
+    update_description = 'description' in (request.model_dump(exclude_unset=True) if hasattr(request, 'model_dump') else {})
+    
     try:
         return taxonomy_update_service.update_subcategory_name(
             db=db,
             subcategory_id=subcategory_id,
             new_name=request.subcategory_name,
+            description=request.description,
+            update_description=update_description,
             actor=actor
         )
     except (NotFoundError, ConflictError, ValidationError) as e:

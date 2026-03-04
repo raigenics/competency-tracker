@@ -1,7 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/PageHeader.jsx';
 import { bulkImportApi } from '../../services/api/bulkImportApi.js';
+import SkillMappingModal from './SkillMappingModal.jsx';
+import RoleMappingModal from './RoleMappingModal.jsx';
+import TeamMappingModal from './TeamMappingModal.jsx';
 
 const BulkImportPage = () => {
   const navigate = useNavigate();
@@ -16,12 +19,46 @@ const BulkImportPage = () => {
   const [importError, setImportError] = useState(null);
     // Progress tracking state
   const [jobId, setJobId] = useState(null);
+  const [completedJobId, setCompletedJobId] = useState(null); // Preserved for unresolved skills
   const [progressData, setProgressData] = useState(null);
   const pollingIntervalRef = useRef(null);
   
   // UI smoothing state for progress animation
   const [displayPercent, setDisplayPercent] = useState(0);
   const animationFrameRef = useRef(null);
+  // Track previous progressData for render-time sync
+  const [prevProgressData, setPrevProgressData] = useState(progressData);
+  
+  // Unresolved skills mapping modal state
+  const [mappingModalOpen, setMappingModalOpen] = useState(false);
+  const [unresolvedSkills, setUnresolvedSkills] = useState([]);
+  const [selectedUnresolvedSkill, setSelectedUnresolvedSkill] = useState(null);
+  const [, setLoadingUnresolved] = useState(false);
+
+  // Role mapping modal state
+  const [roleMappingModalOpen, setRoleMappingModalOpen] = useState(false);
+  const [selectedRoleFailedRow, setSelectedRoleFailedRow] = useState(null);
+  const [selectedRoleFailedRowIndex, setSelectedRoleFailedRowIndex] = useState(null);
+
+  // Team mapping modal state
+  const [teamMappingModalOpen, setTeamMappingModalOpen] = useState(false);
+  const [selectedTeamFailedRow, setSelectedTeamFailedRow] = useState(null);
+  const [selectedTeamFailedRowIndex, setSelectedTeamFailedRowIndex] = useState(null);
+
+  // Reset displayPercent when progressData becomes null (React recommended pattern)
+  if (progressData !== prevProgressData) {
+    setPrevProgressData(progressData);
+    if (!progressData && displayPercent !== 0) {
+      setDisplayPercent(0);
+    }
+    // Handle NORMAL PROGRESS: sync displayPercent with progressData.percent_complete
+    if (progressData?.status && progressData.status !== 'completed') {
+      const targetPercent = progressData.percent_complete || 0;
+      if (displayPercent !== targetPercent) {
+        setDisplayPercent(targetPercent);
+      }
+    }
+  }
 
   // File handlers
   const handleFileSelect = (event) => {
@@ -61,6 +98,136 @@ const BulkImportPage = () => {
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
+  
+  // Fetch unresolved skills (WITHOUT suggestions - loaded on-demand in modal)
+  const fetchUnresolvedSkills = useCallback(async (runId) => {
+    if (!runId) return;
+    
+    setLoadingUnresolved(true);
+    try {
+      // Fetch without suggestions for fast page load; suggestions loaded in modal
+      const response = await bulkImportApi.getUnresolvedSkills(runId, { includeSuggestions: false });
+      setUnresolvedSkills(response.unresolved_skills || []);
+    } catch (err) {
+      console.error('Failed to fetch unresolved skills:', err);
+      // Don't fail the UI - just show the failed rows without suggestions
+    } finally {
+      setLoadingUnresolved(false);
+    }
+  }, []);
+  
+  // Handle opening the mapping modal for a failed row
+  const handleMapClick = useCallback((failedRow) => {
+    // Find matching unresolved skill from the fetched list
+    const matchingUnresolved = unresolvedSkills.find(us => 
+      us.raw_text.toLowerCase() === failedRow.skill_name?.toLowerCase() ||
+      us.normalized_text.toLowerCase() === failedRow.skill_name?.toLowerCase().trim()
+    );
+    
+    if (matchingUnresolved && matchingUnresolved.raw_skill_id) {
+      // Found matching skill with valid ID
+      setSelectedUnresolvedSkill(matchingUnresolved);
+      setMappingModalOpen(true);
+    } else {
+      // No matching skill found or missing raw_skill_id - show error
+      console.error('Cannot open Map modal: no matching unresolved skill with raw_skill_id for:', failedRow.skill_name);
+      setImportError(`Cannot map skill "${failedRow.skill_name}": skill data not loaded. Please refresh the page.`);
+    }
+  }, [unresolvedSkills]);
+  
+  // Handle successful skill resolution
+  const handleSkillResolved = useCallback((result) => {
+    console.log('Skill resolved:', result);
+    
+    // Remove the resolved skill from the unresolved list
+    setUnresolvedSkills(prev => 
+      prev.filter(s => s.raw_skill_id !== result.raw_skill_id)
+    );
+    
+    // Update failed_rows to mark this row as resolved
+    if (importResults?.failed_rows) {
+      setImportResults(prev => ({
+        ...prev,
+        failed_rows: prev.failed_rows.map(row => {
+          if (row.skill_name?.toLowerCase() === result.alias_text?.toLowerCase()) {
+            return {
+              ...row,
+              resolved: true,
+              resolved_skill_id: result.resolved_skill_id
+            };
+          }
+          return row;
+        }),
+        // Update the failed count
+        skill_failed: Math.max(0, (prev.skill_failed || 0) - 1)
+      }));
+    }
+  }, [importResults]);
+
+  // Handle opening the role mapping modal for a MISSING_ROLE failed row
+  const handleRoleMapClick = useCallback((failedRow, rowIndex) => {
+    setSelectedRoleFailedRow(failedRow);
+    setSelectedRoleFailedRowIndex(rowIndex);
+    setRoleMappingModalOpen(true);
+  }, []);
+
+  // Handle successful role mapping
+  const handleRoleMapped = useCallback((result) => {
+    console.log('Role mapped:', result);
+    
+    // Update failed_rows to mark this row as resolved
+    if (importResults?.failed_rows) {
+      setImportResults(prev => ({
+        ...prev,
+        failed_rows: prev.failed_rows.map((row, idx) => {
+          if (idx === result.failed_row_index) {
+            return {
+              ...row,
+              resolved: true,
+              mapped_role_id: result.mapped_role_id,
+              mapped_role_name: result.mapped_role_name
+            };
+          }
+          return row;
+        }),
+        // Update the failed count
+        employee_failed: Math.max(0, (prev.employee_failed || 0) - 1)
+      }));
+    }
+  }, [importResults]);
+
+  // Handle opening the team mapping modal for a MISSING_TEAM failed row
+  const handleTeamMapClick = useCallback((failedRow, rowIndex) => {
+    setSelectedTeamFailedRow(failedRow);
+    setSelectedTeamFailedRowIndex(rowIndex);
+    setTeamMappingModalOpen(true);
+  }, []);
+
+  // Handle successful team mapping
+  const handleTeamMapped = useCallback((result) => {
+    console.log('Team mapped:', result);
+    
+    // Update failed_rows to mark this row as resolved
+    if (importResults?.failed_rows) {
+      setImportResults(prev => ({
+        ...prev,
+        failed_rows: prev.failed_rows.map((row, idx) => {
+          if (idx === result.failed_row_index) {
+            return {
+              ...row,
+              resolved: true,
+              mapped_team_id: result.mapped_team_id,
+              mapped_team_name: result.mapped_team_name
+            };
+          }
+          return row;
+        }),
+        // Update the failed count
+        employee_failed: Math.max(0, (prev.employee_failed || 0) - 1)
+      }));
+    }
+  }, [importResults]);
+
   // Import handler
   const startImport = async () => {
     if (!selectedFile) return;
@@ -114,10 +281,10 @@ const BulkImportPage = () => {
         });        // Check if job is complete
         if (status.status === 'completed') {
           setImportResults(status.result);
-          // BUGFIX: Don't immediately hide progress - let animation complete first
-          // Only hide progress UI after displayPercent reaches 100%
-          // (This is handled in the animation effect cleanup)
-          // setIsImporting(false); // MOVED - see animation effect
+          setCompletedJobId(jobId); // Preserve for unresolved skills fetching
+          // Reset import state immediately - buttons should be enabled as soon as import completes
+          // Progress animation can continue independently for visual smoothness
+          setIsImporting(false);
           setJobId(null);
           clearInterval(pollingIntervalRef.current);
         } else if (status.status === 'failed') {
@@ -152,15 +319,27 @@ const BulkImportPage = () => {
       }
     };
   }, [jobId]);
+  
+  // Fetch unresolved skills when import completes with failed rows
+  useEffect(() => {
+    if (importResults?.failed_rows?.length > 0 && completedJobId) {
+      // Check if any failed rows are SKILL_NOT_RESOLVED or SKILL_NEEDS_REVIEW
+      const hasUnresolvedSkills = importResults.failed_rows.some(row => 
+        row.error_code === 'SKILL_NOT_RESOLVED' || row.error_code === 'SKILL_NEEDS_REVIEW'
+      );
+      
+      if (hasUnresolvedSkills) {
+        fetchUnresolvedSkills(completedJobId);
+      }
+    }
+  }, [importResults, completedJobId, fetchUnresolvedSkills]);
+  
   // Smooth progress animation effect
   useEffect(() => {
     if (!progressData) {
-      setDisplayPercent(0);
       return;
     }
 
-    const targetPercent = progressData.percent_complete || 0;
-    
     // COMPLETION ANIMATION: When backend completes quickly, animate to 100% smoothly
     if (progressData.status === 'completed' && displayPercent < 100) {
       const startPercent = displayPercent;
@@ -194,22 +373,10 @@ const BulkImportPage = () => {
         }
         
         animationFrameRef.current = requestAnimationFrame(animate);
-      } else {
-        setDisplayPercent(100);
       }
+      // Note: diff <= 0 case is handled by render-time sync above
     } 
-    // NORMAL PROGRESS: Update immediately for in-progress states
-    else if (progressData.status !== 'completed') {
-      // Cancel any existing animation when status changes back to processing
-      if (animationFrameRef.current) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-      setDisplayPercent(targetPercent);
-    }
-    // If already at 100%, just set it
-    else if (displayPercent >= 100) {
-      setDisplayPercent(100);
-    }
+    // NORMAL PROGRESS and already at 100% cases are handled by render-time sync above
     
     // Cleanup
     return () => {
@@ -218,20 +385,6 @@ const BulkImportPage = () => {
       }
     };
   }, [progressData, displayPercent]);
-  // BUGFIX: Hide progress UI only after animation completes to prevent Import Report regression
-  // This ensures the Import Report appears after smooth completion animation finishes
-  // ROOT CAUSE: The completion animation (1.8s) + 100ms delay kept isImporting=true too long,
-  // causing spinner to run even after import report was visible.
-  // FIX: Progress section now checks `!importResults` to hide immediately when report appears.
-  useEffect(() => {
-    if (progressData?.status === 'completed' && displayPercent >= 100) {
-      // Small delay to ensure final frame is rendered
-      const timer = setTimeout(() => {
-        setIsImporting(false);
-      }, 100);
-      return () => clearTimeout(timer);
-    }
-  }, [progressData?.status, displayPercent]);
 
   // Utility
   const downloadTemplate = () => {
@@ -253,11 +406,14 @@ const BulkImportPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-[#f8fafc]">
-      <PageHeader 
-        title="Bulk Import – Employee & Skill Data"
-        subtitle="Upload an Excel file to bulk add or update employee and skill records."
-      />
+    <div className="bulk-import-page bg-[#f8f7f5]">
+      {/* Header wrapper with consistent padding matching Dashboard */}
+      <div style={{ padding: '0 26px' }}>
+        <PageHeader 
+          title="Bulk Import – Employee & Skill Data"
+          subtitle="Upload an Excel file to bulk add or update employee and skill records."
+        />
+      </div>
 
       <div className="px-8 py-8">
         <div className="max-w-[1200px] mx-auto">
@@ -532,7 +688,7 @@ const BulkImportPage = () => {
                     </div>
                   </div>                  {/* Failed Rows Table */}
                   {importResults.failed_rows && importResults.failed_rows.length > 0 && (
-                    <div className="max-w-[1000px] mx-auto mb-8">
+                    <div className="max-w-[1100px] mx-auto mb-8">
                       <h3 className="text-lg font-semibold text-[#1e293b] mb-4 text-left">Failed Rows Details</h3>
                       <div className="border-2 border-[#e2e8f0] rounded-lg overflow-hidden">
                         <div className="overflow-x-auto">
@@ -541,16 +697,24 @@ const BulkImportPage = () => {
                               <tr className="bg-[#f8fafc] border-b-2 border-[#e2e8f0]">
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Sheet</th>
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Excel Row</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Segment</th>
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">ZID</th>
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Employee Name</th>
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Skill</th>
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Category</th>
                                 <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Error</th>
+                                <th className="px-4 py-3 text-left text-xs font-semibold text-[#64748b] uppercase whitespace-nowrap">Action</th>
                               </tr>
                             </thead>
                             <tbody>
-                              {importResults.failed_rows.map((row, idx) => (
-                                <tr key={idx} className="border-b border-[#e2e8f0] hover:bg-[#f8fafc]">
+                              {importResults.failed_rows.map((row, idx) => {
+                                const isUnresolvedSkill = row.error_code === 'SKILL_NOT_RESOLVED' || row.error_code === 'SKILL_NEEDS_REVIEW';
+                                const isUnresolvedRole = row.error_code === 'MISSING_ROLE';
+                                const isUnresolvedTeam = row.error_code === 'MISSING_TEAM';
+                                const isResolved = row.resolved === true;
+                                
+                                return (
+                                  <tr key={idx} className={`border-b border-[#e2e8f0] hover:bg-[#f8fafc] ${isResolved ? 'bg-[#f0fdf4]/50' : ''}`}>
                                   <td className="px-4 py-3 text-[13px] text-[#475569] whitespace-nowrap">
                                     <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
                                       row.sheet === 'Employee' 
@@ -562,6 +726,9 @@ const BulkImportPage = () => {
                                   </td>
                                   <td className="px-4 py-3 text-[13px] text-[#475569] whitespace-nowrap">
                                     {row.excel_row_number || row.row_number || '-'}
+                                  </td>
+                                  <td className="px-4 py-3 text-[13px] text-[#475569] whitespace-nowrap">
+                                    {row.sub_segment || '-'}
                                   </td>
                                   <td className="px-4 py-3 text-[13px] text-[#475569] whitespace-nowrap">
                                     {row.zid || '-'}
@@ -578,11 +745,49 @@ const BulkImportPage = () => {
                                       : (row.category || row.subcategory || '-')
                                     }
                                   </td>
-                                  <td className="px-4 py-3 text-[13px] text-[#dc2626]">
-                                    {row.error_code && <span className="font-semibold">[{row.error_code}]</span>} {row.message}
+                                  <td className={`px-4 py-3 text-[13px] ${isResolved ? 'text-[#16a34a]' : 'text-[#dc2626]'}`}>
+                                    {isResolved ? (
+                                      <span className="flex items-center gap-1">
+                                        <span className="text-[#16a34a]">✓</span> Mapped
+                                      </span>
+                                    ) : (
+                                      <>
+                                        {row.error_code && <span className="font-semibold">[{row.error_code}]</span>} {row.message}
+                                      </>
+                                    )}
+                                  </td>
+                                  <td className="px-4 py-3 text-[13px]">
+                                    {isUnresolvedSkill && !isResolved && completedJobId && (
+                                      <button
+                                        onClick={() => handleMapClick(row)}
+                                        className="px-3 py-1.5 bg-[#667eea] text-white text-xs font-medium rounded hover:bg-[#5568d3] transition-colors"
+                                      >
+                                        Map Skill
+                                      </button>
+                                    )}
+                                    {isUnresolvedRole && !isResolved && completedJobId && (
+                                      <button
+                                        onClick={() => handleRoleMapClick(row, idx)}
+                                        className="px-3 py-1.5 bg-[#f59e0b] text-white text-xs font-medium rounded hover:bg-[#d97706] transition-colors"
+                                      >
+                                        Map Role
+                                      </button>
+                                    )}
+                                    {isUnresolvedTeam && !isResolved && completedJobId && (
+                                      <button
+                                        onClick={() => handleTeamMapClick(row, idx)}
+                                        className="px-3 py-1.5 bg-[#10b981] text-white text-xs font-medium rounded hover:bg-[#059669] transition-colors"
+                                      >
+                                        Map Team
+                                      </button>
+                                    )}
+                                    {isResolved && (
+                                      <span className="text-xs text-[#16a34a] font-medium">Done</span>
+                                    )}
                                   </td>
                                 </tr>
-                              ))}
+                                );
+                              })}
                             </tbody>
                           </table>
                         </div>
@@ -611,6 +816,46 @@ const BulkImportPage = () => {
           )}
         </div>
       </div>
+      
+      {/* Skill Mapping Modal */}
+      <SkillMappingModal
+        isOpen={mappingModalOpen}
+        onClose={() => {
+          setMappingModalOpen(false);
+          setSelectedUnresolvedSkill(null);
+        }}
+        importRunId={completedJobId}
+        unresolvedSkill={selectedUnresolvedSkill}
+        onResolved={handleSkillResolved}
+      />
+
+      {/* Role Mapping Modal */}
+      <RoleMappingModal
+        isOpen={roleMappingModalOpen}
+        onClose={() => {
+          setRoleMappingModalOpen(false);
+          setSelectedRoleFailedRow(null);
+          setSelectedRoleFailedRowIndex(null);
+        }}
+        importRunId={completedJobId}
+        failedRow={selectedRoleFailedRow}
+        failedRowIndex={selectedRoleFailedRowIndex}
+        onMapped={handleRoleMapped}
+      />
+
+      {/* Team Mapping Modal */}
+      <TeamMappingModal
+        isOpen={teamMappingModalOpen}
+        onClose={() => {
+          setTeamMappingModalOpen(false);
+          setSelectedTeamFailedRow(null);
+          setSelectedTeamFailedRowIndex(null);
+        }}
+        importRunId={completedJobId}
+        failedRow={selectedTeamFailedRow}
+        failedRowIndex={selectedTeamFailedRowIndex}
+        onMapped={handleTeamMapped}
+      />
     </div>
   );
 };
