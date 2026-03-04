@@ -29,6 +29,7 @@ from app.schemas.capability_finder import EmployeeSearchResult
 logger = logging.getLogger(__name__)
 
 
+
 def export_matching_talent_to_excel(
     db: Session,
     mode: str,
