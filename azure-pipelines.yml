@@ -31,3 +31,4 @@ steps:
     azureSubscription: $(azureServiceConnection)
     appName: $(appName)
     package: $(Build.ArtifactStagingDirectory)/app.zip
+    deploymentMethod: zipDeploy
