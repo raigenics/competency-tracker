@@ -9,10 +9,14 @@ variables:
   appName: 'app-competencyiq-stg-api'
 
 steps:
-
 - task: UsePythonVersion@0
   inputs:
     versionSpec: '3.11'
+
+- script: |
+    python -m pip install --upgrade pip
+    pip install -r backend/requirements.txt -t backend/.python_packages/lib/site-packages
+  displayName: "Bundle Python dependencies into .python_packages"
 
 - task: ArchiveFiles@2
   inputs:
@@ -20,6 +24,7 @@ steps:
     includeRootFolder: false
     archiveType: zip
     archiveFile: $(Build.ArtifactStagingDirectory)/app.zip
+    replaceExistingArchive: true
 
 - task: AzureWebApp@1
   inputs:
